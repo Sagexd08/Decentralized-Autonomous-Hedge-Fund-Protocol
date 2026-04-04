@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import mean_squared_error, mean_absolute_error
+from sklearn.metrics import confusion_matrix, mean_squared_error, mean_absolute_error
 
 from backend.core.supabase import download_storage_file, upload_storage_file
 from backend.ml.hybrid_model import CNNLSTMModel
@@ -37,6 +37,7 @@ ONLINE_STEPS  = 200      # how many online-learning steps after batch training
 PATIENCE      = 5        # early stopping patience
 MODEL_PATH    = Path("backend/ml/model.pkl")
 DEVICE        = torch.device("cpu")   # CPU training as requested
+DECISION_LABELS = ("SELL", "HOLD", "BUY")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -303,7 +304,7 @@ def online_train(
 # ══════════════════════════════════════════════════════════════════════════════
 
 def evaluate(model: CNNLSTMModel, loader: DataLoader) -> dict:
-    """Return MSE, MAE, RMSE on a DataLoader."""
+    """Return regression metrics plus direction-level confusion matrix."""
     model.eval()
     preds, truths = [], []
     with torch.no_grad():
@@ -315,8 +316,32 @@ def evaluate(model: CNNLSTMModel, loader: DataLoader) -> dict:
     mse  = mean_squared_error(truths, preds)
     mae  = mean_absolute_error(truths, preds)
     rmse = np.sqrt(mse)
-    log.info("Evaluation → MSE=%.6f | MAE=%.6f | RMSE=%.6f", mse, mae, rmse)
-    return {"mse": mse, "mae": mae, "rmse": rmse}
+    pred_actions = [decision(float(pred)) for pred in preds]
+    true_actions = [decision(float(truth)) for truth in truths]
+    matrix = confusion_matrix(true_actions, pred_actions, labels=list(DECISION_LABELS))
+    direction_accuracy = float((np.array(true_actions) == np.array(pred_actions)).mean())
+
+    log.info(
+        "Evaluation → MSE=%.6f | MAE=%.6f | RMSE=%.6f | DirectionAcc=%.2f%%",
+        mse,
+        mae,
+        rmse,
+        direction_accuracy * 100,
+    )
+    log.info("Confusion matrix labels: %s", list(DECISION_LABELS))
+    for label, row in zip(DECISION_LABELS, matrix.tolist()):
+        log.info("  actual=%-4s -> %s", label, row)
+
+    return {
+        "mse": float(mse),
+        "mae": float(mae),
+        "rmse": float(rmse),
+        "direction_accuracy": direction_accuracy,
+        "confusion_matrix": {
+            "labels": list(DECISION_LABELS),
+            "values": matrix.tolist(),
+        },
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════

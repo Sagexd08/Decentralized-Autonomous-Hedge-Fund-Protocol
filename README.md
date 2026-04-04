@@ -1,107 +1,170 @@
-Decentralized Autonomous Hedge Fund Protocol
+# DACAP
 
-A Research-Oriented System Design Report
-Autonomous Capital Allocation Using Online Learning and Cryptoeconomic Enforcement
+Decentralized Autonomous Capital Allocation Protocol for on-chain capital custody, off-chain agent intelligence, and research-grade ML-assisted risk management.
 
+## Overview
 
-1. Original Concept
-The initial idea proposes a 'Decentralized Autonomous Hedge Fund Protocol' in which:
-• AI agents compete.
-• Investors stake into the best-performing agents.
-• Poor agents get automatically defunded.
-• The protocol self-rebalances capital.
-While attractive at first glance, this framing requires deeper structural, mathematical, and cryptoeconomic refinement to become academically rigorous and technically sound.
-2. Critical Analysis of the Naïve Framing
-2.1 Where Do AI Agents Compete?
-On-chain execution is limited by gas costs, latency, and block confirmation time. Purely off-chain execution introduces trust assumptions. Therefore, a strict separation between signal generation (off-chain) and capital control (on-chain) is mandatory.
-2.2 Automatic Defunding Risks
-Immediate elimination of underperforming agents encourages volatility maximization and short-term gambling behavior. Long-horizon strategies would be structurally penalized. A smooth capital decay mechanism is superior to binary elimination.
-2.3 Sybil Attack Vulnerability
-Without staking and slashing mechanisms, an adversary could deploy numerous high-risk agents, hoping one produces extreme returns and captures capital. Anti-sybil bonding requirements are essential.
-2.4 Capital Rebalancing Based on What Metric?
-Raw ROI promotes volatility chasing. Short measurement windows create instability. Long windows create inertia. Risk-adjusted and regret-minimizing allocation methods are required.
-2.5 The AI Marketing Illusion
-Most so-called AI trading bots are overfit statistical models. Without out-of-sample validation, decay detection, and stress testing, the platform degenerates into a marketplace of curve-fit strategies.
+DACAP is a full-stack prototype for a decentralized autonomous hedge-fund-style system that separates:
 
+- capital custody and enforcement on-chain
+- strategy generation and market intelligence off-chain
+- allocation and risk feedback through measurable performance signals
 
-3. Reconstructed 10/10 Architecture
-The refined system is not merely an AI hedge fund but a Decentralized Autonomous Capital Allocation Protocol (DACAP).
-3.1 Layer 1 — On-Chain Capital Vault
-• Custodies all investor funds.
-• Agents never directly control capital.
-• Enforces position limits, leverage caps, drawdown ceilings, and volatility budgets.
-3.2 Layer 2 — Off-Chain Strategy Agents
-• Submit signed trade signals.
-• Perform AI computation off-chain.
-• Cannot withdraw funds.
-3.3 Layer 3 — Capital Allocation Engine
-Capital weights are updated using online learning methods such as Multiplicative Weights Update, Hedge algorithms, or regret minimization.
-Mathematical Update Rule:
-w_i(t+1) = w_i(t) * exp(η * risk_adjusted_return_i)
-Weights are then normalized across all agents.
-This ensures smooth adaptation, avoids abrupt elimination, and aligns allocation with sustained risk-adjusted performance.
+The project combines:
 
+- FastAPI backend services for agents, analytics, governance, and integrations
+- a React/Vite frontend for protocol dashboards and operator workflows
+- Solidity contracts for vaulting, agent registration, slashing, and allocation
+- an ML pipeline for hybrid forecasting, regime analysis, Monte Carlo risk, and model artifact distribution through Supabase Storage
 
-4. Risk & Incentive Mechanisms
-4.1 Agent Staking & Slashing
-• Mandatory collateral deposit.
-• Slashing if extreme drawdown thresholds are breached.
-• Performance bonds to deter reckless risk.
-4.2 Reputation Decay Model
-Score = α * Recent_Performance + (1 - α) * Historical_Score
-Prevents dominance from lucky spikes and ensures gradual decay of outdated performance.
-4.3 Risk Budget Allocation
-Instead of allocating capital alone, the protocol allocates risk. Total portfolio volatility is capped, and each agent receives a volatility budget.
+## System Architecture
 
+### 1. On-chain layer
 
-5. Risk Pool Architecture Design
-5.1 Model 1 — Separate Vault per Agent (Rejected)
-• Leads to popularity bias.
-• No protocol-level intelligence.
-• Reduces to horse betting.
-5.2 Model 2 — Single Global Pool
-Investors deposit into one pool; protocol allocates capital dynamically among agents.
-5.3 Model 3 — Multiple Risk-Class Global Pools (Preferred)
-• Conservative Pool
-• Balanced Pool
-• Aggressive Pool
-Investors choose risk class; protocol selects and reallocates agents within that pool.
+The contracts enforce the hard guarantees:
 
+- investor capital remains in protocol-controlled vaults
+- agent registration requires stake and supports anti-sybil controls
+- drawdown and governance constraints are codified
+- allocation weights are applied on-chain rather than trusted to off-chain execution
 
-6. Hybrid Execution Architecture
-6.1 On-Chain Responsibilities
-• Capital custody
-• Allocation weights
-• Risk enforcement
-• Slashing and accounting
-6.2 Off-Chain Responsibilities
-• AI model training
-• Signal generation
-• Market data processing
-• Execution optimization
-6.3 HFT Clarification
-Nanosecond-level high-frequency trading is incompatible with public blockchain infrastructure. The protocol instead targets block-time (seconds to minutes) strategies such as arbitrage, liquidations, volatility trading, and MEV-aware execution.
+Core contracts live under [contracts/src](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/contracts/src):
 
+- [CapitalVault.sol](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/contracts/src/CapitalVault.sol)
+- [AllocationEngine.sol](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/contracts/src/AllocationEngine.sol)
+- [AgentRegistry.sol](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/contracts/src/AgentRegistry.sol)
+- [SlashingModule.sol](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/contracts/src/SlashingModule.sol)
 
-7. Advanced Extensions
-• Simulation arena for pre-admission qualification.
-• Historical replay engine.
-• Adversarial stress testing using synthetic shocks.
-• Competitive tournament-based onboarding.
-These additions elevate the protocol into a research-grade decentralized stress-tested capital allocator.
+### 2. Backend intelligence layer
 
+The backend coordinates:
 
-8. Practical Implementation Scope
-Feasible MVP Components:
-• Smart contract vault.
-• Agent registration with staking.
-• Multiplicative weight rebalancer.
-• Simulated trading arena.
-• Performance leaderboard.
-The innovation focus must remain on capital allocation algorithms rather than AI marketing or unrealistic HFT claims.
+- protocol APIs for agents, pools, analytics, governance, contracts, and news
+- market data streaming and trading engine orchestration
+- Supabase integration for storage and operational status
+- ML model bootstrap on application startup
 
+The application entrypoint is [backend/main.py](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/backend/main.py), which now automatically downloads the latest model artifact from Supabase Storage on startup and loads it into app state.
 
-9. Final Positioning & Conclusion
-This project should not be marketed as an AI hedge fund or a high-frequency trading system. Its true innovation lies in decentralized, online-learning-based capital allocation with cryptoeconomic enforcement.
-The core contribution is the design of an on-chain autonomous allocation engine that dynamically redistributes capital among competing strategy agents under enforced risk constraints.
-When framed correctly, the protocol becomes a decentralized self-optimizing capital market — blockchain-native, mathematically grounded, game-theoretic, and research-ready.
+### 3. Frontend control surface
+
+The frontend provides:
+
+- analytics and portfolio monitoring
+- agent views and intelligence panels
+- governance and contract interaction surfaces
+- protocol health visibility, including Supabase status
+
+The frontend codebase lives in [frontend/src](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/frontend/src).
+
+## Machine Learning Pipeline
+
+The hybrid ML workflow in [backend/ml/train_hybrid.py](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/backend/ml/train_hybrid.py):
+
+- builds engineered OHLCV-based features
+- trains a CNN-LSTM regression model for next-bar return prediction
+- performs an online-learning refinement phase
+- evaluates the model with regression metrics and a direction-level confusion matrix
+- runs regime classification and Monte Carlo risk analysis
+- persists the model locally and uploads it to Supabase Storage
+
+### Evaluation outputs
+
+The current evaluation path reports:
+
+- MSE
+- MAE
+- RMSE
+- directional accuracy
+- confusion matrix across `SELL`, `HOLD`, and `BUY`
+
+This confusion matrix is derived from the same thresholded trading decisions used at inference time, so the evaluation now reflects both regression quality and actionable signal quality.
+
+### Model storage workflow
+
+The canonical model artifact is:
+
+- local path: [backend/ml/model.pkl](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/backend/ml/model.pkl)
+- Supabase object: `models/model.pkl`
+
+Supporting files:
+
+- [backend/core/supabase.py](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/backend/core/supabase.py) for storage helpers
+- [backend/ml/upload_model_to_supabase.py](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/backend/ml/upload_model_to_supabase.py) for manual uploads
+
+## Repository Layout
+
+```text
+.
+├── backend/
+│   ├── api/
+│   ├── agents/
+│   ├── core/
+│   ├── db/
+│   ├── ml/
+│   └── tests/
+├── contracts/
+│   ├── src/
+│   ├── scripts/
+│   └── test/
+├── db/
+└── frontend/
+    ├── src/
+    └── public-facing app config
+```
+
+## Local Development
+
+### Backend
+
+Install backend dependencies from [backend/requirements.txt](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/backend/requirements.txt), then run the API from the `backend` directory or project root depending on your workflow.
+
+Typical environment values include:
+
+- `SUPABASE_URL`
+- `SUPABASE_SECRET_KEY`
+- `SUPABASE_PUBLISHABLE_KEY`
+- chain RPC and Alchemy credentials
+- optional Kaggle credentials for dataset access
+
+### Frontend
+
+The frontend uses Vite and TypeScript. Path aliases are configured for `@/` imports in:
+
+- [frontend/tsconfig.json](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/frontend/tsconfig.json)
+- [frontend/vite.config.ts](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/frontend/vite.config.ts)
+
+### Contracts
+
+Contracts are compiled with Hardhat from [contracts/hardhat.config.js](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/contracts/hardhat.config.js). Solidity editor settings are aligned in [.vscode/settings.json](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/.vscode/settings.json) so OpenZeppelin imports resolve correctly from `contracts/node_modules`.
+
+## Current Product Themes
+
+This repository is oriented around:
+
+- autonomous capital allocation instead of direct agent fund custody
+- cryptoeconomic enforcement instead of trust-based operator discretion
+- online adaptation instead of static portfolio selection
+- measurable ML evaluation instead of vague AI marketing
+- protocol observability across analytics, contracts, and storage integrations
+
+## Validation Notes
+
+Recent work in this repo includes:
+
+- automatic model download from Supabase on backend startup
+- reusable Supabase upload/download helpers
+- frontend alias resolution fixes
+- Solidity workspace import resolution fixes
+- direction-level confusion-matrix evaluation for the hybrid model
+
+## Positioning
+
+DACAP is best understood not as a generic "AI trading bot" project, but as a capital-allocation protocol with:
+
+- on-chain guardrails
+- off-chain intelligence
+- measurable model evaluation
+- explicit storage and deployment workflows
+
+That framing is where the architecture is strongest: autonomous capital routing under transparent risk controls, with enough infrastructure around it to evolve from prototype into a more rigorous research and product platform.
