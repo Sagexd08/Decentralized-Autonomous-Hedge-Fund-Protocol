@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/layout/Layout'
-import Landing from './pages/Landing'
+import Index from './pages/Index'
 import Dashboard from './pages/Dashboard'
 import Agents from './pages/Agents'
 import AgentDetail from './pages/AgentDetail'
@@ -17,7 +17,7 @@ import Intelligence from './pages/Intelligence'
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Landing />} />
+      <Route path="/" element={<Index />} />
       <Route element={<Layout />}>
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/agents" element={<Agents />} />
