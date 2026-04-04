@@ -3,14 +3,21 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import {
   TrendingUp, TrendingDown, DollarSign, Activity, Users, Shield,
+<<<<<<< HEAD
   Square, Zap, ArrowUpRight, Clock, BarChart2, History, Database,
+=======
+  Square, Zap, ArrowUpRight, Clock, BarChart2, History,
+>>>>>>> D!
 } from 'lucide-react'
 import {
   AreaChart, Area, PieChart, Pie, Cell, LineChart, Line,
   ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine,
 } from 'recharts'
 import { portfolioHistory, allocationData, agents as mockAgents } from '../utils/mockData'
+<<<<<<< HEAD
 import { useSupabaseStatus } from '../hooks/useSupabaseStatus'
+=======
+>>>>>>> D!
 import { useWebSocket } from '../hooks/useWebSocket'
 import { usePriceWebSocket } from '../hooks/usePriceWebSocket'
 import { API_BASE_URL, WS_PRICES_URL, WS_TRADING_URL } from '../utils/api'
@@ -282,7 +289,10 @@ export default function Dashboard() {
   const { sessions, activeSessionId } = useProtocolStore()
   const { data: loop } = useIntelligenceLoop()
   const { data: demo } = useDemoState()
+<<<<<<< HEAD
   const { data: supabaseStatus, isLoading: supabaseStatusLoading } = useSupabaseStatus()
+=======
+>>>>>>> D!
 
   useEffect(() => {
     if (messages.length === 0) return
@@ -296,11 +306,14 @@ export default function Dashboard() {
   const pnlColor = displayPnL >= 0 ? '#10b981' : '#ef4444'
   const activeSession = sessions.find(s => s.id === activeSessionId && s.status === 'active')
   const activeAgentId = activeSession?.agentId ?? 'AGT-001'
+<<<<<<< HEAD
   const supabaseHealthy = Boolean(
     supabaseStatus?.configured &&
     supabaseStatus?.auth_reachable &&
     supabaseStatus?.storage_reachable
   )
+=======
+>>>>>>> D!
 
   const portfolioOHLC = useLiveOHLC(100000, 0.008, 90)
   const pnlOHLC = useLiveOHLC(100000, 0.01, 60)
@@ -337,6 +350,7 @@ export default function Dashboard() {
 
       <IntelligencePanel loop={loop} demo={demo} compact />
 
+<<<<<<< HEAD
       <div className={`card border ${supabaseHealthy ? 'border-emerald-500/20' : 'border-amber-500/20'}`}>
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-start gap-3">
@@ -389,6 +403,8 @@ export default function Dashboard() {
         )}
       </div>
 
+=======
+>>>>>>> D!
       {/* Metric cards */}
       <div className="grid grid-cols-3 gap-4">
         {metrics.map((m, i) => (

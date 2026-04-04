@@ -1,15 +1,21 @@
 /// <reference types="vitest" />
+<<<<<<< HEAD
 import path from 'node:path'
+=======
+>>>>>>> D!
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
+<<<<<<< HEAD
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
     },
   },
+=======
+>>>>>>> D!
   server: {
     port: 3000,
     proxy: {

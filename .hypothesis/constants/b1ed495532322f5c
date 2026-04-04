@@ -1,0 +1,4 @@
+# file: /Users/debdeepbanerjee/Desktop/DAHFP/dacap/backend/api/agents.py
+# hypothesis_version: 6.151.10
+
+[-8.2, -4.1, -2.8, 1.52, 1.87, 2.41, 7.8, 11.2, 14.6, 18.4, 21.3, 34.7, 404, 35000, 40000, 50000, '/', '/register', '/{agent_id}', '0x1a2b3c4d5e6f', '0x2b3c4d5e6f7a', '0x3c4d5e6f7a8b', 'AGT-001', 'AGT-002', 'AGT-003', 'Agent not found', 'Aggressive', 'AlphaWave', 'Balanced', 'Conservative', 'Cross-DEX Arbitrage', 'Mean Reversion', 'Momentum + ML', 'NeuralArb', 'QuantSigma', 'active', 'address', 'allocation', 'drawdown', 'id', 'message', 'name', 'pnl', 'probation', 'risk', 'score', 'sharpe', 'stake', 'status', 'strategy', 'volatility']

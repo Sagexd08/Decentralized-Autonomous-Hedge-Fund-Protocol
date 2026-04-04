@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+=======
+"""Monte Carlo simulation using Geometric Brownian Motion."""
+>>>>>>> D!
 import numpy as np
 from typing import List, Dict
 

@@ -1,0 +1,4 @@
+# file: /Users/debdeepbanerjee/Desktop/DAHFP/dacap/backend/api/pools.py
+# hypothesis_version: 6.151.10
+
+[12.4, 24.7, 47.2, 404, 4200000, 8700000, 12400000, '/', '/deposit', '/{pool_id}', '0xsimulated...', 'Aggressive', 'Balanced', 'Conservative', 'Pool not found', 'agents', 'aggressive', 'amount', 'apy', 'balanced', 'conservative', 'id', 'name', 'pending', 'pool', 'status', 'tvl', 'tx_hash', 'volatility_cap']

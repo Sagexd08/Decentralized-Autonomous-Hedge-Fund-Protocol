@@ -1,15 +1,34 @@
+<<<<<<< HEAD
 import asyncio
 import importlib
+=======
+"""
+Gemini-powered AI agent social communication engine.
+Each agent has a unique personality and uses Gemini to generate
+real posts, comments, and reactions based on live market data.
+"""
+import asyncio
+>>>>>>> D!
 import json
 import logging
 import os
 import random
 import time
+<<<<<<< HEAD
 import urllib.request
 from dataclasses import dataclass, asdict
 from typing import Optional
 from core.settings import settings
 logger = logging.getLogger(__name__)
+=======
+import aiohttp
+from dataclasses import dataclass, asdict
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+# Agent personalities for Gemini system prompts
+>>>>>>> D!
 AGENT_PERSONAS = {
     "AlphaWave": {
         "style": "aggressive momentum trader",
@@ -187,6 +206,7 @@ class GeminiSocialEngine:
         self._posts: list[SocialPost] = []
         self._subscribers: list[asyncio.Queue] = []
         self._client = None
+<<<<<<< HEAD
         self._provider: str = "none"
         self._gemini_api_key = os.getenv("GEMINI_API_KEY", "")
         self._groq_api_key = settings.groq_api_key
@@ -223,6 +243,20 @@ class GeminiSocialEngine:
             self._client = genai.GenerativeModel("gemini-1.5-flash")
             self._provider = "gemini"
             logger.info("Gemini client initialized for social engine fallback")
+=======
+        self._api_key = os.getenv("GEMINI_API_KEY", "")
+        self._init_client()
+
+    def _init_client(self):
+        if not self._api_key:
+            logger.warning("GEMINI_API_KEY not set — social engine will use fallback mode")
+            return
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=self._api_key)
+            self._client = genai.GenerativeModel("gemini-1.5-flash")
+            logger.info("Gemini client initialized for social engine")
+>>>>>>> D!
         except ImportError:
             logger.warning("google-generativeai not installed. Run: pip install google-generativeai")
         except Exception as e:
@@ -256,6 +290,7 @@ class GeminiSocialEngine:
         results = []
         try:
             url = f"https://api.duckduckgo.com/?q={topic.replace(' ', '+')}&format=json&no_html=1&skip_disambig=1"
+<<<<<<< HEAD
             def _fetch_json() -> dict:
                 with urllib.request.urlopen(url, timeout=5) as resp:
                     payload = resp.read().decode("utf-8", errors="ignore")
@@ -274,6 +309,24 @@ class GeminiSocialEngine:
                         "title": rt.get("FirstURL", "").split("/")[-1].replace("_", " "),
                         "snippet": rt["Text"][:200],
                     })
+=======
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with session.get(url) as resp:
+                    if resp.status == 200:
+                        data = await resp.json(content_type=None)
+                        # Pull abstract + related topics
+                        if data.get("AbstractText"):
+                            results.append({
+                                "title": data.get("Heading", topic),
+                                "snippet": data["AbstractText"][:300],
+                            })
+                        for rt in data.get("RelatedTopics", [])[:4]:
+                            if isinstance(rt, dict) and rt.get("Text"):
+                                results.append({
+                                    "title": rt.get("FirstURL", "").split("/")[-1].replace("_", " "),
+                                    "snippet": rt["Text"][:200],
+                                })
+>>>>>>> D!
         except Exception as e:
             logger.debug(f"Research fetch failed: {e}")
 
@@ -412,7 +465,11 @@ class GeminiSocialEngine:
             f"{topic_instruction} No hashtags. Write the post directly — no preamble."
         )
 
+<<<<<<< HEAD
         content = await self._call_llm(prompt, persona["personality"])
+=======
+        content = await self._call_gemini(prompt, persona["personality"])
+>>>>>>> D!
         if not content:
             return
 
@@ -492,7 +549,11 @@ class GeminiSocialEngine:
             f"Start with @{target_post.agent_name}. No hashtags. Write the reply directly."
         )
 
+<<<<<<< HEAD
         content = await self._call_llm(prompt, persona["personality"])
+=======
+        content = await self._call_gemini(prompt, persona["personality"])
+>>>>>>> D!
         if not content:
             return
 
@@ -516,13 +577,19 @@ class GeminiSocialEngine:
         })
         logger.info(f"[Social] {commenter} commented on {target_post.agent_name}'s post")
 
+<<<<<<< HEAD
     async def _call_llm(self, prompt: str, system: str) -> Optional[str]:
         """Call preferred LLM provider. Falls back to template if unavailable."""
+=======
+    async def _call_gemini(self, prompt: str, system: str) -> Optional[str]:
+        """Call Gemini API. Falls back to template if unavailable."""
+>>>>>>> D!
         if self._client is None:
             return self._fallback_post(system)
 
         try:
             loop = asyncio.get_event_loop()
+<<<<<<< HEAD
             if self._provider == "groq":
                 response = await loop.run_in_executor(
                     None,
@@ -547,6 +614,15 @@ class GeminiSocialEngine:
             return response.text
         except Exception as e:
             logger.warning(f"LLM call failed (provider={self._provider}): {e}. Using fallback.")
+=======
+            response = await loop.run_in_executor(
+                None,
+                lambda: self._client.generate_content(prompt)
+            )
+            return response.text
+        except Exception as e:
+            logger.warning(f"Gemini API call failed: {e}. Using fallback.")
+>>>>>>> D!
             return self._fallback_post(system)
 
     def _fallback_post(self, system: str) -> str:
