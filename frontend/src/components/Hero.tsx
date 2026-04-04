@@ -11,7 +11,15 @@ export const Hero = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setActiveVideo((prev) => (prev === 0 ? 1 : 0));
+      setActiveVideo((prev) => {
+        const next = prev === 0 ? 1 : 0;
+        const videoElement = document.getElementById(`hero-video-${next}`) as HTMLVideoElement;
+        if (videoElement) {
+          videoElement.currentTime = 0;
+          videoElement.play().catch(e => console.log('Playback error:', e));
+        }
+        return next;
+      });
     }, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -19,28 +27,23 @@ export const Hero = () => {
   return (
     <section className="relative w-full h-screen overflow-hidden bg-black flex items-center pt-24 pb-12">
       {/* Video Background Layer */}
-      <div className="absolute inset-0 z-0">
+      <div className="absolute inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-black/60 z-10" /> {/* Overlay */}
         {videos.map((src, idx) => (
-          <motion.video
+          <video
+            id={`hero-video-${idx}`}
             key={src}
             src={src}
             autoPlay
             muted
             playsInline
             preload="auto"
-            initial={{ opacity: 0, scale: 1 }}
-            animate={{
-              opacity: activeVideo === idx ? 1 : 0,
-              scale: activeVideo === idx ? 1.05 : 1
+            onEnded={(e) => {
+              e.currentTarget.pause();
             }}
-            transition={{ duration: 2, ease: "easeInOut" }}
-            onCanPlay={(e) => {
-              if (activeVideo === idx && e.currentTarget.style.opacity === '0') {
-                e.currentTarget.style.opacity = '1';
-              }
-            }}
-            className="absolute inset-0 w-full h-full object-cover"
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-[2000ms] ease-in-out ${
+              activeVideo === idx ? 'opacity-100 scale-105 z-0' : 'opacity-0 scale-100 -z-10'
+            }`}
           />
         ))}
       </div>

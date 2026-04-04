@@ -13,12 +13,12 @@ function renderLanding() {
 describe('Landing page', () => {
   it('renders the hero heading', () => {
     renderLanding()
-    expect(screen.getByText('Autonomous Capital')).toBeInTheDocument()
-    expect(screen.getByText('Allocation Protocol')).toBeInTheDocument()
+    expect(screen.getByText('Built for the curious')).toBeInTheDocument()
+    expect(screen.getByText('Asme')).toBeInTheDocument()
   })
 
-  it('renders the "Enter App" button', () => {
+  it('renders the "Manifesto" button', () => {
     renderLanding()
-    expect(screen.getByRole('button', { name: /enter app/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /manifesto/i })).toBeInTheDocument()
   })
 })

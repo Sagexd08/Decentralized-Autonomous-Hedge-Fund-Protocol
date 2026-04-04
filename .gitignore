@@ -16,3 +16,6 @@ frontend/dist/
 contracts/node_modules/
 contracts/artifacts/
 contracts/cache/
+.vscode/
+backend/ml/model.pkl
+*.pkl

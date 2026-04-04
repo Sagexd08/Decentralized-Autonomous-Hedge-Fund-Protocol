@@ -1,4 +1,3 @@
-"""Monte Carlo simulation using Geometric Brownian Motion."""
 import numpy as np
 from typing import List, Dict
 

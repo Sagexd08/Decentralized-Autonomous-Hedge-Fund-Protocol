@@ -23,6 +23,9 @@ from api import ws_prices
 from api import ws_social
 
 _CONFIG_PATH = Path(__file__).parent.parent / "frontend" / "src" / "contracts" / "config.json"
+_MODEL_BUCKET = "models"
+_MODEL_OBJECT_PATH = "model.pkl"
+_LOCAL_MODEL_PATH = Path(__file__).parent / "ml" / "model.pkl"
 
 
 def _init_web3_and_contracts():
@@ -75,8 +78,42 @@ def _init_web3_and_contracts():
         return None
 
 
+def _sync_ml_model_from_supabase() -> bool:
+    """Best-effort startup sync so the API boots with the latest deployed model."""
+    try:
+        from core.supabase import download_storage_file
+
+        download_storage_file(_MODEL_BUCKET, _MODEL_OBJECT_PATH, _LOCAL_MODEL_PATH)
+        logger.info(
+            "ML model synced from Supabase storage: %s/%s -> %s",
+            _MODEL_BUCKET,
+            _MODEL_OBJECT_PATH,
+            _LOCAL_MODEL_PATH,
+        )
+        return True
+    except Exception as exc:
+        logger.warning("ML model sync from Supabase skipped: %s", exc)
+        return False
+
+
+def _load_ml_artifacts():
+    """Load the local model artifact into app state when available."""
+    try:
+        from ml.train_hybrid import load_model
+
+        model, scaler = load_model(_LOCAL_MODEL_PATH)
+        logger.info("ML model loaded from %s", _LOCAL_MODEL_PATH)
+        return model, scaler
+    except Exception as exc:
+        logger.warning("ML model load skipped: %s", exc)
+        return None, None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    app.state.ml_model_synced = _sync_ml_model_from_supabase()
+    app.state.ml_model, app.state.ml_scaler = _load_ml_artifacts()
+
     # Start price engine
     from agents.price_engine import price_engine
     from agents.market_stream import market_stream
