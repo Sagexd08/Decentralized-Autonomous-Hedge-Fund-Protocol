@@ -133,7 +133,7 @@ function SubmitModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (d:
           <div>
             <label className="text-xs text-slate-400 mb-1.5 block">Solidity Source Code</label>
             <textarea value={source} onChange={e => setSource(e.target.value)}
-              placeholder="
+              placeholder="Paste the Solidity contract source code here..."
               rows={10}
               className="w-full bg-slate-900 border border-border rounded-lg px-3 py-2 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-cyan/50 resize-none" />
           </div>
