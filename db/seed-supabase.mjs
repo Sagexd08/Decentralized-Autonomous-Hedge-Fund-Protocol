@@ -67,6 +67,15 @@ try {
   `
 
   console.log('Seed complete:', summary)
+} catch (error) {
+  if (error && typeof error === 'object' && error.code === 'ENETUNREACH') {
+    throw new Error(
+      'Supabase direct database host resolved to IPv6, but this environment cannot reach IPv6. ' +
+      'Use the Supabase session pooler connection string (IPv4) or run this script from an IPv6-capable network.'
+    )
+  }
+
+  throw error
 } finally {
   await sql.end({ timeout: 5 })
 }

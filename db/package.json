@@ -1,0 +1,11 @@
+{
+  "name": "dacap-db-tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed:supabase": "node ./seed-supabase.mjs"
+  },
+  "dependencies": {
+    "postgres": "^3.4.7"
+  }
+}

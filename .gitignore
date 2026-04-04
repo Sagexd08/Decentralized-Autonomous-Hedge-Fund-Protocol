@@ -13,3 +13,6 @@ __pycache__/
 *.pyc
 *.pyo
 frontend/dist/
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
