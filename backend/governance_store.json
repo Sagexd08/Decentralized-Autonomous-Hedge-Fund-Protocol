@@ -1,0 +1,104 @@
+{
+  "params": {
+    "eta": 0.01,
+    "slashing_threshold_bps": 2000,
+    "aggressive_vol_cap_bps": 3500,
+    "conservative_vol_cap_bps": 800,
+    "balanced_vol_cap_bps": 1800,
+    "min_stake": 10000,
+    "quorum_pct": 19,
+    "proposal_duration_days": 5,
+    "max_allocation_pct": 35,
+    "reputation_decay": 0.95,
+    "slash_recovery_epochs": 10
+  },
+  "proposals": [
+    {
+      "id": "prop-001",
+      "title": "Increase learning rate \u03b7 from 0.01 to 0.015",
+      "description": "Higher \u03b7 allows the allocation engine to adapt faster to regime changes. Backtests show +3.2% annualised return improvement in trending markets.",
+      "category": "allocation",
+      "param_name": "eta",
+      "current_value": 0.01,
+      "proposed_value": 0.015,
+      "proposer": "0x1111111111111111111111111111111111111111",
+      "votes_for": 1900.0,
+      "votes_against": 0,
+      "status": "vetoed",
+      "quorum_reached": true,
+      "created_at": 1774830391.317007,
+      "ends_at": 1775176268.9467049,
+      "veto_reason": "My wish",
+      "vetoed_by": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "vetoed_at": 1774917112.5381172,
+      "veto_reverted": true
+    },
+    {
+      "id": "prop-002",
+      "title": "Reduce slashing threshold from 20% to 15% drawdown",
+      "description": "Tighter slashing protects the protocol from rogue agents.",
+      "category": "risk",
+      "param_name": "slashing_threshold_bps",
+      "current_value": 2000,
+      "proposed_value": 1500,
+      "proposer": "0x2222222222222222222222222222222222222222",
+      "votes_for": 8100,
+      "votes_against": 1900,
+      "status": "passed",
+      "quorum_reached": true,
+      "created_at": 1774311991.317009,
+      "ends_at": 1774830391.317009
+    },
+    {
+      "id": "prop-003",
+      "title": "Raise aggressive pool vol cap from 35% to 40%",
+      "description": "Allows aggressive agents more room in high-volatility regimes.",
+      "category": "risk",
+      "param_name": "aggressive_vol_cap_bps",
+      "current_value": 3500,
+      "proposed_value": 4000,
+      "proposer": "0x3333333333333333333333333333333333333333",
+      "votes_for": 4500,
+      "votes_against": 5500,
+      "status": "rejected",
+      "quorum_reached": true,
+      "created_at": 1774052791.317009,
+      "ends_at": 1774484791.31701
+    },
+    {
+      "id": "prop-004",
+      "title": "Increase minimum agent stake to 15,000 DAC",
+      "description": "Raising the stake floor improves agent skin-in-the-game.",
+      "category": "agents",
+      "param_name": "min_stake",
+      "current_value": 10000,
+      "proposed_value": 15000,
+      "proposer": "0x4444444444444444444444444444444444444444",
+      "votes_for": 300,
+      "votes_against": 200,
+      "status": "active",
+      "quorum_reached": false,
+      "created_at": 1774743991.31701,
+      "ends_at": 1775176134.4107451
+    }
+  ],
+  "votes": [
+    {
+      "id": "150737a9-e77e-4bfc-be72-dbcac3b1b672",
+      "proposal_id": "prop-004",
+      "voter": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "support": false,
+      "weight": 100.0,
+      "ts": 1774916827.7584279
+    },
+    {
+      "id": "793641b2-8dee-4f41-85af-c435c1ded613",
+      "proposal_id": "prop-001",
+      "voter": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+      "support": true,
+      "weight": 100.0,
+      "ts": 1774917092.726221
+    }
+  ],
+  "executed": []
+}
