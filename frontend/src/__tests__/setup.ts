@@ -15,6 +15,7 @@ const mockResizeObserver = vi.fn(() => ({
   disconnect: vi.fn(),
 }))
 vi.stubGlobal('ResizeObserver', mockResizeObserver)
+<<<<<<< HEAD
 
 Object.defineProperty(HTMLMediaElement.prototype, 'play', {
   configurable: true,
@@ -27,3 +28,5 @@ Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
   writable: true,
   value: vi.fn(),
 })
+=======
+>>>>>>> D!

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+<<<<<<< HEAD
 interface IERC20 {
     function transferFrom(address from, address to, uint256 value) external returns (bool);
     function transfer(address to, uint256 value) external returns (bool);
@@ -39,6 +40,11 @@ abstract contract ReentrancyGuard {
         _status = _NOT_ENTERED;
     }
 }
+=======
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+>>>>>>> D!
 
 /**
  * @title AgentRegistry

@@ -1,0 +1,4 @@
+# file: /Users/debdeepbanerjee/Desktop/DAHFP/dacap/backend/ml/monte_carlo.py
+# hypothesis_version: 6.151.10
+
+[0.5, 0.95, 100, 252, 1000, 'cvar', 'expected_return', 'p5', 'p50', 'p95', 'prob_profit', 'var']
