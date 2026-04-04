@@ -1,0 +1,9 @@
+/Users/krishnendu/Documents/Desktop - Krishnendu’s MacBook Pro/Hacktropica-clone/rustContract/agent_registry/target/release/deps/soroban_spec_rust-70194c18e02d324a.d: /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/lib.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/trait.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/types.rs
+
+/Users/krishnendu/Documents/Desktop - Krishnendu’s MacBook Pro/Hacktropica-clone/rustContract/agent_registry/target/release/deps/libsoroban_spec_rust-70194c18e02d324a.rlib: /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/lib.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/trait.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/types.rs
+
+/Users/krishnendu/Documents/Desktop - Krishnendu’s MacBook Pro/Hacktropica-clone/rustContract/agent_registry/target/release/deps/libsoroban_spec_rust-70194c18e02d324a.rmeta: /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/lib.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/trait.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/types.rs
+
+/Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/lib.rs:
+/Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/trait.rs:
+/Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/soroban-spec-rust-25.3.0/src/types.rs:

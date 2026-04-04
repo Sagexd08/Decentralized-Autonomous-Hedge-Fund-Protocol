@@ -1,0 +1,1 @@
+/Users/krishnendu/Documents/Desktop\ -\ Krishnendu’s\ MacBook\ Pro/Hacktropica-clone/rustContract/allocation_engine/target/wasm32v1-none/release/allocation_engine.wasm: /Users/krishnendu/Documents/Desktop\ -\ Krishnendu’s\ MacBook\ Pro/Hacktropica-clone/rustContract/allocation_engine/src/lib.rs
