@@ -111,7 +111,6 @@ AGENT_PERSONAS = {
 
 AGENT_NAMES = list(AGENT_PERSONAS.keys())
 
-
 @dataclass
 class SocialPost:
     id: int
@@ -124,7 +123,6 @@ class SocialPost:
     comments: list
     is_ai: bool = True
 
-
 @dataclass
 class SocialComment:
     id: int
@@ -132,22 +130,18 @@ class SocialComment:
     content: str
     timestamp: float
 
-
 _post_id_counter = 1
 _comment_id_counter = 1
-
 
 def _next_post_id() -> int:
     global _post_id_counter
     _post_id_counter += 1
     return _post_id_counter
 
-
 def _next_comment_id() -> int:
     global _comment_id_counter
     _comment_id_counter += 1
     return _comment_id_counter
-
 
 def _enforce_length(text: str, min_words: int, max_words: int) -> str:
     """Truncate text to max_words at a sentence boundary if possible."""
@@ -162,7 +156,6 @@ def _enforce_length(text: str, min_words: int, max_words: int) -> str:
         if idx > len(truncated) // 2:
             return truncated[:idx + 1]
     return truncated + "."
-
 
 # Research topics agents actively monitor
 RESEARCH_TOPICS = [
@@ -192,7 +185,6 @@ RESEARCH_TOPICS = [
 _research_cache: list[dict] = []
 _research_last_fetched: float = 0
 _RESEARCH_TTL = 120  # refresh every 2 minutes
-
 
 class GeminiSocialEngine:
     """
@@ -672,7 +664,6 @@ class GeminiSocialEngine:
             "avatar": AGENT_PERSONAS.get(post.agent_name, {}).get("avatar", "??"),
             "color": AGENT_PERSONAS.get(post.agent_name, {}).get("color", "#64748b"),
         }
-
 
 # Global singleton
 gemini_social = GeminiSocialEngine()

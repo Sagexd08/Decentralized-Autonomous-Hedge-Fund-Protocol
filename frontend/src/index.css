@@ -26,7 +26,7 @@
     position: relative;
     overflow: hidden;
   }
-  
+
   .liquid-glass::before {
     content: '';
     position: absolute;
@@ -49,7 +49,6 @@
   }
 }
 
-/* ── Keyframes ─────────────────────────────────────────── */
 @keyframes marquee {
   0%   { transform: translateX(0); }
   100% { transform: translateX(-50%); }

@@ -21,8 +21,8 @@ export const Risk = () => {
   return (
     <section className="bg-black py-24 px-6 border-t border-white/5" ref={ref}>
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-16 items-center">
-        
-        <motion.div 
+
+        <motion.div
           initial={{ opacity: 0, x: -30 }}
           animate={isInView ? { opacity: 1, x: 0 } : { opacity: 0, x: -30 }}
           transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
@@ -35,13 +35,13 @@ export const Risk = () => {
           <p className="text-white/60 mb-8 font-light leading-relaxed">
             Continuously running millions of probabilistic pathways to hedge tail-risk and ensure capital preservation across highly volatile decentralized environments.
           </p>
-          
+
           <div className="flex flex-col gap-4">
             {['Volatility Index: Low', 'Exposure: Delta Neutral', 'Confidence: 99.9%'].map((stat, i) => (
               <div key={i} className="flex flex-col gap-2">
                 <div className="text-sm font-['JetBrains_Mono'] text-white/80">{stat}</div>
                 <div className="h-1 w-full bg-white/10 rounded-full overflow-hidden">
-                  <motion.div 
+                  <motion.div
                     initial={{ width: 0 }}
                     animate={isInView ? { width: '80%' } : { width: 0 }}
                     transition={{ duration: 1.5, delay: 0.5 + i * 0.2 }}
@@ -53,7 +53,7 @@ export const Risk = () => {
           </div>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={isInView ? { opacity: 1, scale: 1 } : { opacity: 0, scale: 0.95 }}
           transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
@@ -63,7 +63,7 @@ export const Risk = () => {
             <h3 className="text-lg font-medium text-white">Risk Heatmap</h3>
             <span className="text-xs font-['JetBrains_Mono'] text-white/40 px-2 py-1 border border-white/10 rounded">LIVE</span>
           </div>
-          
+
           <div className="w-full h-64 -ml-4">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
@@ -75,7 +75,7 @@ export const Risk = () => {
                 </defs>
                 <XAxis dataKey="name" stroke="rgba(255,255,255,0.2)" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="rgba(255,255,255,0.2)" fontSize={12} tickLine={false} axisLine={false} />
-                <Tooltip 
+                <Tooltip
                   contentStyle={{ backgroundColor: 'rgba(0,0,0,0.8)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px' }}
                   itemStyle={{ color: '#fff' }}
                 />

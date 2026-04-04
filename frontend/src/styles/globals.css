@@ -34,7 +34,7 @@
     position: relative;
     overflow: hidden;
   }
-  
+
   .liquid-glass::before {
     content: '';
     position: absolute;

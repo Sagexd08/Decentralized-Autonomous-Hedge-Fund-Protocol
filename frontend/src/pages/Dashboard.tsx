@@ -63,16 +63,12 @@ function useSimulatedPnL() {
   return simPnL
 }
 
-// ---------------------------------------------------------------------------
-// Active Session Panel
-// ---------------------------------------------------------------------------
 function ActiveSessionPanel() {
   const navigate = useNavigate()
   const { sessions, activeSessionId, endSession, addTradeRecord, incrementSessionTrades } = useProtocolStore()
   const session = sessions.find(s => s.id === activeSessionId && s.status === 'active')
   const { messages } = useWebSocket(WS_TRADING_URL)
 
-  // All messages go to the feed — no filtering needed since backend broadcasts per-agent
   const agentMessages = messages
 
   const [livePnL, setLivePnL] = useState(0)
@@ -86,7 +82,6 @@ function ActiveSessionPanel() {
   const TOKENS = ['WBTC', 'USDC', 'LINK', 'UNI']
   const TOKEN_PRICES: Record<string, number> = { WBTC: 30000, USDC: 1, LINK: 15, UNI: 8 }
 
-  // Accumulate PnL from real WebSocket trade messages
   useEffect(() => {
     if (!session || agentMessages.length === 0) return
     const last = agentMessages[agentMessages.length - 1]
@@ -103,14 +98,12 @@ function ActiveSessionPanel() {
     incrementSessionTrades(session.agentId)
   }, [agentMessages.length])
 
-  // Elapsed timer
   useEffect(() => {
     if (!session) return
     const t = setInterval(() => setElapsed(Math.floor((Date.now() - session.startTime) / 1000)), 1000)
     return () => clearInterval(t)
   }, [session?.id])
 
-  // Simulated trades when no real WebSocket trades — generates realistic trade records
   useEffect(() => {
     if (!session) return
     const t = setInterval(() => {
@@ -152,9 +145,9 @@ function ActiveSessionPanel() {
   const handleStop = async () => {
     if (!session) return
     setStopping(true)
-    // Don't await — 409 is expected when backend trading engine isn't running
+
     fetch(`${API_BASE_URL}/api/agents/${session.agentId}/stop-trading`, { method: 'POST' }).catch(() => {})
-    // Read latest state directly from store
+
     const currentSession = useProtocolStore.getState().sessions.find(s => s.id === session.id)
     const finalPnL = livePnLRef.current !== 0 ? livePnLRef.current : (currentSession?.tradeRecords ?? []).reduce((s, t) => s + t.pnlDelta, 0)
     const finalTrades = tradeCountRef.current > 0 ? tradeCountRef.current : (currentSession?.tradeRecords?.length ?? 0)
@@ -177,7 +170,7 @@ function ActiveSessionPanel() {
   return (
     <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
       className="card border-2" style={{ borderColor: `${riskColor}40` }}>
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: riskColor }} />
@@ -202,7 +195,7 @@ function ActiveSessionPanel() {
           </div>
         </div>
         <div className="flex items-center gap-4">
-          {/* Net PnL vs deposited */}
+          {}
           <div className="text-right">
             <p className="text-xs text-slate-500">Net PnL</p>
             <p className={`text-xl font-bold font-mono ${livePnL >= 0 ? 'text-green' : 'text-red-400'}`}>
@@ -220,7 +213,7 @@ function ActiveSessionPanel() {
         </div>
       </div>
 
-      {/* Live PnL chart */}
+      {}
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2">
           <p className="text-xs text-slate-500 mb-2">Live PnL vs Deposited ETH</p>
@@ -263,7 +256,7 @@ function ActiveSessionPanel() {
         </div>
       </div>
 
-      {/* Agent ML predictions + swap feed */}
+      {}
       <div className="mt-3 pt-3 border-t border-border">
         <AgentTradingDashboard
           agentId={session.agentId}
@@ -276,9 +269,6 @@ function ActiveSessionPanel() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main Dashboard
-// ---------------------------------------------------------------------------
 export default function Dashboard() {
   const navigate = useNavigate()
   const { messages } = useWebSocket(WS_TRADING_URL)
@@ -343,7 +333,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Active session panel — shown when an agent is trading */}
+      {}
       <AnimatePresence>
         {activeSession && <ActiveSessionPanel />}
       </AnimatePresence>
@@ -405,7 +395,7 @@ export default function Dashboard() {
 
 =======
 >>>>>>> D!
-      {/* Metric cards */}
+      {}
       <div className="grid grid-cols-3 gap-4">
         {metrics.map((m, i) => (
           <motion.div key={m.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -424,10 +414,10 @@ export default function Dashboard() {
         ))}
       </div>
 
-      {/* Live price chart */}
+      {}
       <LivePriceChart prices={prices} connected={pricesConnected} />
 
-      {/* Charts row */}
+      {}
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 card">
           <div className="flex items-center justify-between mb-3">
@@ -468,7 +458,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Live PnL candlestick + Agent Predictions */}
+      {}
       <div className="grid grid-cols-3 gap-4">
         <div className="col-span-2 card">
           <div className="flex items-center justify-between mb-3">
@@ -492,10 +482,10 @@ export default function Dashboard() {
         <AgentPredictionPanel agentId={activeAgentId} agentMode={agentMode} onToggleMode={setAgentMode} />
       </div>
 
-      {/* Trading feed */}
+      {}
       <TradingFeed messages={messages} />
 
-      {/* Agent table */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-4">Top Agents by Allocation</h3>
         <table className="w-full text-xs">

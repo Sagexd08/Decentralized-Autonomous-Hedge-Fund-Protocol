@@ -7,7 +7,7 @@ describe("CapitalVault E2E — depositETH with EIP-712 delegation", function () 
   let agent;
 
   const POOL_BALANCED = 1;
-  const MAX_DRAWDOWN_BPS = 1500n; // 15%
+  const MAX_DRAWDOWN_BPS = 1500n;
   const MAX_ALLOCATION_WEI = ethers.parseEther("5");
   const DEPOSIT_AMOUNT = ethers.parseEther("1");
 
@@ -51,7 +51,6 @@ describe("CapitalVault E2E — depositETH with EIP-712 delegation", function () 
       investor:         signer.address,
     };
 
-    // ethers v6: signer.signTypedData(domain, types, value)
     return signer.signTypedData(domain, types, value);
   }
 

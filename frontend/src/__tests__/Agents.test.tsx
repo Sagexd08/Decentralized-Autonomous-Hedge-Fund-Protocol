@@ -26,7 +26,7 @@ describe('Agents page', () => {
 
   it('renders agent cards with agent names visible', () => {
     renderAgents()
-    // mockAgents has AlphaWave as first agent
+
     expect(screen.getByText('AlphaWave')).toBeInTheDocument()
     expect(screen.getByText('NeuralArb')).toBeInTheDocument()
   })

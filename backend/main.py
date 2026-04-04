@@ -27,7 +27,6 @@ _MODEL_BUCKET = "models"
 _MODEL_OBJECT_PATH = "model.pkl"
 _LOCAL_MODEL_PATH = Path(__file__).parent / "ml" / "model.pkl"
 
-
 def _init_web3_and_contracts():
     """Initialize web3 connection and contract instances. Returns (w3, vault, price_feed, accounts) or None."""
     try:
@@ -43,7 +42,6 @@ def _init_web3_and_contracts():
         with open(_CONFIG_PATH) as f:
             cfg = json.load(f)
 
-        # Load ABIs from artifacts
         artifacts_base = Path(__file__).parent.parent / "contracts" / "artifacts" / "src"
 
         def load_abi(name: str):
@@ -57,12 +55,11 @@ def _init_web3_and_contracts():
         vault = w3.eth.contract(address=cfg["CapitalVault"], abi=vault_abi)
         price_feed = w3.eth.contract(address=cfg["MockPriceFeed"], abi=price_feed_abi)
 
-        # Load Hardhat accounts from private keys (env or default Hardhat keys)
         hardhat_keys = os.getenv("HARDHAT_PRIVATE_KEYS", "")
         if hardhat_keys:
             accounts = [Account.from_key(k.strip()) for k in hardhat_keys.split(",") if k.strip()]
         else:
-            # Default Hardhat deterministic accounts (first 5)
+
             default_keys = [
                 "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
                 "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
@@ -76,7 +73,6 @@ def _init_web3_and_contracts():
     except Exception as e:
         logger.warning(f"Web3 init failed: {e}. Trading engine disabled.")
         return None
-
 
 def _sync_ml_model_from_supabase() -> bool:
     """Best-effort startup sync so the API boots with the latest deployed model."""
@@ -95,7 +91,6 @@ def _sync_ml_model_from_supabase() -> bool:
         logger.warning("ML model sync from Supabase skipped: %s", exc)
         return False
 
-
 def _load_ml_artifacts():
     """Load the local model artifact into app state when available."""
     try:
@@ -108,20 +103,17 @@ def _load_ml_artifacts():
         logger.warning("ML model load skipped: %s", exc)
         return None, None
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.ml_model_synced = _sync_ml_model_from_supabase()
     app.state.ml_model, app.state.ml_scaler = _load_ml_artifacts()
 
-    # Start price engine
     from agents.price_engine import price_engine
     from agents.market_stream import market_stream
     price_engine.start()
     market_stream.start()
     logger.info("Price engine started.")
 
-    # Initialize trading engine
     from agents.trading_engine import AgentTradingEngine
 
     result = _init_web3_and_contracts()
@@ -129,11 +121,11 @@ async def lifespan(app: FastAPI):
         w3, vault, price_feed, accounts = result
         app.state.vault_contract = vault
         app.state.trading_engine = AgentTradingEngine(w3, vault, price_feed, accounts)
-        # Start event listener background task
+
         listener_task = asyncio.create_task(ws_trading.event_listener(app))
         logger.info("Trading engine and WebSocket event listener started.")
     else:
-        # Stub engine so endpoints don't crash
+
         app.state.vault_contract = None
         app.state.trading_engine = AgentTradingEngine(None, None, None, [])
         listener_task = None
@@ -141,7 +133,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Cleanup
     market_stream.stop()
     price_engine.stop()
     if listener_task is not None:
@@ -150,7 +141,6 @@ async def lifespan(app: FastAPI):
             await listener_task
         except asyncio.CancelledError:
             pass
-
 
 app = FastAPI(title="DACAP API", version="2.1.0", lifespan=lifespan)
 
@@ -185,7 +175,6 @@ app.include_router(ws_trading.router, tags=["websocket"])
 app.include_router(ws_prices.router, tags=["prices"])
 app.include_router(ws_social.router, tags=["social"])
 
-
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
@@ -196,7 +185,6 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             "Access-Control-Allow-Credentials": "true",
         },
     )
-
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
@@ -209,7 +197,6 @@ async def global_exception_handler(request: Request, exc: Exception):
             "Access-Control-Allow-Credentials": "true",
         },
     )
-
 
 @app.get("/health")
 def health():

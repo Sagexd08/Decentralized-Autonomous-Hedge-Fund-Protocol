@@ -36,7 +36,7 @@ export interface TradingSession {
   finalPnlPct?: number
   trades: number
   status: 'active' | 'completed'
-  // Rich trading stats
+
   tradeRecords: TradeRecord[]
   maxDrawdownEth?: number
   peakPnlEth?: number
@@ -106,7 +106,6 @@ export const useProtocolStore = create<ProtocolState>()(
         const session = state.sessions.find(s => s.id === sessionId)
         const records = tradeRecords ?? session?.tradeRecords ?? []
 
-        // Compute rich stats
         const wins = records.filter(t => t.pnlDelta > 0)
         const losses = records.filter(t => t.pnlDelta < 0)
         const avgWin = wins.length ? wins.reduce((s, t) => s + t.pnlDelta, 0) / wins.length : 0
@@ -120,7 +119,6 @@ export const useProtocolStore = create<ProtocolState>()(
         const deposited = session?.ethDeposited ?? 1
         const finalPnlPct = (finalPnlEth / deposited) * 100
 
-        // Peak and max drawdown
         let peak = 0, maxDD = 0, running = 0
         for (const t of records) {
           running += t.pnlDelta
@@ -175,7 +173,7 @@ export const useProtocolStore = create<ProtocolState>()(
       name: 'dacap-protocol-store',
       version: 3,
       migrate: (persistedState: any, version: number) => {
-        // Migrate from any previous version — preserve sessions and delegations
+
         if (version < 3) {
           return {
             ...persistedState,

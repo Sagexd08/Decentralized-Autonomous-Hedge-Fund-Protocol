@@ -51,7 +51,7 @@ export function useWebSocket(url: string): UseWebSocketReturn {
           return next.length > MAX_MESSAGES ? next.slice(next.length - MAX_MESSAGES) : next
         })
       } catch {
-        // ignore malformed messages
+
       }
     }
 
@@ -64,7 +64,7 @@ export function useWebSocket(url: string): UseWebSocketReturn {
     }
 
     ws.onerror = () => {
-      // onclose will fire after onerror, so reconnect logic is handled there
+
     }
   }, [url])
 
@@ -78,7 +78,7 @@ export function useWebSocket(url: string): UseWebSocketReturn {
         clearTimeout(reconnectTimerRef.current)
       }
       if (wsRef.current) {
-        wsRef.current.onclose = null  // prevent reconnect on intentional close
+        wsRef.current.onclose = null
         wsRef.current.close()
       }
       setStatus('disconnected')

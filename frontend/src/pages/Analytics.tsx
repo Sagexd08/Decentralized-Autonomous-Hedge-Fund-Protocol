@@ -10,12 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useMonteCarloData } from '../hooks/useMonteCarloData'
 import { TrendingUp, TrendingDown, Activity, BarChart2, Zap, AlertTriangle, CheckCircle, Clock } from 'lucide-react'
 
-// ---------------------------------------------------------------------------
-// Data generators
-// ---------------------------------------------------------------------------
 const AGENT_COLORS = ['#00f5ff', '#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444']
 
-// 30 visually distinct colors for MC paths
 const PATH_COLORS = [
   '#00f5ff', '#a855f7', '#10b981', '#f59e0b', '#ef4444', '#3b82f6',
   '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#06b6d4', '#84cc16',
@@ -24,13 +20,12 @@ const PATH_COLORS = [
   '#a3e635', '#60a5fa', '#c084fc', '#fdba74', '#67e8f9', '#86efac',
 ]
 
-// Return distribution — normal with fat tails
 function genReturnDist() {
   const bins: { bin: string; count: number; pct: number }[] = []
   const returns = Array.from({ length: 500 }, () => {
     const u1 = Math.random(), u2 = Math.random()
     const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2)
-    return z * 0.018 + 0.0008 // slight positive drift
+    return z * 0.018 + 0.0008
   })
   const min = -0.08, max = 0.08, buckets = 24
   const step = (max - min) / buckets
@@ -42,7 +37,6 @@ function genReturnDist() {
   return { bins, returns, skew: -0.31, kurt: 4.82, var95: -0.0298, cvar95: -0.0412 }
 }
 
-// Drawdown series
 function genDrawdown() {
   const equity = generateTimeSeries(120, 100000, 1500)
   let peak = equity[0].value
@@ -53,7 +47,6 @@ function genDrawdown() {
   })
 }
 
-// Rolling Sharpe/Sortino/Calmar
 function genRollingRatios() {
   return generateTimeSeries(90, 1.8, 0.3).map((p, i) => ({
     time: p.time,
@@ -63,7 +56,6 @@ function genRollingRatios() {
   }))
 }
 
-// Agent attribution (stacked bar)
 function genAttribution() {
   return generateTimeSeries(30, 0, 1).map((p, i) => {
     const row: Record<string, number | string> = { time: p.time }
@@ -74,7 +66,6 @@ function genAttribution() {
   })
 }
 
-// Volatility surface (heatmap data)
 function genVolSurface() {
   const windows = [7, 14, 21, 30, 45, 60]
   const pools = ['Conservative', 'Balanced', 'Aggressive']
@@ -90,14 +81,12 @@ function genVolSurface() {
   })
 }
 
-// Regime transition matrix
 const REGIME_TRANS = {
   Bull:     { Bull: 0.72, Sideways: 0.21, Bear: 0.07 },
   Sideways: { Bull: 0.28, Sideways: 0.54, Bear: 0.18 },
   Bear:     { Bull: 0.15, Sideways: 0.31, Bear: 0.54 },
 }
 
-// Regime timeline
 function genRegimeTimeline() {
   const regimes = ['Bull', 'Sideways', 'Bear'] as const
   let current: typeof regimes[number] = 'Bull'
@@ -117,7 +106,6 @@ function genRegimeTimeline() {
   })
 }
 
-// Agent correlation matrix
 function genAgentCorr() {
   const n = agents.length
   const matrix: number[][] = Array.from({ length: n }, (_, i) =>
@@ -127,14 +115,13 @@ function genAgentCorr() {
       return parseFloat(base.toFixed(2))
     })
   )
-  // Make symmetric
+
   for (let i = 0; i < n; i++)
     for (let j = i + 1; j < n; j++)
       matrix[j][i] = matrix[i][j]
   return matrix
 }
 
-// Backtest stats
 const BACKTEST = {
   totalReturn: 34.7, cagr: 28.4, maxDrawdown: -14.2,
   sharpe: 2.41, sortino: 3.18, calmar: 2.00,
@@ -142,7 +129,6 @@ const BACKTEST = {
   profitFactor: 1.94, trades: 847, avgHoldDays: 2.3,
 }
 
-// Generate diverse GBM paths with varied mu/sigma for visible spread
 function genDiversePaths(n: number, steps: number, S0: number) {
   return Array.from({ length: n }, (_, i) => {
     const mu = -0.002 + (i / n) * 0.006
@@ -158,7 +144,6 @@ function genDiversePaths(n: number, steps: number, S0: number) {
   })
 }
 
-// MC fan chart (percentile bands)
 function genMCFan(paths: number[][]) {
   if (!paths.length) return []
   const T = paths[0].length
@@ -172,7 +157,6 @@ function genMCFan(paths: number[][]) {
   })
 }
 
-// Time series decomposition
 const tsData = generateTimeSeries(90, 100, 5).map((d, i) => ({
   ...d,
   trend: 100 + i * 0.3,
@@ -180,9 +164,6 @@ const tsData = generateTimeSeries(90, 100, 5).map((d, i) => ({
   residual: parseFloat(((Math.random() - 0.5) * 3).toFixed(3)),
 }))
 
-// ---------------------------------------------------------------------------
-// Static data (computed once)
-// ---------------------------------------------------------------------------
 const RETURN_DIST = genReturnDist()
 const DRAWDOWN_DATA = genDrawdown()
 const ROLLING_RATIOS = genRollingRatios()
@@ -197,9 +178,6 @@ const TABS = [
   'Regime', 'Attribution', 'Distributions', 'Time Series',
 ]
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 function corrColor(v: number) {
   if (v >= 0.9) return '#ef4444'
   if (v >= 0.7) return '#f59e0b'
@@ -220,10 +198,6 @@ function StatCard({ label, value, sub, color = 'text-white', up }: {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Tab panels
-// ---------------------------------------------------------------------------
-
 function OverviewTab({ mcStats }: { mcStats: any }) {
   const lastRegime = REGIME_TIMELINE[REGIME_TIMELINE.length - 1]
   const regimeColor = lastRegime.color
@@ -231,7 +205,7 @@ function OverviewTab({ mcStats }: { mcStats: any }) {
 
   return (
     <div className="space-y-4">
-      {/* Regime banner */}
+      {}
       <div className="card flex items-center justify-between" style={{ borderColor: `${regimeColor}30`, background: `${regimeColor}08` }}>
         <div className="flex items-center gap-3">
           <div className="w-3 h-3 rounded-full animate-pulse" style={{ background: regimeColor }} />
@@ -249,7 +223,7 @@ function OverviewTab({ mcStats }: { mcStats: any }) {
         </div>
       </div>
 
-      {/* Key metrics */}
+      {}
       <div className="grid grid-cols-4 gap-3">
         <StatCard label="Total Return" value={`+${BACKTEST.totalReturn}%`} color="text-green" sub="Since inception" />
         <StatCard label="Sharpe Ratio" value={BACKTEST.sharpe.toFixed(2)} color="text-cyan" sub="Risk-adjusted" />
@@ -264,7 +238,7 @@ function OverviewTab({ mcStats }: { mcStats: any }) {
         <StatCard label="Profit Factor" value={BACKTEST.profitFactor.toFixed(2)} color="text-yellow-400" />
       </div>
 
-      {/* Rolling ratios */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Rolling Risk-Adjusted Ratios (30d window)</h3>
         <p className="text-xs text-slate-500 mb-4">Sharpe · Sortino · Calmar — computed on rolling 30-day returns</p>
@@ -283,7 +257,7 @@ function OverviewTab({ mcStats }: { mcStats: any }) {
         </ResponsiveContainer>
       </div>
 
-      {/* Backtest summary */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-4">Backtest Summary</h3>
         <div className="grid grid-cols-3 gap-x-8 gap-y-2 text-xs">
@@ -315,13 +289,11 @@ function OverviewTab({ mcStats }: { mcStats: any }) {
 function MonteCarloTab({ mcData }: { mcData: any }) {
   const [params, setParams] = useState({ mu: 0.15, sigma: 0.20, paths: 200 })
 
-  // Generate 30 diverse paths with varied drift/vol — ensures visible spread
   const diversePaths = useMemo(() => genDiversePaths(30, 31, 100000), [])
   const fanData = useMemo(() => genMCFan(diversePaths), [diversePaths])
 
   const mcStats = mcData?.stats ?? { mean_return: 0.187, var_95: -0.121, cvar_95: -0.158, sharpe_ratio: 1.84, prob_profit: 0.732 }
 
-  // Pivot for spaghetti chart
   const spaghettiData = useMemo(() =>
     Array.from({ length: 31 }, (_, t) => {
       const row: Record<string, number> = { t }
@@ -343,7 +315,7 @@ function MonteCarloTab({ mcData }: { mcData: any }) {
         ].map(m => <StatCard key={m.label} label={m.label} value={m.value} color={m.color} />)}
       </div>
 
-      {/* Fan chart */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Monte Carlo Fan Chart</h3>
         <p className="text-xs text-slate-500 mb-4">Percentile bands: P5 / P25 / P50 / P75 / P95 · 30 paths · GBM model</p>
@@ -372,7 +344,7 @@ function MonteCarloTab({ mcData }: { mcData: any }) {
         </div>
       </div>
 
-      {/* Spaghetti paths */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Individual Path Simulation</h3>
         <p className="text-xs text-slate-500 mb-4">30 sample paths — green = top decile, red = bottom decile</p>
@@ -415,7 +387,7 @@ function DrawdownTab() {
         <StatCard label="Ulcer Index" value="4.82" color="text-purple" sub="Lower = better" />
       </div>
 
-      {/* Equity + drawdown */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Equity Curve</h3>
         <p className="text-xs text-slate-500 mb-3">Portfolio value over time</p>
@@ -438,7 +410,7 @@ function DrawdownTab() {
         </ResponsiveContainer>
       </div>
 
-      {/* Drawdown waterfall */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Drawdown Waterfall</h3>
         <p className="text-xs text-slate-500 mb-3">Underwater equity curve — depth and duration of drawdown periods</p>
@@ -470,7 +442,7 @@ function VolatilityTab() {
 
   return (
     <div className="space-y-4">
-      {/* Rolling vol */}
+      {}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -498,7 +470,7 @@ function VolatilityTab() {
         </ResponsiveContainer>
       </div>
 
-      {/* Vol surface heatmap */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Volatility Surface</h3>
         <p className="text-xs text-slate-500 mb-4">Rolling vol (%) across time windows and pools — darker = higher vol</p>
@@ -567,7 +539,7 @@ function RegimeTab() {
         })}
       </div>
 
-      {/* Regime timeline */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Regime Timeline</h3>
         <p className="text-xs text-slate-500 mb-4">HMM-detected market regimes with confidence scores</p>
@@ -596,7 +568,7 @@ function RegimeTab() {
         </ResponsiveContainer>
       </div>
 
-      {/* Transition matrix */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Regime Transition Matrix</h3>
         <p className="text-xs text-slate-500 mb-4">Probability of transitioning from row regime to column regime</p>
@@ -657,7 +629,7 @@ function AttributionTab() {
         </ResponsiveContainer>
       </div>
 
-      {/* Agent correlation heatmap */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Agent Return Correlation Matrix</h3>
         <p className="text-xs text-slate-500 mb-4">Rolling 30d pairwise correlation — lower = better diversification</p>
@@ -776,7 +748,7 @@ function TimeSeriesTab() {
         </div>
       </div>
 
-      {/* Trend wave */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Trend Wave Visualizer</h3>
         <p className="text-xs text-slate-500 mb-4">Wavelet decomposition · Multi-scale trend extraction</p>
@@ -794,9 +766,6 @@ function TimeSeriesTab() {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
 export default function Analytics() {
   const [tab, setTab] = useState('Overview')
   const { data: mcData } = useMonteCarloData()
@@ -810,7 +779,7 @@ export default function Analytics() {
           <h1 className="text-xl font-bold text-white">Quantitative Analytics</h1>
           <p className="text-slate-500 text-sm mt-0.5">ML-powered market analysis · Risk metrics · Statistical decomposition</p>
         </div>
-        {/* Live regime pill */}
+        {}
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs"
           style={{ borderColor: `${regimeColor}30`, background: `${regimeColor}10` }}>
           <div className="w-2 h-2 rounded-full animate-pulse" style={{ background: regimeColor }} />
@@ -820,7 +789,7 @@ export default function Analytics() {
         </div>
       </div>
 
-      {/* Tab bar */}
+      {}
       <div className="flex gap-1 bg-surface rounded-xl p-1 border border-border flex-wrap">
         {TABS.map(t => (
           <button key={t} onClick={() => setTab(t)}

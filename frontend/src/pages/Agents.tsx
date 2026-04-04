@@ -17,9 +17,6 @@ import DelegationModal from '../components/agents/DelegationModal'
 import { useProtocolStore } from '../store/protocolStore'
 import { API_BASE_URL } from '../utils/api'
 
-// ---------------------------------------------------------------------------
-// Types & constants
-// ---------------------------------------------------------------------------
 const RISK_COLORS: Record<string, string> = {
   Conservative: '#10b981', Balanced: '#3b82f6', Aggressive: '#a855f7',
 }
@@ -47,7 +44,6 @@ type Agent = {
   description?: string
 }
 
-// Reputation badge logic
 function getBadges(a: Agent, allAgents: Agent[]) {
   const badges: { label: string; color: string; icon: React.ReactNode }[] = []
   const sorted = [...allAgents]
@@ -62,7 +58,6 @@ function getBadges(a: Agent, allAgents: Agent[]) {
   return badges
 }
 
-// Score breakdown
 function scoreBreakdown(a: Agent) {
   return {
     sharpe: Math.min(a.sharpe / 3.5 * 40, 40),
@@ -79,16 +74,12 @@ function computePortfolioUSD(balances: Record<string, string>): number {
   }, 0)
 }
 
-// Generate sparkline data per agent
 function genSparkline(pnl: number) {
   return generateTimeSeries(30, 100, Math.abs(pnl) * 0.3).map((p, i) => ({
     t: i, v: p.value + (pnl > 0 ? i * 0.1 : -i * 0.05),
   }))
 }
 
-// ---------------------------------------------------------------------------
-// Deploy Agent Modal
-// ---------------------------------------------------------------------------
 function DeployAgentModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
   const [strategy, setStrategy] = useState('')
@@ -164,9 +155,6 @@ function DeployAgentModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Agent Detail Drawer
-// ---------------------------------------------------------------------------
 function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
   agent: Agent; allAgents: Agent[]; portfolio?: AgentPortfolio
   onClose: () => void; onDelegate: () => void
@@ -205,7 +193,7 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
       </div>
 
       <div className="p-5 space-y-5">
-        {/* Badges */}
+        {}
         {badges.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {badges.map(b => (
@@ -216,7 +204,7 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
           </div>
         )}
 
-        {/* Status */}
+        {}
         <div className="flex items-center justify-between">
           <span className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border font-medium`}
             style={{ color, borderColor: `${color}30`, background: `${color}10` }}>
@@ -230,7 +218,7 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
           )}
         </div>
 
-        {/* Algorithm description */}
+        {}
         {agent.description && (
           <div className="p-3 bg-slate-900/60 rounded-xl border border-border">
             <p className="text-xs text-slate-400 font-medium mb-1.5">Algorithm & Mathematical Model</p>
@@ -238,7 +226,7 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
           </div>
         )}
 
-        {/* PnL sparkline */}
+        {}
         <div className="card p-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-xs text-slate-500">30-Day PnL Trend</p>
@@ -261,7 +249,7 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
           </ResponsiveContainer>
         </div>
 
-        {/* Key metrics */}
+        {}
         <div className="grid grid-cols-3 gap-2">
           {[
             { label: 'Sharpe', value: agent.sharpe, color: 'text-cyan' },
@@ -278,7 +266,7 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
           ))}
         </div>
 
-        {/* Score breakdown */}
+        {}
         <div className="card p-3">
           <p className="text-xs text-slate-500 mb-3">Score Breakdown ({agent.score}/100)</p>
           {[
@@ -298,7 +286,7 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
           ))}
         </div>
 
-        {/* Radar */}
+        {}
         <div className="card p-3">
           <p className="text-xs text-slate-500 mb-2">Performance Radar</p>
           <ResponsiveContainer width="100%" height={180}>
@@ -311,7 +299,7 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
           </ResponsiveContainer>
         </div>
 
-        {/* Portfolio */}
+        {}
         {portfolioUSD !== null && (
           <div className="card p-3">
             <p className="text-xs text-slate-500 mb-2">Live Portfolio</p>
@@ -333,7 +321,7 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
           </div>
         )}
 
-        {/* Actions */}
+        {}
         <div className="space-y-2">
           <button onClick={onDelegate}
             className="w-full py-2.5 rounded-xl text-sm font-medium bg-cyan/10 text-cyan border border-cyan/20 hover:bg-cyan/20 transition-all flex items-center justify-center gap-2">
@@ -350,9 +338,6 @@ function AgentDrawer({ agent, allAgents, portfolio, onClose, onDelegate }: {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Comparison Panel
-// ---------------------------------------------------------------------------
 function ComparisonPanel({ agents, onRemove }: { agents: Agent[]; onRemove: (id: string) => void }) {
   if (agents.length < 2) return null
   const metrics: { key: keyof Agent; label: string; better: 'higher' | 'lower' }[] = [
@@ -416,9 +401,6 @@ function ComparisonPanel({ agents, onRemove }: { agents: Agent[]; onRemove: (id:
   )
 }
 
-// ---------------------------------------------------------------------------
-// Agent Card
-// ---------------------------------------------------------------------------
 function AgentCard({ agent, allAgents, rank, isWatched, isCompared, onWatch, onCompare, onSelect, onDelegate, portfolio, isTrading, isLoading, onStartTrading, onStopTrading, delegatedEth }: {
   agent: Agent; allAgents: Agent[]; rank: number
   isWatched: boolean; isCompared: boolean
@@ -437,13 +419,13 @@ function AgentCard({ agent, allAgents, rank, isWatched, isCompared, onWatch, onC
       style={{ borderColor: `${color}20` }}
       onClick={onSelect}>
 
-      {/* Rank badge */}
+      {}
       <div className="absolute -top-2 -left-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
         style={{ background: rank <= 3 ? color : '#1f2937', color: rank <= 3 ? '#000' : '#64748b' }}>
         {rank}
       </div>
 
-      {/* Header */}
+      {}
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold"
@@ -472,7 +454,7 @@ function AgentCard({ agent, allAgents, rank, isWatched, isCompared, onWatch, onC
         </div>
       </div>
 
-      {/* Badges */}
+      {}
       {badges.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-3">
           {badges.map(b => (
@@ -483,7 +465,7 @@ function AgentCard({ agent, allAgents, rank, isWatched, isCompared, onWatch, onC
         </div>
       )}
 
-      {/* Score bar */}
+      {}
       <div className="mb-3">
         <div className="flex justify-between text-xs mb-1">
           <span className="text-slate-500">Protocol Score</span>
@@ -495,7 +477,7 @@ function AgentCard({ agent, allAgents, rank, isWatched, isCompared, onWatch, onC
         </div>
       </div>
 
-      {/* Metrics grid */}
+      {}
       <div className="grid grid-cols-4 gap-1.5 mb-3">
         {[
           { label: 'Sharpe', value: agent.sharpe, color: 'text-cyan' },
@@ -510,7 +492,7 @@ function AgentCard({ agent, allAgents, rank, isWatched, isCompared, onWatch, onC
         ))}
       </div>
 
-      {/* Sparkline */}
+      {}
       <div className="mb-3 -mx-1">
         <ResponsiveContainer width="100%" height={40}>
           <AreaChart data={sparkline}>
@@ -525,13 +507,13 @@ function AgentCard({ agent, allAgents, rank, isWatched, isCompared, onWatch, onC
         </ResponsiveContainer>
       </div>
 
-      {/* Footer */}
+      {}
       <div className="flex items-center justify-between text-xs text-slate-600 mb-3">
         <span className="font-mono">{agent.id}</span>
         <span>Stake: ${(agent.stake / 1000).toFixed(0)}K</span>
       </div>
 
-      {/* Delegated ETH display */}
+      {}
       {delegatedEth !== undefined && delegatedEth > 0 && (
         <div className="flex items-center justify-between text-xs mb-3 px-2 py-1.5 rounded-lg bg-cyan/5 border border-cyan/15">
           <span className="text-slate-400 flex items-center gap-1"><DollarSign size={10} /> Delegated</span>
@@ -539,7 +521,7 @@ function AgentCard({ agent, allAgents, rank, isWatched, isCompared, onWatch, onC
         </div>
       )}
 
-      {/* Actions */}
+      {}
       <div className="flex gap-2" onClick={e => e.stopPropagation()}>
         <button onClick={onDelegate}
           className="flex-1 py-1.5 rounded-lg text-xs font-medium bg-cyan/10 text-cyan border border-cyan/20 hover:bg-cyan/20 transition-all">
@@ -563,9 +545,6 @@ function AgentCard({ agent, allAgents, rank, isWatched, isCompared, onWatch, onC
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
 export default function Agents() {
   const navigate = useNavigate()
   const { data: agentsData = [] } = useAgents()
@@ -603,7 +582,7 @@ export default function Agents() {
     try {
       await fetch(`${API_BASE_URL}/api/agents/${agentId}/start-trading`, { method: 'POST' })
       await fetchPortfolio(agentId)
-      // Start a session and navigate to dashboard
+
       const agent = agents.find(a => a.id === agentId)
       const delegation = delegations[agentId]
       if (agent && delegation) {
@@ -619,7 +598,7 @@ export default function Agents() {
     try {
       await fetch(`${API_BASE_URL}/api/agents/${agentId}/stop-trading`, { method: 'POST' })
       await fetchPortfolio(agentId)
-      // End the active session for this agent and navigate to PnL history
+
       const store = useProtocolStore.getState()
       const activeSession = store.sessions.find(s => s.agentId === agentId && s.status === 'active')
       if (activeSession) {
@@ -640,7 +619,7 @@ export default function Agents() {
       (filter === 'all' || a.risk.toLowerCase() === filter) &&
       a.name.toLowerCase().includes(search.toLowerCase())
     )
-    // Watchlist first
+
     list = [...list.filter(a => watchlist.has(a.id)), ...list.filter(a => !watchlist.has(a.id))]
     list.sort((a, b) => {
       const av = sortKey === 'drawdown' ? Math.abs(a[sortKey]) : Number(a[sortKey])
@@ -683,7 +662,7 @@ export default function Agents() {
         )}
       </AnimatePresence>
 
-      {/* Header */}
+      {}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Agent Marketplace</h1>
@@ -695,7 +674,7 @@ export default function Agents() {
         </button>
       </div>
 
-      {/* Protocol stats */}
+      {}
       <div className="grid grid-cols-4 gap-3">
         {[
           { label: 'Total Agents', value: agents.length, icon: Users, color: 'text-white' },
@@ -715,7 +694,7 @@ export default function Agents() {
         ))}
       </div>
 
-      {/* Controls */}
+      {}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 max-w-xs">
           <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -740,7 +719,7 @@ export default function Agents() {
         </div>
       </div>
 
-      {/* Sort controls */}
+      {}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-slate-500 flex items-center gap-1"><SlidersHorizontal size={11} /> Sort:</span>
         {(['score', 'sharpe', 'pnl', 'drawdown', 'allocation', 'stake', 'volatility'] as SortKey[]).map(k => (
@@ -753,12 +732,12 @@ export default function Agents() {
         )}
       </div>
 
-      {/* Comparison panel */}
+      {}
       {compareAgents.length >= 2 && (
         <ComparisonPanel agents={compareAgents} onRemove={id => setCompareList(prev => prev.filter(x => x !== id))} />
       )}
 
-      {/* Grid view */}
+      {}
       {viewMode === 'grid' && (
         <div className="grid grid-cols-2 gap-4">
           {sorted.map((a, i) => (
@@ -780,7 +759,7 @@ export default function Agents() {
         </div>
       )}
 
-      {/* Leaderboard view */}
+      {}
       {viewMode === 'leaderboard' && (
         <div className="card">
           <table className="w-full text-xs">

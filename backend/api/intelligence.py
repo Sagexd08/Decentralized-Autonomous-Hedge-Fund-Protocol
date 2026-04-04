@@ -34,7 +34,6 @@ _STAGE_ORDER = [
     "slashing",
 ]
 
-
 def _agent_snapshot(agent: dict[str, Any], regime: str, phase: float) -> dict[str, Any]:
     confidence = round(
         max(0.35, min(0.97, 0.55 + agent["sharpe"] * 0.08 - abs(agent["drawdown"]) * 0.006 + math.sin(phase) * 0.04)),
@@ -74,7 +73,6 @@ def _agent_snapshot(agent: dict[str, Any], regime: str, phase: float) -> dict[st
             "time_horizon": "intraday" if agent["risk"] == "Aggressive" else "swing" if agent["risk"] == "Balanced" else "defensive carry",
         },
     }
-
 
 def _build_loop_state() -> dict[str, Any]:
     now = time.time()
@@ -146,11 +144,9 @@ def _build_loop_state() -> dict[str, Any]:
         },
     }
 
-
 @router.get("/loop")
 def get_loop_state():
     return _build_loop_state()
-
 
 @router.get("/demo")
 def get_demo_state():
@@ -176,7 +172,6 @@ def get_demo_state():
         "contract_prompt_example": "Create a hedge fund that rebalances every hour based on volatility and slashes agents after a 15% drawdown.",
         "loop_snapshot": state,
     }
-
 
 @router.get("/governance-suggestions")
 def get_governance_suggestions():

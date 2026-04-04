@@ -1,23 +1,13 @@
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-/**
- * @title SlashingModule
- * @notice Monitors agent drawdown and executes slashing when thresholds are breached.
- *         Redistributes slashed collateral to protocol treasury.
- *
- * @dev Slashing formula:
- *      slashBps = min(drawdownBps - threshold, maxSlashBps)
- *      Ensures proportional punishment, not binary elimination.
- */
 contract SlashingModule is Ownable {
     address public vault;
     address public registry;
 
-    uint256 public drawdownThresholdBps = 2000;  // 20%
-    uint256 public maxSlashBps = 5000;            // 50% of stake
+    uint256 public drawdownThresholdBps = 2000;
+    uint256 public maxSlashBps = 5000;
 
     struct SlashRecord {
         uint256 timestamp;
@@ -38,11 +28,6 @@ contract SlashingModule is Ownable {
         registry = _registry;
     }
 
-    /**
-     * @notice Report agent performance. Called by oracle after each evaluation.
-     * @param agent Agent address
-     * @param currentValue Current portfolio value (scaled by 1e6)
-     */
     function reportPerformance(address agent, uint256 currentValue) external onlyOwner {
         if (peakValues[agent] == 0 || currentValue > peakValues[agent]) {
             peakValues[agent] = currentValue;

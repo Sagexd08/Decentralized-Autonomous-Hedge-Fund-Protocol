@@ -16,9 +16,6 @@ router = APIRouter()
 _CONTRACTS_DIR = Path(__file__).parent.parent.parent / "contracts"
 _SUBMISSIONS_PATH = Path(__file__).parent.parent / "contract_submissions.json"
 
-# ---------------------------------------------------------------------------
-# Built-in contracts with real source + explanations
-# ---------------------------------------------------------------------------
 _BUILTIN = [
     {
         "id": "capital-vault",
@@ -240,7 +237,6 @@ _BUILTIN = [
     },
 ]
 
-
 def _load_submissions() -> list:
     if _SUBMISSIONS_PATH.exists():
         try:
@@ -250,25 +246,18 @@ def _load_submissions() -> list:
             pass
     return []
 
-
 def _save_submissions(subs: list):
     _SUBMISSIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(_SUBMISSIONS_PATH, "w") as f:
         json.dump(subs, f, indent=2)
 
-
 def _read_source(filename: str) -> str:
-    # Try both old and new contract locations
+
     for base in [_CONTRACTS_DIR, _CONTRACTS_DIR / "src"]:
         p = base / filename
         if p.exists():
             return p.read_text()
     return f"// Source not found: {filename}"
-
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 
 @router.get("/")
 def list_contracts():
@@ -280,21 +269,19 @@ def list_contracts():
         all_contracts.append({k: v for k, v in s.items() if k != "source_code"})
     return all_contracts
 
-
 @router.get("/{contract_id}")
 def get_contract(contract_id: str):
-    # Check builtins
+
     for c in _BUILTIN:
         if c["id"] == contract_id:
             source = _read_source(c["source_file"])
             return {**c, "source_code": source}
-    # Check submissions
+
     subs = _load_submissions()
     s = next((x for x in subs if x["id"] == contract_id), None)
     if s:
         return s
     raise HTTPException(status_code=404, detail="Contract not found")
-
 
 class ContractSubmission(BaseModel):
     name: str
@@ -303,7 +290,6 @@ class ContractSubmission(BaseModel):
     source_code: str
     explanation: str
     submitted_by: str = "anonymous"
-
 
 @router.post("/submit")
 def submit_contract(data: ContractSubmission):
@@ -349,9 +335,6 @@ router = APIRouter()
 _CONTRACTS_DIR = Path(__file__).parent.parent.parent / "contracts"
 _SUBMISSIONS_PATH = Path(__file__).parent.parent / "contract_submissions.json"
 
-# ---------------------------------------------------------------------------
-# Built-in contracts with real source + explanations
-# ---------------------------------------------------------------------------
 _BUILTIN = [
     {
         "id": "capital-vault",
@@ -573,7 +556,6 @@ _BUILTIN = [
     },
 ]
 
-
 def _load_submissions() -> list:
     if _SUBMISSIONS_PATH.exists():
         try:
@@ -583,25 +565,18 @@ def _load_submissions() -> list:
             pass
     return []
 
-
 def _save_submissions(subs: list):
     _SUBMISSIONS_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(_SUBMISSIONS_PATH, "w") as f:
         json.dump(subs, f, indent=2)
 
-
 def _read_source(filename: str) -> str:
-    # Try both old and new contract locations
+
     for base in [_CONTRACTS_DIR, _CONTRACTS_DIR / "src"]:
         p = base / filename
         if p.exists():
             return p.read_text()
     return f"// Source not found: {filename}"
-
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 
 @router.get("/")
 def list_contracts():
@@ -613,21 +588,19 @@ def list_contracts():
         all_contracts.append({k: v for k, v in s.items() if k != "source_code"})
     return all_contracts
 
-
 @router.get("/{contract_id}")
 def get_contract(contract_id: str):
-    # Check builtins
+
     for c in _BUILTIN:
         if c["id"] == contract_id:
             source = _read_source(c["source_file"])
             return {**c, "source_code": source}
-    # Check submissions
+
     subs = _load_submissions()
     s = next((x for x in subs if x["id"] == contract_id), None)
     if s:
         return s
     raise HTTPException(status_code=404, detail="Contract not found")
-
 
 class ContractSubmission(BaseModel):
     name: str
@@ -636,7 +609,6 @@ class ContractSubmission(BaseModel):
     source_code: str
     explanation: str
     submitted_by: str = "anonymous"
-
 
 @router.post("/submit")
 def submit_contract(data: ContractSubmission):

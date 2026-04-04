@@ -14,13 +14,11 @@ import LandingRiskEngine from '../components/LandingRiskEngine'
 import LandingCTA from '../components/LandingCTA'
 import LandingCommandPalette from '../components/LandingCommandPalette'
 
-// ---------- Hero ----------
 function Hero() {
   const navigate = useNavigate()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
 
-  // Open palette on ⌘K / Ctrl+K
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -42,7 +40,7 @@ function Hero() {
   return (
     <>
       <section className="relative flex min-h-screen flex-col overflow-hidden bg-black">
-        {/* Background video */}
+        {}
         <div className="pointer-events-none absolute inset-0">
           <video
             ref={videoRef}
@@ -58,12 +56,12 @@ function Hero() {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(255,255,255,0.07),transparent)]" />
         </div>
 
-        {/* Nav */}
+        {}
         <div className="relative z-20">
           <Navbar />
         </div>
 
-        {/* Hero body */}
+        {}
         <div className="relative z-10 mx-auto flex flex-1 w-full max-w-7xl flex-col justify-center px-4 pb-24 pt-8 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 40 }}
@@ -71,7 +69,7 @@ function Hero() {
             transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
             className="max-w-4xl"
           >
-            {/* Live badge */}
+            {}
             <div className="mb-8 flex items-center gap-3">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-50" />
@@ -116,7 +114,7 @@ function Hero() {
             </div>
           </motion.div>
 
-          {/* Horizontal ticker / meta line */}
+          {}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -142,13 +140,12 @@ function Hero() {
         </div>
       </section>
 
-      {/* Command palette */}
+      {}
       <LandingCommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </>
   )
 }
 
-// ---------- Footer ----------
 function Footer() {
   return (
     <footer className="border-t border-white/5 bg-black px-4 py-12 sm:px-6 lg:px-8">
@@ -182,7 +179,6 @@ function Footer() {
   )
 }
 
-// ---------- Page ----------
 export default function Landing() {
   return (
     <main className="bg-black text-white selection:bg-white/10">

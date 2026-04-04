@@ -9,7 +9,6 @@ from core.settings import settings
 
 logger = logging.getLogger(__name__)
 
-
 class CryptoNewsService:
     def __init__(self):
         self._cache: list[dict[str, Any]] = []
@@ -224,6 +223,5 @@ class CryptoNewsService:
                 "sentiment_hint": "bullish",
             },
         ]
-
 
 crypto_news_service = CryptoNewsService()

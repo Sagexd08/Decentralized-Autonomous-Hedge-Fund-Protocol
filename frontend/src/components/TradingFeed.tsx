@@ -63,7 +63,6 @@ export default function TradingFeed({ messages }: Props) {
       return newKey
     })
 
-    // Remove highlight after animation
     const timer = setTimeout(() => {
       setTrades(prev => prev.map(t => ({ ...t, _highlight: false })))
     }, 600)
@@ -92,12 +91,12 @@ export default function TradingFeed({ messages }: Props) {
               trade._highlight ? 'bg-cyan/5' : 'hover:bg-white/2'
             }`}
           >
-            {/* Agent address */}
+            {}
             <span className="font-mono text-slate-400 w-20 shrink-0">
               {truncateAddress(trade.agent)}
             </span>
 
-            {/* Action badge */}
+            {}
             <span
               className={`px-2 py-0.5 rounded-full font-medium capitalize shrink-0 ${
                 ACTION_COLORS[trade.type] ?? 'bg-slate-700 text-slate-300'
@@ -106,23 +105,23 @@ export default function TradingFeed({ messages }: Props) {
               {trade.type}
             </span>
 
-            {/* Token */}
+            {}
             <span className="text-white font-medium w-10 shrink-0">{trade.token}</span>
 
-            {/* Amount in ETH */}
+            {}
             <span className="font-mono text-slate-400 shrink-0">
               {formatEth(trade.amountIn)} ETH
             </span>
 
-            {/* Arrow */}
+            {}
             <span className="text-slate-600">→</span>
 
-            {/* Amount out */}
+            {}
             <span className="font-mono text-slate-300 shrink-0">
               {formatTokenAmount(trade.amountOut)}
             </span>
 
-            {/* Relative time */}
+            {}
             <span className="text-slate-600 ml-auto shrink-0">
               {relativeTime(trade.timestamp)}
             </span>

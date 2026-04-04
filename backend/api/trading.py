@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
 @router.post("/{agent_id}/start-trading")
 async def start_trading(agent_id: str, request: Request):
     engine: AgentTradingEngine = request.app.state.trading_engine
@@ -24,7 +23,6 @@ async def start_trading(agent_id: str, request: Request):
     except ValueError:
         raise HTTPException(status_code=409, detail="Agent is already trading")
 
-
 @router.post("/{agent_id}/stop-trading")
 async def stop_trading(agent_id: str, request: Request):
     engine: AgentTradingEngine = request.app.state.trading_engine
@@ -33,7 +31,6 @@ async def stop_trading(agent_id: str, request: Request):
         return {"status": "stopped", "agent_id": agent_id}
     except ValueError:
         raise HTTPException(status_code=409, detail="Agent is not trading")
-
 
 @router.get("/{agent_id}/portfolio")
 async def get_portfolio(agent_id: str, request: Request):
@@ -76,7 +73,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
 @router.post("/{agent_id}/start-trading")
 async def start_trading(agent_id: str, request: Request):
     engine: AgentTradingEngine = request.app.state.trading_engine
@@ -86,7 +82,6 @@ async def start_trading(agent_id: str, request: Request):
     except ValueError:
         raise HTTPException(status_code=409, detail="Agent is already trading")
 
-
 @router.post("/{agent_id}/stop-trading")
 async def stop_trading(agent_id: str, request: Request):
     engine: AgentTradingEngine = request.app.state.trading_engine
@@ -95,7 +90,6 @@ async def stop_trading(agent_id: str, request: Request):
         return {"status": "stopped", "agent_id": agent_id}
     except ValueError:
         raise HTTPException(status_code=409, detail="Agent is not trading")
-
 
 @router.get("/{agent_id}/portfolio")
 async def get_portfolio(agent_id: str, request: Request):

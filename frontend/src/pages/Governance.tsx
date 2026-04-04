@@ -10,11 +10,8 @@ import {
 } from '../hooks/useGovernanceProposals'
 import { useGovernanceSuggestions } from '../hooks/useIntelligence'
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-const VOTER_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' // simulated connected wallet
-const ADMIN_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266' // same as voter for demo — admin has extra powers
+const VOTER_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
+const ADMIN_ADDRESS = '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266'
 
 const CATEGORY_META: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   allocation: { label: 'Allocation',  icon: <BarChart2 size={12} />, color: 'text-cyan border-cyan/30 bg-cyan/10' },
@@ -35,9 +32,6 @@ const STATUS_META: Record<string, { icon: React.ReactNode; style: string; label:
 const PARAM_CATEGORIES = ['all', 'allocation', 'risk', 'agents', 'governance']
 const PROPOSAL_FILTERS = ['all', 'active', 'passed', 'rejected', 'expired', 'vetoed']
 
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
 function StatCard({ label, value, sub, color = 'text-white' }: { label: string; value: string | number; sub?: string; color?: string }) {
   return (
     <div className="card py-3 px-4">
@@ -111,7 +105,7 @@ function ProposalCard({
       animate={{ opacity: 1, y: 0 }}
       className="border border-border rounded-xl p-4 hover:border-slate-600 transition-all"
     >
-      {/* Header */}
+      {}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1.5 flex-wrap">
@@ -132,11 +126,11 @@ function ProposalCard({
         </button>
       </div>
 
-      {/* Vote bars */}
+      {}
       <VoteBar forPct={proposal.votes_for_pct} againstPct={proposal.votes_against_pct} />
       <QuorumBar progress={proposal.quorum_progress} needed={proposal.quorum_pct_needed} reached={proposal.quorum_reached} />
 
-      {/* Expanded detail */}
+      {}
       <AnimatePresence>
         {expanded && (
           <motion.div
@@ -176,7 +170,7 @@ function ProposalCard({
         )}
       </AnimatePresence>
 
-      {/* Vote actions + veto */}
+      {}
       <div className="mt-3 space-y-2">
         <div className="flex items-center justify-between">
           <p className="text-xs text-slate-600">Ends: {proposal.end_date}</p>
@@ -216,7 +210,7 @@ function ProposalCard({
           </div>
         </div>
 
-        {/* Inline veto reason input */}
+        {}
         <AnimatePresence>
           {showVetoInput && (
             <motion.div
@@ -253,9 +247,6 @@ function ProposalCard({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Proposal creation modal
-// ---------------------------------------------------------------------------
 function NewProposalModal({ params, onClose, onSubmit }: {
   params: Record<string, any>
   onClose: () => void
@@ -308,7 +299,7 @@ function NewProposalModal({ params, onClose, onSubmit }: {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Title */}
+          {}
           <div>
             <label className="text-xs text-slate-400 mb-1.5 block">Title</label>
             <input
@@ -319,7 +310,7 @@ function NewProposalModal({ params, onClose, onSubmit }: {
             />
           </div>
 
-          {/* Description */}
+          {}
           <div>
             <label className="text-xs text-slate-400 mb-1.5 block">Description</label>
             <textarea
@@ -331,7 +322,7 @@ function NewProposalModal({ params, onClose, onSubmit }: {
             />
           </div>
 
-          {/* Category */}
+          {}
           <div>
             <label className="text-xs text-slate-400 mb-1.5 block">Category</label>
             <div className="flex flex-wrap gap-2">
@@ -349,7 +340,7 @@ function NewProposalModal({ params, onClose, onSubmit }: {
             </div>
           </div>
 
-          {/* Parameter change toggle */}
+          {}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsParam(v => !v)}
@@ -360,7 +351,7 @@ function NewProposalModal({ params, onClose, onSubmit }: {
             <span className="text-xs text-slate-400">This proposal changes a protocol parameter</span>
           </div>
 
-          {/* Parameter selector */}
+          {}
           {isParam && (
             <div className="space-y-3 p-3 bg-slate-900 rounded-xl border border-border">
               <div>
@@ -403,7 +394,7 @@ function NewProposalModal({ params, onClose, onSubmit }: {
             </div>
           )}
 
-          {/* Duration */}
+          {}
           <div>
             <div className="flex justify-between text-xs mb-1.5">
               <span className="text-slate-400">Voting Duration</span>
@@ -429,9 +420,6 @@ function NewProposalModal({ params, onClose, onSubmit }: {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
 export default function Governance() {
   const [filter, setFilter] = useState<string>('all')
   const [paramCategory, setParamCategory] = useState<string>('all')
@@ -498,7 +486,7 @@ export default function Governance() {
 
   return (
     <div className="space-y-5">
-      {/* Toast */}
+      {}
       <AnimatePresence>
         {toast && (
           <motion.div
@@ -512,7 +500,7 @@ export default function Governance() {
         )}
       </AnimatePresence>
 
-      {/* Modal */}
+      {}
       {showModal && (
         <NewProposalModal
           params={params}
@@ -521,7 +509,7 @@ export default function Governance() {
         />
       )}
 
-      {/* Header */}
+      {}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Governance DAO</h1>
@@ -535,7 +523,7 @@ export default function Governance() {
         </button>
       </div>
 
-      {/* Stats row */}
+      {}
       {stats && (
         <div className="grid grid-cols-4 gap-3">
           <StatCard label="Total Proposals" value={stats.total_proposals} />
@@ -575,7 +563,7 @@ export default function Governance() {
       )}
 
       <div className="grid grid-cols-3 gap-4">
-        {/* Proposals list */}
+        {}
         <div className="col-span-2 space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-white">Proposals</h3>
@@ -617,7 +605,7 @@ export default function Governance() {
           </div>
         </div>
 
-        {/* Right panel: live params */}
+        {}
         <div className="space-y-3">
           <div className="card space-y-4">
             <div className="flex items-center justify-between">
@@ -626,7 +614,7 @@ export default function Governance() {
             </div>
             <p className="text-xs text-slate-500 -mt-2">Live values — changed by passed proposals</p>
 
-            {/* Category filter */}
+            {}
             <div className="flex flex-wrap gap-1">
               {PARAM_CATEGORIES.map(c => (
                 <button
@@ -684,7 +672,7 @@ export default function Governance() {
             </button>
           </div>
 
-          {/* Connected wallet info */}
+          {}
           <div className="card space-y-2">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-semibold text-slate-400">Your Wallet</h3>

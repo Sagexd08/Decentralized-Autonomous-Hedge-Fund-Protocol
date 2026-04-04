@@ -21,7 +21,6 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
-# Load token addresses from config.json
 _CONFIG_PATH = Path(__file__).parent.parent.parent / "frontend" / "src" / "contracts" / "config.json"
 
 def _load_token_addresses() -> dict[str, str]:
@@ -41,9 +40,7 @@ def _load_token_addresses() -> dict[str, str]:
 
 TOKEN_ADDRESSES: dict[str, str] = _load_token_addresses()
 
-# Reverse map: address → symbol (for WebSocket broadcasting)
 TOKEN_SYMBOL: dict[str, str] = {v: k for k, v in TOKEN_ADDRESSES.items() if v}
-
 
 def _compute_decision(price_history: list[float]) -> str:
     """
@@ -62,7 +59,6 @@ def _compute_decision(price_history: list[float]) -> str:
     elif momentum < -0.005:
         return "sell"
     return "hold"
-
 
 class AgentTradingEngine:
     """
@@ -117,24 +113,22 @@ class AgentTradingEngine:
             await asyncio.sleep(10)
 
     async def _cycle(self, agent_id: str, history: deque) -> None:
-        # 1. Advance price random walk on-chain
+
         if self.price_feed is not None:
             await self._send_tx(agent_id, self.price_feed.functions.updatePrices())
 
-        # 2. Fetch prices from the Python price engine (more reliable than on-chain reads)
         try:
             from agents.price_engine import price_engine, compute_agent_prediction
             current_prices = price_engine.get_current_prices()
         except Exception:
             current_prices = {}
 
-        # Fallback to on-chain prices if engine not available
         if not current_prices and self.price_feed is not None:
             for sym, addr in TOKEN_ADDRESSES.items():
                 if addr:
                     try:
                         raw = self.price_feed.functions.getPrice(addr).call()
-                        current_prices[sym] = raw / 1e8  # convert from 1e8 scale
+                        current_prices[sym] = raw / 1e8
                     except Exception:
                         pass
 
@@ -144,7 +138,6 @@ class AgentTradingEngine:
         prices_int = {sym: int(p * 1e8) for sym, p in current_prices.items()}
         history.append(prices_int)
 
-        # 3. Use ML predictions to decide trades
         if len(history) >= 4:
             for sym, addr in TOKEN_ADDRESSES.items():
                 if not addr:
@@ -153,7 +146,7 @@ class AgentTradingEngine:
                     from agents.price_engine import compute_agent_prediction
                     price_hist = price_engine.get_history(sym, 20)
                     pred = compute_agent_prediction(agent_id, sym, price_hist, current_prices.get(sym, 0))
-                    decision = pred.decision  # "BUY", "SELL", "HOLD"
+                    decision = pred.decision
                 except Exception:
                     price_series = [tick.get(sym, 0) for tick in history]
                     decision = _compute_decision(price_series).upper()
@@ -165,18 +158,18 @@ class AgentTradingEngine:
     ) -> None:
         account = self._account_for(agent_id)
         allocation = self._remaining_allocation(agent_id)
-        slice_wei = allocation // 10  # 10% of remaining
+        slice_wei = allocation // 10
 
         if decision in ("buy", "BUY") and slice_wei > 0:
-            # Try on-chain first, fall back to simulated broadcast
+
             success = await self._try_on_chain_swap(agent_id, token_addr, slice_wei)
             if not success:
-                # Broadcast simulated trade directly
+
                 await self._broadcast_simulated_trade(agent_id, sym, slice_wei, "swap")
 
         elif decision in ("sell", "SELL"):
-            # Broadcast simulated sell
-            sell_amount = int(0.05e18)  # 0.05 ETH equivalent
+
+            sell_amount = int(0.05e18)
             await self._broadcast_simulated_trade(agent_id, sym, sell_amount, "swap")
 
     async def _try_on_chain_swap(self, agent_id: str, token_addr: str, amount_wei: int) -> bool:
@@ -208,8 +201,8 @@ class AgentTradingEngine:
             from agents.price_engine import price_engine
             prices = price_engine.get_current_prices()
             price = prices.get(sym, 1.0)
-            # Simulate token amount received
-            amount_out = int(amount_wei * price / 1e18 * 1e8)  # scaled by token decimals
+
+            amount_out = int(amount_wei * price / 1e18 * 1e8)
             import time
             await broadcaster.broadcast({
                 "agent":     self._account_for(agent_id).address,
@@ -250,11 +243,9 @@ class AgentTradingEngine:
         account = self._account_for(agent_id)
         try:
             deployed = self.vault.functions.agentDeployedWei(account.address).call()
-            # Sum maxAllocationWei across all investors who delegated to this agent
-            # For simplicity, use a fixed allocation of 1 ETH if no delegation found
-            # The vault tracks agentDeployedWei; we use a reasonable default
-            max_alloc = int(10e18)  # 10 ETH default allocation for simulation
+
+            max_alloc = int(10e18)
             return max(0, max_alloc - deployed)
         except Exception as e:
             logger.warning(f"Failed to read allocation for {agent_id}: {e}")
-            return int(1e18)  # 1 ETH fallback
+            return int(1e18)

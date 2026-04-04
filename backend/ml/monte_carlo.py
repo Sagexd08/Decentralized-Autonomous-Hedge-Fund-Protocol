@@ -1,7 +1,6 @@
 import numpy as np
 from typing import Dict
 
-
 def gbm_paths(S0: float, mu: float, sigma: float, T: int, n_paths: int = 1000) -> np.ndarray:
     """
     Simulate GBM paths: dS = mu*S*dt + sigma*S*dW
@@ -15,7 +14,6 @@ def gbm_paths(S0: float, mu: float, sigma: float, T: int, n_paths: int = 1000) -
     for t in range(1, T + 1):
         paths[:, t] = paths[:, t - 1] * np.exp((mu - 0.5 * sigma ** 2) * dt + sigma * np.sqrt(dt) * Z[:, t - 1])
     return paths
-
 
 def var_cvar(paths: np.ndarray, confidence: float = 0.95) -> Dict[str, float]:
     """Compute Value at Risk and Conditional VaR from simulated paths.

@@ -11,12 +11,10 @@ import { useGovernanceParams } from '../hooks/useGovernanceProposals'
 const COLORS = ['#00f5ff', '#a855f7', '#3b82f6', '#10b981', '#f59e0b', '#ef4444']
 const AGENT_NAMES = agents.map(a => a.name)
 
-// Herfindahl-Hirschman Index — measures weight concentration (0=equal, 1=monopoly)
 function hhi(weights: number[]): number {
   return weights.reduce((s, w) => s + w * w, 0)
 }
 
-// Shannon entropy — higher = more diversified
 function entropy(weights: number[]): number {
   return -weights.reduce((s, w) => s + (w > 0 ? w * Math.log(w) : 0), 0)
 }
@@ -36,7 +34,6 @@ export default function AllocationEngine() {
   const effectiveEta = manualEta ?? govEta
   const isGovControlled = manualEta === null
 
-  // Flash on governance eta change
   useEffect(() => {
     if (prevEtaRef.current !== null && prevEtaRef.current !== govEta) {
       setEtaFlash(true)
@@ -54,7 +51,6 @@ export default function AllocationEngine() {
     setRunning(false)
   }
 
-  // Simulation loop
   useEffect(() => {
     if (!running) return
     const interval = setInterval(() => {
@@ -66,16 +62,14 @@ export default function AllocationEngine() {
         const total = updated.reduce((s, a) => s + a.weight, 0)
         const normalized = updated.map(a => ({ ...a, weight: a.weight / total }))
 
-        // Record weight history snapshot
         const snap: Record<string, number> = { step: step + 1 }
         normalized.forEach(a => { snap[a.name] = parseFloat((a.weight * 100).toFixed(2)) })
         setWeightHistory(h => [...h.slice(-60), snap])
 
-        // Regret bound: O(sqrt(T * ln(N)))
         const T = step + 1
         const N = normalized.length
         const bound = Math.sqrt(T * Math.log(N))
-        const actualRegret = bound * (0.3 + Math.random() * 0.4) // simulated actual regret
+        const actualRegret = bound * (0.3 + Math.random() * 0.4)
         setRegretHistory(h => [...h.slice(-60), { step: T, regret: parseFloat(actualRegret.toFixed(3)), bound: parseFloat(bound.toFixed(3)) }])
 
         setStep(s => s + 1)
@@ -101,7 +95,7 @@ export default function AllocationEngine() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Allocation Engine</h1>
@@ -132,9 +126,9 @@ export default function AllocationEngine() {
         </div>
       </div>
 
-      {/* MWU formula + live metrics row */}
+      {}
       <div className="grid grid-cols-4 gap-3">
-        {/* Formula card */}
+        {}
         <div className="col-span-2 card border-purple/20">
           <div className="flex items-start gap-3">
             <Info size={14} className="text-purple mt-0.5 shrink-0" />
@@ -150,7 +144,7 @@ export default function AllocationEngine() {
           </div>
         </div>
 
-        {/* Live metrics */}
+        {}
         <div className="card flex flex-col justify-between">
           <p className="text-xs text-slate-500 mb-1">Diversification Score</p>
           <p className="text-2xl font-bold font-mono text-cyan">{diversification}%</p>
@@ -173,7 +167,7 @@ export default function AllocationEngine() {
         </div>
       </div>
 
-      {/* η control */}
+      {}
       <motion.div
         animate={etaFlash ? { borderColor: ['#00f5ff', '#1f2937', '#00f5ff'] } : {}}
         transition={{ duration: 0.6, repeat: etaFlash ? 3 : 0 }}
@@ -220,9 +214,9 @@ export default function AllocationEngine() {
         </div>
       </motion.div>
 
-      {/* Charts row */}
+      {}
       <div className="grid grid-cols-2 gap-4">
-        {/* Live weight bar chart */}
+        {}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-white">Current Capital Weights</h3>
@@ -243,7 +237,7 @@ export default function AllocationEngine() {
           </ResponsiveContainer>
         </div>
 
-        {/* Weight evolution over time */}
+        {}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-sm font-semibold text-white">Weight Evolution</h3>
@@ -272,7 +266,7 @@ export default function AllocationEngine() {
         </div>
       </div>
 
-      {/* Per-agent weight cards */}
+      {}
       <div className="grid grid-cols-6 gap-3">
         {weights.map((a, i) => {
           const prev = prevWeights ? prevWeights[a.name] : null
@@ -313,7 +307,7 @@ export default function AllocationEngine() {
         })}
       </div>
 
-      {/* Regret bound chart */}
+      {}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -348,7 +342,7 @@ export default function AllocationEngine() {
         )}
       </div>
 
-      {/* Capital flow architecture */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-5 flex items-center gap-2">
           <Activity size={13} className="text-slate-400" /> Capital Flow Architecture

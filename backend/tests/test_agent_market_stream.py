@@ -4,13 +4,12 @@ import pytest
 
 from agents.market_stream import NormalizedMarketStream
 
-
 def test_market_stream_normalize_shape():
     stream = NormalizedMarketStream()
     normalized = stream._normalize(
         {
             "symbol": "WBTC",
-            "price": 30001.25, 
+            "price": 30001.25,
             "change_pct": 0.12,
             "timestamp": 123456.0,
         }
@@ -22,7 +21,6 @@ def test_market_stream_normalize_shape():
     assert normalized["change_pct"] == 0.12
     assert normalized["agent_ready"] is True
     assert normalized["langgraph_ready"] is True
-
 
 @pytest.mark.asyncio
 async def test_market_stream_broadcast_drops_full_queues():

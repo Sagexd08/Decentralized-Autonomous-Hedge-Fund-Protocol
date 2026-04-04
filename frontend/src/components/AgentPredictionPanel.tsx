@@ -37,7 +37,7 @@ export default function AgentPredictionPanel({ agentId, agentMode, onToggleMode 
           const data = await res.json()
           setPredictions(data.predictions ?? [])
         }
-      } catch { /* backend may not be running */ }
+      } catch {  }
     }
 
     fetchPredictions()
@@ -54,7 +54,7 @@ export default function AgentPredictionPanel({ agentId, agentMode, onToggleMode 
         body: JSON.stringify({ enabled }),
       })
       onToggleMode(enabled)
-    } catch { /* ignore */ }
+    } catch {  }
     setLoading(false)
   }
 
@@ -69,7 +69,7 @@ export default function AgentPredictionPanel({ agentId, agentMode, onToggleMode 
           </div>
         </div>
 
-        {/* Toggle */}
+        {}
         <button
           onClick={() => handleToggle(!agentMode)}
           disabled={loading}

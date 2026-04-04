@@ -34,7 +34,6 @@ function duration(s: TradingSession) {
   return `${m}m ${sec}s`
 }
 
-// Expanded session detail row
 function SessionDetail({ s }: { s: TradingSession }) {
   const [open, setOpen] = useState(false)
   const pnl = s.finalPnlEth ?? 0
@@ -42,12 +41,10 @@ function SessionDetail({ s }: { s: TradingSession }) {
   const color = RISK_COLORS[s.agentRisk] ?? '#64748b'
   const winRate = s.trades > 0 ? (((s.winTrades ?? 0) / s.trades) * 100).toFixed(1) : '—'
 
-  // Build per-trade PnL chart
   const tradeChart = (s.tradeRecords ?? []).map((t, i) => ({
     i, pnl: t.pnlDelta, cum: (s.tradeRecords ?? []).slice(0, i + 1).reduce((a, b) => a + b.pnlDelta, 0),
   }))
 
-  // Token breakdown
   const tokenBreakdown = (s.tradeRecords ?? []).reduce<Record<string, { count: number; pnl: number }>>((acc, t) => {
     if (!acc[t.token]) acc[t.token] = { count: 0, pnl: 0 }
     acc[t.token].count++
@@ -58,7 +55,7 @@ function SessionDetail({ s }: { s: TradingSession }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
       className="border border-border rounded-xl overflow-hidden">
-      {/* Summary row */}
+      {}
       <div className="flex items-center gap-4 p-4 hover:bg-white/2 transition-colors cursor-pointer"
         onClick={() => setOpen(o => !o)}>
         <div className="w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0"
@@ -105,7 +102,7 @@ function SessionDetail({ s }: { s: TradingSession }) {
         </button>
       </div>
 
-      {/* Expanded detail */}
+      {}
       {open && (
         <div className="border-t border-border p-4 bg-slate-900/30 space-y-4">
           <div className="grid grid-cols-4 gap-3">
@@ -125,7 +122,7 @@ function SessionDetail({ s }: { s: TradingSession }) {
             ))}
           </div>
 
-          {/* Cumulative PnL chart */}
+          {}
           {tradeChart.length > 1 && (
             <div>
               <p className="text-xs text-slate-500 mb-2">Cumulative PnL per Trade</p>
@@ -149,7 +146,7 @@ function SessionDetail({ s }: { s: TradingSession }) {
             </div>
           )}
 
-          {/* Token breakdown */}
+          {}
           {Object.keys(tokenBreakdown).length > 0 && (
             <div>
               <p className="text-xs text-slate-500 mb-2">Token Breakdown</p>
@@ -167,7 +164,7 @@ function SessionDetail({ s }: { s: TradingSession }) {
             </div>
           )}
 
-          {/* Tokens traded */}
+          {}
           {s.tokensTraded && s.tokensTraded.length > 0 && (
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <span>Tokens traded:</span>
@@ -266,7 +263,7 @@ export default function PnLHistory() {
         )}
       </div>
 
-      {/* Summary stats */}
+      {}
       <div className="grid grid-cols-6 gap-3">
         {[
           { label: 'Sessions', value: completed.length, color: 'text-white', icon: History },

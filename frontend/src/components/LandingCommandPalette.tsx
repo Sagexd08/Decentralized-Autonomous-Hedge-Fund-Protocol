@@ -57,7 +57,7 @@ export default function LandingCommandPalette({
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             className="fixed left-1/2 top-1/3 z-[101] w-full max-w-xl -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-none border border-white/10 bg-[#0a0a0a] shadow-[0_40px_120px_rgba(0,0,0,0.8)]"
           >
-            {/* Search Row */}
+            {}
             <div className="flex items-center gap-3 border-b border-white/8 px-5 py-4">
               <Search size={16} className="shrink-0 text-white/30" />
               <input
@@ -75,7 +75,7 @@ export default function LandingCommandPalette({
               </button>
             </div>
 
-            {/* Commands */}
+            {}
             <div className="py-2">
               {filtered.length === 0 && (
                 <p className="px-5 py-4 text-xs text-white/30">No commands found.</p>

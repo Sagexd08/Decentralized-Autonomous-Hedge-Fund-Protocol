@@ -11,7 +11,7 @@ export default function LandingCTA() {
       className="relative overflow-hidden border-t border-white/5 bg-black py-32 px-4 sm:px-6 lg:px-8"
       ref={ref}
     >
-      {/* Background texture */}
+      {}
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_60%,rgba(255,255,255,0.05)_0%,transparent_100%)]" />
 
       <motion.div

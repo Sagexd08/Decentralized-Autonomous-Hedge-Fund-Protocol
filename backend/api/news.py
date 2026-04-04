@@ -5,7 +5,6 @@ from core.settings import settings
 
 router = APIRouter()
 
-
 @router.get("/crypto")
 async def get_crypto_news(limit: int = Query(default=20, ge=1, le=100), refresh: bool = False):
     items = await crypto_news_service.get_latest_news(force_refresh=refresh, limit=limit)
@@ -19,7 +18,6 @@ async def get_crypto_news(limit: int = Query(default=20, ge=1, le=100), refresh:
         },
     }
 
-
 @router.get("/signals")
 async def get_news_signals(limit: int = Query(default=10, ge=1, le=50), refresh: bool = False):
     signals = await crypto_news_service.get_agent_signals(force_refresh=refresh, limit=limit)
@@ -27,7 +25,6 @@ async def get_news_signals(limit: int = Query(default=10, ge=1, le=50), refresh:
         "signals": signals,
         "count": len(signals),
     }
-
 
 @router.get("/status")
 async def get_news_status():

@@ -98,7 +98,7 @@ export default function DelegationModal({ isOpen, onClose, agent }: DelegationMo
     try {
       const hash = await depositETH(params, signature, walletAddress)
       setTxHash(hash)
-      // Persist delegation so agents page can gate Start AI button
+
       addDelegation({
         agentId: agent.id,
         agentName: agent.name,
@@ -136,14 +136,14 @@ export default function DelegationModal({ isOpen, onClose, agent }: DelegationMo
         exit={{ opacity: 0, scale: 0.95 }}
         className="bg-[#0f1117] border border-border rounded-2xl w-full max-w-md mx-4 overflow-hidden"
       >
-        {/* Header */}
+        {}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="text-white font-bold text-base">Delegate Capital</h2>
           <button onClick={handleClose} className="text-slate-500 hover:text-white text-lg leading-none">×</button>
         </div>
 
         <AnimatePresence mode="wait">
-          {/* Step 1: Params */}
+          {}
           {step === 'params' && (
             <motion.div
               key="params"
@@ -152,7 +152,7 @@ export default function DelegationModal({ isOpen, onClose, agent }: DelegationMo
               exit={{ opacity: 0, x: -20 }}
               className="p-6 space-y-4"
             >
-              {/* Agent info */}
+              {}
               <div className="bg-surface rounded-xl p-4 space-y-1">
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Agent</span>
@@ -168,7 +168,7 @@ export default function DelegationModal({ isOpen, onClose, agent }: DelegationMo
                 </div>
               </div>
 
-              {/* ETH Amount */}
+              {}
               <div>
                 <label className="block text-xs text-slate-400 mb-1">ETH Amount</label>
                 <input
@@ -185,7 +185,7 @@ export default function DelegationModal({ isOpen, onClose, agent }: DelegationMo
                 )}
               </div>
 
-              {/* Max Drawdown */}
+              {}
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Max Drawdown % (1–50)</label>
                 <input
@@ -203,7 +203,7 @@ export default function DelegationModal({ isOpen, onClose, agent }: DelegationMo
                 )}
               </div>
 
-              {/* Max Allocation */}
+              {}
               <div>
                 <label className="block text-xs text-slate-400 mb-1">Max Allocation ETH (≤ deposit)</label>
                 <input
@@ -237,7 +237,7 @@ export default function DelegationModal({ isOpen, onClose, agent }: DelegationMo
             </motion.div>
           )}
 
-          {/* Step 2: Signing */}
+          {}
           {step === 'signing' && (
             <motion.div
               key="signing"
@@ -270,7 +270,7 @@ export default function DelegationModal({ isOpen, onClose, agent }: DelegationMo
             </motion.div>
           )}
 
-          {/* Step 3: Confirming */}
+          {}
           {step === 'confirming' && (
             <motion.div
               key="confirming"
@@ -324,7 +324,7 @@ export default function DelegationModal({ isOpen, onClose, agent }: DelegationMo
             </motion.div>
           )}
 
-          {/* Success */}
+          {}
           {step === 'success' && (
             <motion.div
               key="success"

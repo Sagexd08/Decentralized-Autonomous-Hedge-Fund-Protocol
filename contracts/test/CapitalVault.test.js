@@ -8,18 +8,14 @@ describe("CapitalVault", function () {
   beforeEach(async function () {
     [owner, investor, allocationEngine, other] = await ethers.getSigners();
 
-    // Deploy mock ERC20
     const MockERC20 = await ethers.getContractFactory("MockERC20");
     token = await MockERC20.deploy("Mock Token", "MTK", ethers.parseEther("1000000"));
 
-    // Deploy CapitalVault
     const CapitalVault = await ethers.getContractFactory("CapitalVault");
     vault = await CapitalVault.deploy(await token.getAddress());
 
-    // Set allocation engine
     await vault.connect(owner).setAllocationEngine(allocationEngine.address);
 
-    // Fund investor and approve vault
     await token.transfer(investor.address, ethers.parseEther("10000"));
     await token.connect(investor).approve(await vault.getAddress(), ethers.MaxUint256);
   });
@@ -27,7 +23,7 @@ describe("CapitalVault", function () {
   describe("deposit", function () {
     it("increases poolTVL on deposit", async function () {
       const amount = ethers.parseEther("100");
-      const poolId = 1; // Balanced
+      const poolId = 1;
 
       const tvlBefore = await vault.poolTVL(poolId);
       await vault.connect(investor).deposit(poolId, amount);
@@ -40,7 +36,7 @@ describe("CapitalVault", function () {
   describe("withdraw", function () {
     it("decreases poolTVL on withdraw", async function () {
       const amount = ethers.parseEther("100");
-      const poolId = 0; // Conservative
+      const poolId = 0;
 
       await vault.connect(investor).deposit(poolId, amount);
       const tvlAfterDeposit = await vault.poolTVL(poolId);
@@ -55,7 +51,7 @@ describe("CapitalVault", function () {
   describe("updateWeights", function () {
     it("reverts if caller is not allocationEngine", async function () {
       const agents = [other.address];
-      const weights = [ethers.parseEther("1")]; // 1e18
+      const weights = [ethers.parseEther("1")];
 
       await expect(
         vault.connect(other).updateWeights(agents, weights)
@@ -64,7 +60,7 @@ describe("CapitalVault", function () {
 
     it("reverts if weights do not sum to 1e18", async function () {
       const agents = [other.address];
-      const weights = [ethers.parseEther("0.5")]; // 0.5e18, not 1e18
+      const weights = [ethers.parseEther("0.5")];
 
       await expect(
         vault.connect(allocationEngine).updateWeights(agents, weights)

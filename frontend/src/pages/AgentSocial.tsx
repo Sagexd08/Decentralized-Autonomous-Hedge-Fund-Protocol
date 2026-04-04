@@ -3,7 +3,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MessageSquare, Bot, User, Heart, Radio, Play, Square, Send, TrendingUp, TrendingDown, Minus } from 'lucide-react'
 import { API_BASE_URL, WS_SOCIAL_URL } from '../utils/api'
 
-// --- Types ---
 interface Comment {
   id: number
   agent_name: string
@@ -25,7 +24,6 @@ interface Post {
   color: string
 }
 
-// --- Helpers ---
 function timeAgo(ts: number): string {
   const diff = Math.floor(Date.now() / 1000 - ts)
   if (diff < 60) return `${diff}s ago`
@@ -40,7 +38,6 @@ const SENTIMENT_STYLES: Record<string, { icon: React.ElementType; color: string;
   news:     { icon: Radio,        color: 'text-gold',     bg: 'bg-gold/10 border-gold/20' },
 }
 
-// --- Post Card ---
 function PostCard({ post, onLike }: { post: Post; onLike: (id: number) => void }) {
   const [showComments, setShowComments] = useState(false)
   const s = SENTIMENT_STYLES[post.sentiment] ?? SENTIMENT_STYLES.neutral
@@ -53,7 +50,7 @@ function PostCard({ post, onLike }: { post: Post; onLike: (id: number) => void }
       className="card"
     >
       <div className="flex items-start gap-3">
-        {/* Avatar */}
+        {}
         <div
           className="w-9 h-9 rounded-xl flex items-center justify-center text-xs font-bold shrink-0 text-black"
           style={{ background: post.color }}
@@ -80,7 +77,7 @@ function PostCard({ post, onLike }: { post: Post; onLike: (id: number) => void }
 
           <p className="text-sm text-slate-300 leading-relaxed mb-2">{post.content}</p>
 
-          {/* Actions */}
+          {}
           <div className="flex items-center gap-4 text-xs text-slate-500">
             <button
               onClick={() => onLike(post.id)}
@@ -99,7 +96,7 @@ function PostCard({ post, onLike }: { post: Post; onLike: (id: number) => void }
             <span className="ml-auto">{timeAgo(post.timestamp)}</span>
           </div>
 
-          {/* Comments */}
+          {}
           {showComments && post.comments.length > 0 && (
             <div className="mt-2 space-y-1.5 pl-3 border-l border-border">
               {post.comments.map((c, i) => (
@@ -116,7 +113,6 @@ function PostCard({ post, onLike }: { post: Post; onLike: (id: number) => void }
   )
 }
 
-// --- Human Feed ---
 function HumanFeed() {
   const [posts, setPosts] = useState<Post[]>([])
   const [input, setInput] = useState('')
@@ -132,7 +128,7 @@ function HumanFeed() {
       })
       setInput('')
     } catch {
-      // Add locally as fallback
+
       const p: Post = {
         id: Date.now(), agent_name: username, content: input.trim(),
         timestamp: Date.now() / 1000, sentiment: 'neutral', likes: 0,
@@ -145,7 +141,7 @@ function HumanFeed() {
 
   return (
     <div className="space-y-4">
-      {/* Compose */}
+      {}
       <div className="card space-y-3">
         <div className="flex items-center gap-2">
           <User size={14} className="text-slate-400" />
@@ -186,14 +182,12 @@ function HumanFeed() {
   )
 }
 
-// --- AI Agent Feed ---
 function AIAgentFeed() {
   const [posts, setPosts] = useState<Post[]>([])
   const [running, setRunning] = useState(false)
   const [loading, setLoading] = useState(false)
   const wsRef = useRef<WebSocket | null>(null)
 
-  // Connect to WebSocket
   useEffect(() => {
     const ws = new WebSocket(WS_SOCIAL_URL)
     wsRef.current = ws
@@ -212,10 +206,9 @@ function AIAgentFeed() {
               : p
           ))
         }
-      } catch { /* ignore */ }
+      } catch {  }
     }
 
-    // Check initial status
     fetch(`${API_BASE_URL}/api/social/status`)
       .then(r => r.json())
       .then(d => setRunning(d.running))
@@ -231,7 +224,7 @@ function AIAgentFeed() {
       const res = await fetch(`${API_BASE_URL}${endpoint}`, { method: 'POST' })
       const data = await res.json()
       setRunning(data.running ?? !running)
-    } catch { /* ignore */ }
+    } catch {  }
     setLoading(false)
   }
 
@@ -241,7 +234,7 @@ function AIAgentFeed() {
 
   return (
     <div className="space-y-4">
-      {/* Control bar */}
+      {}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {running && (
@@ -268,7 +261,7 @@ function AIAgentFeed() {
         </button>
       </div>
 
-      {/* Feed */}
+      {}
       {posts.length === 0 ? (
         <div className="text-center py-12 space-y-3">
           <Bot size={40} className="text-slate-600 mx-auto" />
@@ -289,7 +282,6 @@ function AIAgentFeed() {
   )
 }
 
-// --- Main Page ---
 export default function AgentSocial() {
   const [tab, setTab] = useState<'ai' | 'human'>('ai')
 
@@ -305,7 +297,7 @@ export default function AgentSocial() {
         </div>
       </div>
 
-      {/* Tab toggle */}
+      {}
       <div className="flex items-center gap-1 bg-surface border border-border rounded-xl p-1 w-fit">
         <button
           onClick={() => setTab('ai')}
@@ -327,7 +319,7 @@ export default function AgentSocial() {
         </button>
       </div>
 
-      {/* Content — both mounted for keep-alive */}
+      {}
       <div style={{ display: tab === 'ai' ? 'block' : 'none' }}>
         <AIAgentFeed />
       </div>

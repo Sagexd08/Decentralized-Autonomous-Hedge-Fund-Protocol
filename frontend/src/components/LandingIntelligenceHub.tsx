@@ -36,7 +36,6 @@ const TAG_STYLES: Record<string, string> = {
 function TickerStrip() {
   const ref = useRef<HTMLDivElement>(null)
 
-  // Duplicate for infinite scroll
   const items = [...TICKERS, ...TICKERS]
 
   return (
@@ -86,7 +85,7 @@ export default function LandingIntelligenceHub() {
         <TickerStrip />
 
         <div className="mt-10 grid gap-6 lg:grid-cols-[1fr_320px]">
-          {/* News Feed */}
+          {}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={isInView ? { opacity: 1, x: 0 } : { opacity: 0, x: -20 }}
@@ -113,7 +112,7 @@ export default function LandingIntelligenceHub() {
             ))}
           </motion.div>
 
-          {/* Sentiment Meters */}
+          {}
           <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={isInView ? { opacity: 1, x: 0 } : { opacity: 0, x: 20 }}

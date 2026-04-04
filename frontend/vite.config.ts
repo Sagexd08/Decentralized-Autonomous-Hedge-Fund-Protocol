@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 <<<<<<< HEAD
 import path from 'node:path'
 =======

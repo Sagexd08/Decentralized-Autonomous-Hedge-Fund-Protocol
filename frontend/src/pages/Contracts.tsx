@@ -8,9 +8,6 @@ import {
 import { api } from '../utils/api'
 import { useDemoState } from '../hooks/useIntelligence'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 interface ContractSummary {
   id: string
   name: string
@@ -30,9 +27,6 @@ interface ContractDetail extends ContractSummary {
   events: string[]
 }
 
-// ---------------------------------------------------------------------------
-// Hooks
-// ---------------------------------------------------------------------------
 function useContracts() {
   return useQuery<ContractSummary[]>({
     queryKey: ['contracts'],
@@ -59,9 +53,6 @@ function useSubmitContract() {
   })
 }
 
-// ---------------------------------------------------------------------------
-// Syntax highlighter (minimal — colours Solidity keywords)
-// ---------------------------------------------------------------------------
 function SolidityCode({ code }: { code: string }) {
   const lines = code.split('\n')
   return (
@@ -142,7 +133,7 @@ function SubmitModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (d:
           <div>
             <label className="text-xs text-slate-400 mb-1.5 block">Solidity Source Code</label>
             <textarea value={source} onChange={e => setSource(e.target.value)}
-              placeholder="// SPDX-License-Identifier: MIT&#10;pragma solidity ^0.8.20;&#10;&#10;contract MyContract { ... }"
+              placeholder="
               rows={10}
               className="w-full bg-slate-900 border border-border rounded-lg px-3 py-2 text-sm text-slate-100 font-mono placeholder-slate-600 focus:outline-none focus:border-cyan/50 resize-none" />
           </div>
@@ -175,9 +166,6 @@ function SubmitModal({ onClose, onSubmit }: { onClose: () => void; onSubmit: (d:
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
 export default function Contracts() {
   const [selectedId, setSelectedId] = useState<string | null>('capital-vault')
   const [showSubmit, setShowSubmit] = useState(false)
@@ -209,7 +197,7 @@ export default function Contracts() {
 
   return (
     <div className="space-y-5">
-      {/* Toast */}
+      {}
       <AnimatePresence>
         {toast && (
           <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -221,7 +209,7 @@ export default function Contracts() {
 
       {showSubmit && <SubmitModal onClose={() => setShowSubmit(false)} onSubmit={handleSubmit} />}
 
-      {/* Header */}
+      {}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Smart Contracts</h1>
@@ -261,9 +249,9 @@ export default function Contracts() {
       </div>
 
       <div className="grid grid-cols-4 gap-4 h-[calc(100vh-180px)] min-h-[600px]">
-        {/* Left sidebar — contract list */}
+        {}
         <div className="col-span-1 space-y-2 overflow-y-auto pr-1">
-          {/* Protocol contracts */}
+          {}
           <p className="text-xs text-slate-500 font-medium px-1 mb-2">Protocol Contracts</p>
           {isLoading ? (
             [1,2,3,4].map(i => <div key={i} className="h-16 bg-surface rounded-xl animate-pulse border border-border" />)
@@ -295,7 +283,7 @@ export default function Contracts() {
             ))
           )}
 
-          {/* User submissions */}
+          {}
           {userContracts.length > 0 && (
             <>
               <p className="text-xs text-slate-500 font-medium px-1 mt-4 mb-2">Community Submissions</p>
@@ -324,7 +312,7 @@ export default function Contracts() {
           )}
         </div>
 
-        {/* Right panel — contract detail */}
+        {}
         <div className="col-span-3 overflow-y-auto space-y-4">
           {!selectedId && (
             <div className="card h-full flex items-center justify-center text-slate-500 text-sm">
@@ -338,7 +326,7 @@ export default function Contracts() {
 
           {detail && !detailLoading && (
             <motion.div key={detail.id} initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-4">
-              {/* Header */}
+              {}
               <div className="card">
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-center gap-3">
@@ -375,12 +363,12 @@ export default function Contracts() {
                   )}
                 </div>
 
-                {/* Explanation */}
+                {}
                 <div className="p-3 bg-slate-900/50 rounded-xl border border-border">
                   <p className="text-xs text-slate-400 leading-relaxed">{detail.explanation}</p>
                 </div>
 
-                {/* Functions + Events */}
+                {}
                 {(detail.key_functions?.length > 0 || detail.events?.length > 0) && (
                   <div className="grid grid-cols-2 gap-4 mt-3">
                     {detail.key_functions?.length > 0 && (
@@ -410,7 +398,7 @@ export default function Contracts() {
                 )}
               </div>
 
-              {/* Source code */}
+              {}
               <div className="card">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold text-white flex items-center gap-2">

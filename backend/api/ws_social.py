@@ -13,13 +13,11 @@ from agents.gemini_social import gemini_social
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-
 @router.websocket("/ws/social")
 async def ws_social(websocket: WebSocket):
     await websocket.accept()
     q = gemini_social.subscribe()
 
-    # Send existing posts on connect
     try:
         recent = gemini_social.get_recent_posts(30)
         await websocket.send_json({"type": "history", "posts": recent})
@@ -40,18 +38,15 @@ async def ws_social(websocket: WebSocket):
     finally:
         gemini_social.unsubscribe(q)
 
-
 @router.post("/api/social/start")
 async def start_social():
     gemini_social.start()
     return {"status": "started", "running": gemini_social.is_running}
 
-
 @router.post("/api/social/stop")
 async def stop_social():
     gemini_social.stop()
     return {"status": "stopped", "running": False}
-
 
 @router.get("/api/social/status")
 async def social_status():
@@ -59,7 +54,6 @@ async def social_status():
         "running": gemini_social.is_running,
         "post_count": len(gemini_social._posts),
     }
-
 
 @router.post("/api/social/human-post")
 async def human_post(body: dict):
@@ -103,12 +97,10 @@ async def human_post(body: dict):
     }
     await gemini_social._broadcast(msg)
 
-    # Trigger an agent to respond to the human post after a short delay
     if gemini_social.is_running:
         asyncio.create_task(_delayed_agent_response(post))
 
     return {"status": "posted"}
-
 
 async def _delayed_agent_response(human_post):
     """Have an agent respond to a human post after a delay."""
@@ -130,13 +122,11 @@ from agents.gemini_social import gemini_social
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-
 @router.websocket("/ws/social")
 async def ws_social(websocket: WebSocket):
     await websocket.accept()
     q = gemini_social.subscribe()
 
-    # Send existing posts on connect
     try:
         recent = gemini_social.get_recent_posts(30)
         await websocket.send_json({"type": "history", "posts": recent})
@@ -157,18 +147,15 @@ async def ws_social(websocket: WebSocket):
     finally:
         gemini_social.unsubscribe(q)
 
-
 @router.post("/api/social/start")
 async def start_social():
     gemini_social.start()
     return {"status": "started", "running": gemini_social.is_running}
 
-
 @router.post("/api/social/stop")
 async def stop_social():
     gemini_social.stop()
     return {"status": "stopped", "running": False}
-
 
 @router.get("/api/social/status")
 async def social_status():
@@ -176,7 +163,6 @@ async def social_status():
         "running": gemini_social.is_running,
         "post_count": len(gemini_social._posts),
     }
-
 
 @router.post("/api/social/human-post")
 async def human_post(body: dict):
@@ -220,12 +206,10 @@ async def human_post(body: dict):
     }
     await gemini_social._broadcast(msg)
 
-    # Trigger an agent to respond to the human post after a short delay
     if gemini_social.is_running:
         asyncio.create_task(_delayed_agent_response(post))
 
     return {"status": "posted"}
-
 
 async def _delayed_agent_response(human_post):
     """Have an agent respond to a human post after a delay."""

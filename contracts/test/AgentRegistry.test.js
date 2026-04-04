@@ -7,7 +7,7 @@ describe("AgentRegistry", function () {
   let owner, user, agentAddr, other;
 
   const MIN_STAKE = ethers.parseEther("10000");
-  const SIMULATION_PERIOD = 7 * 24 * 60 * 60; // 7 days in seconds
+  const SIMULATION_PERIOD = 7 * 24 * 60 * 60;
 
   beforeEach(async function () {
     [owner, user, agentAddr, other] = await ethers.getSigners();
@@ -18,7 +18,6 @@ describe("AgentRegistry", function () {
     const AgentRegistry = await ethers.getContractFactory("AgentRegistry");
     registry = await AgentRegistry.deploy(await token.getAddress());
 
-    // Fund user and approve registry
     await token.transfer(user.address, ethers.parseEther("100000"));
     await token.connect(user).approve(await registry.getAddress(), ethers.parseEther("100000"));
   });
@@ -74,7 +73,7 @@ describe("AgentRegistry", function () {
       ).to.emit(registry, "AgentActivated");
 
       const agent = await registry.agents(agentAddr.address);
-      expect(agent.status).to.equal(2); // AgentStatus.Active
+      expect(agent.status).to.equal(2);
     });
   });
 
@@ -91,7 +90,7 @@ describe("AgentRegistry", function () {
     });
 
     it("reduces stakedAmount by correct proportion", async function () {
-      const slashBps = 500; // 5%
+      const slashBps = 500;
       const expectedSlash = (MIN_STAKE * BigInt(slashBps)) / 10000n;
       const expectedRemaining = MIN_STAKE - expectedSlash;
 
@@ -102,7 +101,7 @@ describe("AgentRegistry", function () {
     });
 
     it("emits AgentSlashed with correct amount", async function () {
-      const slashBps = 1000; // 10%
+      const slashBps = 1000;
       const expectedSlash = (MIN_STAKE * BigInt(slashBps)) / 10000n;
 
       await expect(
@@ -117,11 +116,9 @@ describe("AgentRegistry", function () {
     beforeEach(async function () {
       [, , agentAddr, agent2] = await ethers.getSigners();
 
-      // Give agent2 tokens too
       await token.transfer(other.address, ethers.parseEther("100000"));
       await token.connect(other).approve(await registry.getAddress(), ethers.parseEther("100000"));
 
-      // Register both agents
       await registry.connect(user).registerAgent(
         agentAddr.address,
         ethers.keccak256(ethers.toUtf8Bytes("strategy1")),
@@ -137,10 +134,9 @@ describe("AgentRegistry", function () {
     });
 
     it("returns only active agents", async function () {
-      // Activate only agentAddr
+
       await time.increase(SIMULATION_PERIOD + 1);
       await registry.connect(owner).activateAgent(agentAddr.address);
-      // agent2 stays in Probation
 
       const active = await registry.getActiveAgents();
       expect(active.length).to.equal(1);

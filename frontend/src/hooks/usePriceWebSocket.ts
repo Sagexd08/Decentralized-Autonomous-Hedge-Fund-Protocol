@@ -11,7 +11,7 @@ export interface PriceTick {
 export interface TokenPrices {
   [symbol: string]: {
     current: number
-    history: number[]  // last 100 ticks
+    history: number[]
     change_pct: number
   }
 }
@@ -58,7 +58,7 @@ export function usePriceWebSocket(url: string) {
             }
           }
         })
-      } catch { /* ignore */ }
+      } catch {  }
     }
 
     ws.onclose = () => {

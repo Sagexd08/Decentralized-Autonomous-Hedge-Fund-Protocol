@@ -1,8 +1,5 @@
--- DACAP Database Schema
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Investors
 <<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS investors (
 =======
@@ -13,7 +10,6 @@ CREATE TABLE investors (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Risk pools
 <<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS pools (
 =======
@@ -34,7 +30,6 @@ INSERT INTO pools (id, name, volatility_cap_bps, tvl, apy, created_at) VALUES
     ('aggressive', 'Aggressive', 3500, 12400000, 47.2, NOW())
 ON CONFLICT (id) DO NOTHING;
 
--- Investor deposits
 CREATE TABLE IF NOT EXISTS deposits (
 =======
 INSERT INTO pools VALUES
@@ -42,7 +37,6 @@ INSERT INTO pools VALUES
     ('balanced', 'Balanced', 1800, 8700000, 24.7, NOW()),
     ('aggressive', 'Aggressive', 3500, 12400000, 47.2, NOW());
 
--- Investor deposits
 CREATE TABLE deposits (
 >>>>>>> D!
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -53,7 +47,6 @@ CREATE TABLE deposits (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Agents
 <<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS agents (
 =======
@@ -70,7 +63,6 @@ CREATE TABLE agents (
     registered_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Agent performance snapshots
 <<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS agent_performance (
 =======
@@ -87,7 +79,6 @@ CREATE TABLE agent_performance (
     reputation_score NUMERIC(8, 4)
 );
 
--- Allocation weight history
 <<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS allocation_history (
 =======
@@ -101,7 +92,6 @@ CREATE TABLE allocation_history (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Slashing events
 <<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS slash_events (
 =======
@@ -115,7 +105,6 @@ CREATE TABLE slash_events (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Governance proposals
 <<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS proposals (
 =======
@@ -133,7 +122,6 @@ CREATE TABLE proposals (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Votes
 <<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS votes (
 =======
@@ -148,7 +136,6 @@ CREATE TABLE votes (
     UNIQUE(proposal_id, voter_address)
 );
 
--- Smart contracts registry
 <<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS contracts (
 =======
@@ -163,7 +150,6 @@ CREATE TABLE contracts (
     version VARCHAR(20)
 );
 
--- Indexes
 <<<<<<< HEAD
 CREATE INDEX IF NOT EXISTS idx_agent_perf_agent ON agent_performance(agent_id);
 CREATE INDEX IF NOT EXISTS idx_agent_perf_time ON agent_performance(timestamp);
