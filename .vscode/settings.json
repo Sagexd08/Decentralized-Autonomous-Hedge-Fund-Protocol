@@ -1,0 +1,12 @@
+{
+  "python.defaultInterpreterPath": "/usr/bin/python3",
+  "python.analysis.extraPaths": [
+    "${workspaceFolder}/backend"
+  ],
+  "typescript.tsdk": "frontend/node_modules/typescript/lib",
+  "solidity.packageDefaultDependenciesDirectory": "contracts/node_modules",
+  "solidity.packageDefaultDependenciesContractsDirectory": "contracts/src",
+  "solidity.remappings": [
+    "@openzeppelin/=contracts/node_modules/@openzeppelin/"
+  ]
+}
