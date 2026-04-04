@@ -10,7 +10,7 @@ def test_get_conservative_pool_returns_200(client):
     assert response.status_code == 200
     assert response.json()["id"] == "conservative"
 
-
+ 
 def test_get_nonexistent_pool_returns_404(client):
     response = client.get("/api/pools/nonexistent")
     assert response.status_code == 404
