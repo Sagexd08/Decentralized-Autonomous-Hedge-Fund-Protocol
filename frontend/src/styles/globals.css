@@ -1,0 +1,50 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: #050810;
+    color: #e2e8f0;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #0d1117; }
+  ::-webkit-scrollbar-thumb { background: #1f2937; border-radius: 2px; }
+}
+
+@layer components {
+  .glass {
+    background: rgba(13, 17, 23, 0.7);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+  .glow-cyan { box-shadow: 0 0 20px rgba(0,245,255,0.2); }
+  .glow-purple { box-shadow: 0 0 20px rgba(168,85,247,0.2); }
+  .glow-green { box-shadow: 0 0 20px rgba(16,185,129,0.2); }
+  .text-glow-cyan { text-shadow: 0 0 20px rgba(0,245,255,0.5); }
+  .text-glow-purple { text-shadow: 0 0 20px rgba(168,85,247,0.5); }
+  .gradient-text {
+    background: linear-gradient(135deg, #00f5ff, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .card {
+    @apply glass rounded-xl p-5;
+  }
+  .btn-primary {
+    @apply px-6 py-2.5 rounded-lg font-medium text-sm transition-all duration-200;
+    background: linear-gradient(135deg, #00f5ff22, #a855f722);
+    border: 1px solid rgba(0,245,255,0.3);
+    color: #00f5ff;
+  }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, #00f5ff33, #a855f733);
+    box-shadow: 0 0 20px rgba(0,245,255,0.2);
+  }
+  .metric-up { @apply text-green; }
+  .metric-down { @apply text-red-400; }
+}
