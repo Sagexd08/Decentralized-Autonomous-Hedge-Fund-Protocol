@@ -1,0 +1,4 @@
+# file: /Users/debdeepbanerjee/Desktop/DAHFP/dacap/backend/api/governance.py
+# hypothesis_version: 6.151.10
+
+[0.01, 0.35, 404, 2000, '/params', '/proposals', '/propose', '/vote', 'Proposal not found', 'Vote recorded', 'active', 'aggressive_vol_cap', 'eta', 'id', 'message', 'passed', 'proposal', 'status', 'title', 'votes_against', 'votes_for']
