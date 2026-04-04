@@ -10,7 +10,7 @@ def test_market_stream_normalize_shape():
     normalized = stream._normalize(
         {
             "symbol": "WBTC",
-            "price": 30001.25,
+            "price": 30001.25, 
             "change_pct": 0.12,
             "timestamp": 123456.0,
         }

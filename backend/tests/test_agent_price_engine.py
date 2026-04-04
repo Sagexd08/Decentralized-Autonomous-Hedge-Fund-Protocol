@@ -10,7 +10,7 @@ from agents.price_engine import (
 def test_price_engine_tick_stays_within_bounds():
     engine = PriceEngine(tick_interval=3.0)
 
-    for _ in range(20):
+    for _ in range(20): 
         tick = engine._tick()
         assert len(tick) == 4
         for item in tick:

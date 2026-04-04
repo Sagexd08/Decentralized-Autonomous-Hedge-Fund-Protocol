@@ -1,7 +1,7 @@
 def test_list_pools_returns_200_and_three_pools(client):
     response = client.get("/api/pools/")
     assert response.status_code == 200
-    data = response.json()
+    data = response.json() 
     assert len(data) == 3
 
 

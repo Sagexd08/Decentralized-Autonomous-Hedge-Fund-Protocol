@@ -8,7 +8,7 @@ def test_get_agent_by_id(client):
     response = client.get("/api/agents/AGT-001")
     assert response.status_code == 200
     assert response.json()["name"] == "AlphaWave"
-
+ 
 
 def test_get_agent_invalid_id(client):
     response = client.get("/api/agents/INVALID")

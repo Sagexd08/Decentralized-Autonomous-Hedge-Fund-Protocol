@@ -8,7 +8,7 @@ def test_extract_coins_detects_symbols():
     coins = service._extract_coins("BTC and ETH rally while SOL consolidates")
     assert "BTC" in coins
     assert "ETH" in coins
-    assert "SOL" in coins
+    assert "SOL" in coins 
 
 
 def test_derive_sentiment_paths():

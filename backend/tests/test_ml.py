@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import numpy as np
-import pytest
+import pytest 
 from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays

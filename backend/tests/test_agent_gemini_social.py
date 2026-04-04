@@ -8,7 +8,7 @@ from agents.gemini_social import GeminiSocialEngine, SocialPost, _enforce_length
 def test_enforce_length_truncates_long_text():
     text = " ".join(["word"] * 60)
     truncated = _enforce_length(text, min_words=5, max_words=20)
-    assert len(truncated.split()) <= 21
+    assert len(truncated.split()) <= 21 
 
 
 def test_fallback_post_is_non_empty():

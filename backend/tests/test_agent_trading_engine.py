@@ -6,7 +6,7 @@ from agents.trading_engine import AgentTradingEngine, _compute_decision
 
 
 class DummyAccount:
-    def __init__(self, address: str):
+    def __init__(self, address: str): 
         self.address = address
 
     def sign_transaction(self, tx):

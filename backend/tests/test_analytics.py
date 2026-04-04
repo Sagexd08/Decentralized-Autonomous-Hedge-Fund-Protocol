@@ -7,7 +7,7 @@ def test_monte_carlo_response_keys(client):
     response = client.get("/api/analytics/monte-carlo")
     data = response.json()
     assert "stats" in data
-    assert "paths" in data
+    assert "paths" in data 
 
 
 def test_rolling_volatility_returns_200(client):
