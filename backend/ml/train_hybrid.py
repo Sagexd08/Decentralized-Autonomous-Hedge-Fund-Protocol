@@ -1,3 +1,7 @@
+"""Hybrid model training pipeline for Bitcoin market prediction."""
+
+# pyright: reportMissingImports=false, reportMissingModuleSource=false
+
 import os
 import io
 import pickle
@@ -6,7 +10,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
+import pandas as pd  # pyright: ignore[reportMissingModuleSource]
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset, DataLoader
@@ -44,8 +48,8 @@ def load_bitcoin_data() -> pd.DataFrame:
     """
     log.info("Fetching Bitcoin dataset from Kaggle…")
     try:
-        import kagglehub
-        from kagglehub import KaggleDatasetAdapter
+        import kagglehub  # pyright: ignore[reportMissingImports]
+        from kagglehub import KaggleDatasetAdapter  # pyright: ignore[reportMissingImports]
 
         hf_dataset = kagglehub.load_dataset(
             KaggleDatasetAdapter.HUGGING_FACE,

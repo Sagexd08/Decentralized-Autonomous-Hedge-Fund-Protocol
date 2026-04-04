@@ -22,7 +22,7 @@ from api import ws_trading
 from api import ws_prices
 from api import ws_social
 
-_CONFIG_PATH = Path(__file__).parent.parent / "frontend" / "src" / "contracts" / "config.json"
+_CONFIG_PATH = Path(__file__).parent / "contracts" / "config.json"
 _MODEL_BUCKET = "models"
 _MODEL_OBJECT_PATH = "model.pkl"
 _LOCAL_MODEL_PATH = Path(__file__).parent / "ml" / "model.pkl"
@@ -33,10 +33,10 @@ def _init_web3_and_contracts():
         from web3 import Web3
         from eth_account import Account
 
-        rpc_url = os.getenv("HARDHAT_RPC_URL", "http://127.0.0.1:8545")
+        rpc_url = os.getenv("STELLAR_RPC_URL", "https://horizon-testnet.stellar.org")
         w3 = Web3(Web3.HTTPProvider(rpc_url))
         if not w3.is_connected():
-            logger.warning(f"Cannot connect to Hardhat node at {rpc_url}. Trading engine disabled.")
+            logger.warning(f"Cannot connect to Stellar node at {rpc_url}. Trading engine disabled.")
             return None
 
         with open(_CONFIG_PATH) as f:
@@ -52,22 +52,16 @@ def _init_web3_and_contracts():
         vault_abi = load_abi("CapitalVault")
         price_feed_abi = load_abi("MockPriceFeed")
 
-        vault = w3.eth.contract(address=cfg["CapitalVault"], abi=vault_abi)
+        vault = w3.eth.contract(address=cfg["capital_vault"], abi=vault_abi)
         price_feed = w3.eth.contract(address=cfg["MockPriceFeed"], abi=price_feed_abi)
 
-        hardhat_keys = os.getenv("HARDHAT_PRIVATE_KEYS", "")
-        if hardhat_keys:
-            accounts = [Account.from_key(k.strip()) for k in hardhat_keys.split(",") if k.strip()]
+        stellar_keys = os.getenv("STELLAR_PRIVATE_KEYS", "")
+        if stellar_keys:
+            accounts = [Account.from_key(k.strip()) for k in stellar_keys.split(",") if k.strip()]
         else:
-
-            default_keys = [
-                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-                "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
-                "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
-                "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
-                "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926b",
-            ]
-            accounts = [Account.from_key(k) for k in default_keys]
+            # Use the provided Stellar key as default
+            default_key = "GCLZ64XJEQJO6JXYVXULSRUDHSBM3WWGKO2AILWJSED5G4FSBIJEZMBL"
+            accounts = [Account.from_key(default_key)]
 
         return w3, vault, price_feed, accounts
     except Exception as e:
