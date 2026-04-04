@@ -48,7 +48,6 @@ export function useContractInteraction(): UseContractInteractionReturn {
         throw new Error('MetaMask not detected')
       }
 
-      // Check chainId
       const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' }) as string
       const chainId = parseInt(chainIdHex, 16)
       if (chainId !== 1337 && chainId !== 31337) {
@@ -79,7 +78,7 @@ export function useContractInteraction(): UseContractInteractionReturn {
           amount: ethers.parseEther(params.ethAmount).toString(),
           maxDrawdownBps: params.maxDrawdownBps,
           maxAllocationWei: ethers.parseEther(params.maxAllocationEth).toString(),
-          investor: ethers.getAddress(investorAddress),  // checksummed
+          investor: ethers.getAddress(investorAddress),
         },
       }
 
@@ -121,7 +120,6 @@ export function useContractInteraction(): UseContractInteractionReturn {
         throw new Error('MetaMask not detected')
       }
 
-      // Read chainId once — used for both provider and ENS suppression
       const chainIdHex = await window.ethereum.request({ method: 'eth_chainId' }) as string
       const chainId = parseInt(chainIdHex, 16)
 
@@ -152,7 +150,6 @@ export function useContractInteraction(): UseContractInteractionReturn {
         throw new Error(msg)
       }
 
-      // Parse revert reason
       const reason =
         e.reason ??
         e.data?.message ??

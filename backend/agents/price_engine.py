@@ -14,7 +14,6 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Initial prices in USD (scaled 1e8 on-chain, but we work in float here)
 INITIAL_PRICES: dict[str, float] = {
     "WBTC": 30000.0,
     "USDC": 1.0,
@@ -22,8 +21,6 @@ INITIAL_PRICES: dict[str, float] = {
     "UNI":  8.0,
 }
 
-# Mean-reversion parameters per token
-# theta = speed of mean reversion, sigma = volatility
 PARAMS: dict[str, dict] = {
     "WBTC": {"theta": 0.05, "sigma": 0.018, "mu": 30000.0},
     "USDC": {"theta": 0.8,  "sigma": 0.001, "mu": 1.0},
@@ -31,9 +28,7 @@ PARAMS: dict[str, dict] = {
     "UNI":  {"theta": 0.07, "sigma": 0.022, "mu": 8.0},
 }
 
-# Price bounds: [50%, 200%] of initial
 PRICE_BOUNDS = {sym: (p * 0.5, p * 2.0) for sym, p in INITIAL_PRICES.items()}
-
 
 @dataclass
 class PricePoint:
@@ -42,7 +37,6 @@ class PricePoint:
     change_pct: float
     timestamp: float
 
-
 @dataclass
 class AgentPrediction:
     agent_id: str
@@ -50,10 +44,9 @@ class AgentPrediction:
     current_price: float
     predicted_change_pct: float
     momentum: float
-    decision: str  # "BUY" | "SELL" | "HOLD"
-    confidence: float  # 0-1
+    decision: str
+    confidence: float
     reasoning: str
-
 
 class PriceEngine:
     """
@@ -115,7 +108,7 @@ class PriceEngine:
     def _tick(self) -> list[dict]:
         """Advance prices one step using Ornstein-Uhlenbeck process."""
         results = []
-        dt = self.tick_interval / (365 * 24 * 3600)  # fraction of year
+        dt = self.tick_interval / (365 * 24 * 3600)
 
         for sym, price in self._prices.items():
             p = PARAMS[sym]
@@ -123,13 +116,11 @@ class PriceEngine:
             sigma = p["sigma"]
             mu = p["mu"]
 
-            # OU process: dX = theta*(mu - X)*dt + sigma*sqrt(dt)*dW
             dW = random.gauss(0, 1)
             drift = theta * (mu - price) * dt
             diffusion = sigma * price * math.sqrt(dt) * dW
             new_price = price + drift + diffusion
 
-            # Clamp to bounds
             lo, hi = PRICE_BOUNDS[sym]
             new_price = max(lo, min(hi, new_price))
 
@@ -161,7 +152,6 @@ class PriceEngine:
             except ValueError:
                 pass
 
-
 def compute_agent_prediction(
     agent_id: str,
     symbol: str,
@@ -180,32 +170,25 @@ def compute_agent_prediction(
             reasoning="Insufficient price history"
         )
 
-    # 1. Short-term momentum (3-period)
     momentum_3 = (price_history[-1] - price_history[-4]) / price_history[-4]
 
-    # 2. Medium-term momentum (10-period)
     n = min(10, len(price_history))
     momentum_10 = (price_history[-1] - price_history[-n]) / price_history[-n]
 
-    # 3. Mean reversion signal
     mu = INITIAL_PRICES.get(symbol, current_price)
-    reversion = (mu - current_price) / mu  # positive = below mean, expect rise
+    reversion = (mu - current_price) / mu
 
-    # 4. Volatility (std of last 10 returns)
     returns = [
         (price_history[i] - price_history[i-1]) / price_history[i-1]
         for i in range(max(1, len(price_history)-10), len(price_history))
     ]
     volatility = (sum(r**2 for r in returns) / len(returns)) ** 0.5 if returns else 0.01
 
-    # 5. Combined signal (MWU-style weighted combination)
     signal = 0.5 * momentum_3 + 0.3 * momentum_10 + 0.2 * reversion
 
-    # 6. Confidence based on signal strength vs volatility
     confidence = min(0.95, abs(signal) / (volatility + 1e-6) * 0.1)
     confidence = max(0.1, confidence)
 
-    # 7. Decision
     threshold = 0.003
     if signal > threshold:
         decision = "BUY"
@@ -217,7 +200,6 @@ def compute_agent_prediction(
         decision = "HOLD"
         predicted_change = signal * 100
 
-    # 8. Human-readable reasoning
     parts = []
     if abs(momentum_3) > 0.002:
         direction = "upward" if momentum_3 > 0 else "downward"
@@ -240,6 +222,4 @@ def compute_agent_prediction(
         reasoning=reasoning,
     )
 
-
-# Global singleton
 price_engine = PriceEngine(tick_interval=3.0)

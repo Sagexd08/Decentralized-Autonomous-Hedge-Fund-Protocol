@@ -8,7 +8,6 @@ from agents.price_engine import price_engine
 
 logger = logging.getLogger(__name__)
 
-
 class NormalizedMarketStream:
     def __init__(self):
         self._subscribers: list[asyncio.Queue] = []
@@ -73,6 +72,5 @@ class NormalizedMarketStream:
                 dead.append(q)
         for q in dead:
             self.unsubscribe(q)
-
 
 market_stream = NormalizedMarketStream()

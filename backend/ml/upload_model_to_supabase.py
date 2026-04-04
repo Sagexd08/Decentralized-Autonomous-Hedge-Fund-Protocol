@@ -11,7 +11,6 @@ MODEL_PATH = PROJECT_ROOT / "backend" / "ml" / "model.pkl"
 BUCKET_NAME = "models"
 OBJECT_PATH = "model.pkl"
 
-
 def load_dotenv(path: Path) -> None:
     if not path.exists():
         return
@@ -26,7 +25,6 @@ def load_dotenv(path: Path) -> None:
         value = value.strip().strip('"').strip("'")
         os.environ.setdefault(key, value)
 
-
 def supabase_headers(token: str, content_type: str | None = None) -> dict[str, str]:
     headers = {
         "apikey": token,
@@ -36,12 +34,10 @@ def supabase_headers(token: str, content_type: str | None = None) -> dict[str, s
         headers["Content-Type"] = content_type
     return headers
 
-
 def api_request(url: str, token: str, method: str = "GET", data: bytes | None = None, content_type: str | None = None) -> bytes:
     req = request.Request(url, method=method, data=data, headers=supabase_headers(token, content_type))
     with request.urlopen(req) as response:
         return response.read()
-
 
 def ensure_bucket(base_url: str, token: str, bucket_name: str) -> None:
     existing = json.loads(api_request(f"{base_url}/storage/v1/bucket", token=token).decode("utf-8"))
@@ -55,7 +51,6 @@ def ensure_bucket(base_url: str, token: str, bucket_name: str) -> None:
         data=json.dumps({"id": bucket_name, "name": bucket_name, "public": False}).encode("utf-8"),
         content_type="application/json",
     )
-
 
 def main() -> None:
     load_dotenv(ENV_PATH)
@@ -85,7 +80,6 @@ def main() -> None:
         payload = json.loads(response.read().decode("utf-8"))
 
     print(f"Uploaded {MODEL_PATH} to {payload.get('Key', f'{BUCKET_NAME}/{OBJECT_PATH}')}")
-
 
 if __name__ == "__main__":
     main()

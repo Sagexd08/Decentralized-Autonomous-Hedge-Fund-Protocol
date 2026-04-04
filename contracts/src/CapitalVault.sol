@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -26,50 +25,33 @@ interface IERC20Approve {
     function approve(address spender, uint256 amount) external returns (bool);
 }
 
-/**
- * @title CapitalVault
- * @notice Custodies all investor ETH. Agents NEVER directly control capital.
- *         Enforces position limits, leverage caps, drawdown ceilings, and volatility budgets.
- *         Supports EIP-712 signed delegations for agent capital allocation.
- *         Extended with swap and lending functions for the simulated trading engine.
- * @dev Layer 1 of the DACAP three-layer architecture.
- */
 contract CapitalVault is Ownable, ReentrancyGuard {
     address public allocationEngine;
     address public slashingModule;
 
-    // Risk pool IDs: 0=Conservative, 1=Balanced, 2=Aggressive
     uint8 public constant CONSERVATIVE = 0;
     uint8 public constant BALANCED = 1;
     uint8 public constant AGGRESSIVE = 2;
 
-    // Volatility caps per pool (in basis points, annualized)
     mapping(uint8 => uint256) public volatilityCaps;
 
-    // Investor balances per pool
     mapping(address => mapping(uint8 => uint256)) public investorBalances;
 
-    // Agent capital weights (normalized, 1e18 = 100%)
     mapping(address => uint256) public agentWeights;
 
-    // Agent drawdown tracking
     mapping(address => uint256) public agentPeakValue;
     mapping(address => uint256) public agentCurrentValue;
 
-    // Total TVL per pool
     mapping(uint8 => uint256) public poolTVL;
 
-    // Per-investor, per-agent delegation params
     mapping(address => mapping(address => DelegationParams)) public delegations;
 
-    // Track all investors per agent for allocation cap computation
     mapping(address => address[]) private _agentInvestors;
     mapping(address => mapping(address => bool)) private _investorTracked;
 
-    uint256 public constant MAX_DRAWDOWN_BPS = 2000; // 20%
-    uint256 public constant PERFORMANCE_FEE_BPS = 1000; // 10%
+    uint256 public constant MAX_DRAWDOWN_BPS = 2000;
+    uint256 public constant PERFORMANCE_FEE_BPS = 1000;
 
-    // EIP-712
     bytes32 public DOMAIN_SEPARATOR;
 
     bytes32 public constant DELEGATION_TYPEHASH = keccak256(
@@ -82,26 +64,17 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         uint256 maxAllocationWei;
     }
 
-    // ---- Trading Engine Storage ----
-
-    // Trading infrastructure addresses (set by owner post-deploy)
     address public mockUniswapRouter;
     address public mockAavePool;
     address public mockPriceFeed;
 
-    // Per-agent token balances: agent => token => amount
     mapping(address => mapping(address => uint256)) public agentTokenBalances;
 
-    // Per-agent PnL in wei-equivalent (signed)
     mapping(address => int256) public agentPnL;
 
-    // Registered agent addresses (set by owner)
     mapping(address => bool) public registeredAgents;
 
-    // Tracks total ETH deployed per agent (for allocation cap enforcement)
     mapping(address => uint256) public agentDeployedWei;
-
-    // ---- Events ----
 
     event WeightsUpdated(address[] agents, uint256[] weights);
     event DrawdownBreached(address indexed agent, uint256 drawdownBps);
@@ -123,8 +96,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         string tradeType
     );
 
-    // ---- Modifiers ----
-
     modifier onlyAllocationEngine() {
         require(msg.sender == allocationEngine, "Only allocation engine");
         _;
@@ -141,9 +112,9 @@ contract CapitalVault is Ownable, ReentrancyGuard {
     }
 
     constructor() Ownable(msg.sender) {
-        volatilityCaps[CONSERVATIVE] = 800;   // 8%
-        volatilityCaps[BALANCED] = 1800;       // 18%
-        volatilityCaps[AGGRESSIVE] = 3500;     // 35%
+        volatilityCaps[CONSERVATIVE] = 800;
+        volatilityCaps[BALANCED] = 1800;
+        volatilityCaps[AGGRESSIVE] = 3500;
 
         bytes32 domainTypeHash = keccak256(
             "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
@@ -159,15 +130,12 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         );
     }
 
-    /**
-     * @notice Investor deposits ETH into a risk pool with a signed delegation to an agent.
-     */
     function depositETH(
         uint8 pool,
         address agent,
         uint256 maxDrawdownBps,
         uint256 maxAllocationWei,
-        bytes calldata /* signature */
+        bytes calldata
     ) external payable nonReentrant {
         require(pool <= AGGRESSIVE, "Invalid pool");
         require(msg.value > 0, "ETH amount must be > 0");
@@ -180,7 +148,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
             maxAllocationWei: maxAllocationWei
         });
 
-        // Track investor for this agent (for allocation cap computation)
         if (!_investorTracked[agent][msg.sender]) {
             _investorTracked[agent][msg.sender] = true;
             _agentInvestors[agent].push(msg.sender);
@@ -196,9 +163,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         );
     }
 
-    /**
-     * @notice Returns the delegation params for a given investor-agent pair.
-     */
     function getDelegation(address investor, address agent)
         external
         view
@@ -207,9 +171,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         return delegations[investor][agent];
     }
 
-    /**
-     * @notice Allocation engine updates agent capital weights.
-     */
     function updateWeights(
         address[] calldata agents,
         uint256[] calldata weights
@@ -226,9 +187,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         emit WeightsUpdated(agents, weights);
     }
 
-    /**
-     * @notice Check and enforce drawdown limits for an agent.
-     */
     function enforceDrawdownLimit(address agent) external onlySlashingModule {
         uint256 peak = agentPeakValue[agent];
         uint256 current = agentCurrentValue[agent];
@@ -241,14 +199,10 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         }
     }
 
-    // ---- Trading Engine Functions ----
-
-    /// @notice Register an agent address (owner only)
     function registerAgent(address agent) external onlyOwner {
         registeredAgents[agent] = true;
     }
 
-    /// @notice Set trading infrastructure addresses
     function setTradingContracts(
         address _router,
         address _aavePool,
@@ -259,7 +213,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         mockPriceFeed = _priceFeed;
     }
 
-    /// @notice Compute total maxAllocationWei for an agent across all investors
     function _maxAllocationForAgent(address agent) internal view returns (uint256 total) {
         address[] storage investors = _agentInvestors[agent];
         for (uint256 i = 0; i < investors.length; i++) {
@@ -267,7 +220,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         }
     }
 
-    /// @notice Execute ETH→token swap via MockUniswapRouter
     function executeSwap(
         address tokenOut,
         uint256 amountIn,
@@ -292,7 +244,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         emit TradeExecuted(msg.sender, tokenOut, amountIn, amountOut, block.timestamp, "swap");
     }
 
-    /// @notice Supply agent's ERC20 tokens to MockAavePool
     function supplyToAave(address token, uint256 amount)
         external onlyRegisteredAgent nonReentrant
     {
@@ -303,7 +254,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         emit TradeExecuted(msg.sender, token, amount, 0, block.timestamp, "supply");
     }
 
-    /// @notice Borrow ERC20 tokens from MockAavePool
     function borrowFromAave(address token, uint256 amount)
         external onlyRegisteredAgent nonReentrant
     {
@@ -312,7 +262,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         emit TradeExecuted(msg.sender, token, 0, amount, block.timestamp, "borrow");
     }
 
-    /// @notice Withdraw previously supplied tokens from MockAavePool
     function withdrawFromAave(address token, uint256 amount)
         external onlyRegisteredAgent nonReentrant
     {
@@ -320,8 +269,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         agentTokenBalances[msg.sender][token] += amount;
         emit TradeExecuted(msg.sender, token, 0, amount, block.timestamp, "withdraw");
     }
-
-    // ---- Admin ----
 
     function setAllocationEngine(address _engine) external onlyOwner {
         allocationEngine = _engine;
@@ -334,8 +281,6 @@ contract CapitalVault is Ownable, ReentrancyGuard {
     function totalTVL() external view returns (uint256) {
         return poolTVL[CONSERVATIVE] + poolTVL[BALANCED] + poolTVL[AGGRESSIVE];
     }
-
-    // --- Internal helpers ---
 
     function _recoverSigner(bytes32 digest, bytes calldata sig) internal pure returns (address) {
         require(sig.length == 65, "Invalid signature length");

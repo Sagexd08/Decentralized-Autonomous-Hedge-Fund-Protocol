@@ -27,7 +27,7 @@ export const BentoSection = () => {
       className: "md:col-span-2 md:row-span-2 min-h-[300px]",
       content: (
         <div className="absolute inset-0 pt-24 px-8 overflow-hidden">
-          {/* Animated Beam Mockup */}
+          {}
           <div className="w-full h-full flex flex-col gap-4 opacity-30">
              <div className="h-1 w-full bg-gradient-to-r from-transparent via-white to-transparent transform -translate-x-full animate-[pulse_3s_infinite]" />
              <div className="h-px w-full bg-white/20" />
@@ -49,8 +49,8 @@ export const BentoSection = () => {
         <div className="absolute bottom-0 left-0 w-full p-6 pt-0">
           <div className="h-12 w-full flex items-end gap-1 opacity-50">
             {[40, 70, 30, 90, 50, 80, 20, 60].map((h, i) => (
-              <motion.div 
-                key={i} 
+              <motion.div
+                key={i}
                 className="flex-1 bg-white/40 rounded-t-sm"
                 animate={{ height: [`${h}%`, `${Math.random() * 100}%`, `${h}%`] }}
                 transition={{ duration: 2 + i * 0.1, repeat: Infinity, ease: "linear" }}
@@ -67,7 +67,7 @@ export const BentoSection = () => {
       className: "md:col-span-1 min-h-[200px]",
       content: (
         <div className="absolute right-0 top-1/2 -translate-y-1/2 w-48 overflow-hidden p-6 opacity-40">
-           {/* Animated List Mockup */}
+           {}
            <div className="flex flex-col gap-3">
              {[1, 2, 3].map(i => (
                 <div key={i} className="w-full h-8 bg-white/5 rounded-md flex items-center px-3 border border-white/5">
@@ -101,8 +101,8 @@ export const BentoSection = () => {
   return (
     <section className="bg-black py-24 px-6 border-t border-white/5" ref={ref}>
       <div className="max-w-7xl mx-auto flex flex-col gap-16">
-        
-        <motion.div 
+
+        <motion.div
           className="w-full text-center"
           variants={container}
           initial="hidden"
@@ -116,16 +116,16 @@ export const BentoSection = () => {
           </motion.h2>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           className="grid grid-cols-1 md:grid-cols-4 gap-4"
           variants={container}
           initial="hidden"
           animate={isInView ? "show" : "hidden"}
         >
           {bentoItems.map((bento, idx) => (
-            <motion.div 
-              key={idx} 
-              variants={item} 
+            <motion.div
+              key={idx}
+              variants={item}
               className={`liquid-glass p-8 group hover:-translate-y-1 transition-transform ${bento.className}`}
             >
               <div className="relative z-20 flex flex-col items-start gap-4 h-full pointer-events-none">

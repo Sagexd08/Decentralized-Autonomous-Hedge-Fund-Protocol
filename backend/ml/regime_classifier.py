@@ -5,7 +5,6 @@ Market regime classifier using Hidden Markov Model (HMM).
 import numpy as np
 from typing import List, Tuple
 
-
 class RegimeClassifier:
     """
     Gaussian HMM-based regime classifier.
@@ -16,7 +15,7 @@ class RegimeClassifier:
         self.state_names = {0: "Bull", 1: "Sideways", 2: "Bear"}
 
     def fit(self, returns: np.ndarray):
-        # Placeholder: in production use hmmlearn.GaussianHMM
+
         self.means = np.array([0.001, 0.0, -0.001])
         self.stds = np.array([0.01, 0.008, 0.015])
 
@@ -35,7 +34,6 @@ class RegimeClassifier:
             regimes.append(self.state_names[state])
             confidences.append(float(probs[state]))
         return regimes, confidences
-
 
 def rolling_volatility(returns: np.ndarray, window: int = 30) -> np.ndarray:
     """Compute rolling annualized volatility."""

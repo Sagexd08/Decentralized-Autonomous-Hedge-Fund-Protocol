@@ -1,12 +1,5 @@
-/**
- * CandlestickChart — pure SVG candlestick chart with volume bars.
- * Renders proper OHLC candles with wicks, bodies, volume, grid, axes, and tooltip.
- */
 import { useState, useRef, useCallback, useEffect } from 'react'
 
-// ---------------------------------------------------------------------------
-// Types & data generation
-// ---------------------------------------------------------------------------
 export interface OHLCBar {
   time: string
   open: number
@@ -17,10 +10,10 @@ export interface OHLCBar {
 }
 
 export function genSyntheticOHLC(base: number, count = 80, volatility = 0.015): OHLCBar[] {
-  // Use a seeded-style deterministic walk — same base always produces same initial shape
+
   const bars: OHLCBar[] = []
   let price = base
-  // Simple LCG seeded by base value for determinism
+
   let seed = Math.floor(base * 1000) % 2147483647
   const rand = () => {
     seed = (seed * 1664525 + 1013904223) % 2147483647
@@ -65,9 +58,6 @@ export function buildOHLC(prices: number[], intervalMs = 10000): OHLCBar[] {
   return bars
 }
 
-// ---------------------------------------------------------------------------
-// Live OHLC hook — stable initial data + appends new candles over time
-// ---------------------------------------------------------------------------
 export function useLiveOHLC(base: number, volatility = 0.015, maxCandles = 80) {
   const [bars, setBars] = useState<OHLCBar[]>(() => genSyntheticOHLC(base, maxCandles, volatility))
   const lastPriceRef = useRef(bars[bars.length - 1]?.close ?? base)
@@ -106,7 +96,7 @@ interface Props {
 }
 
 const PAD = { top: 12, right: 56, bottom: 28, left: 8 }
-const VOL_H = 48  // volume panel height
+const VOL_H = 48
 
 export default function CandlestickChart({ data, height = 300, title, subtitle }: Props) {
   const svgRef = useRef<SVGSVGElement>(null)
@@ -135,25 +125,20 @@ export default function CandlestickChart({ data, height = 300, title, subtitle }
   const innerH = chartH - PAD.top - PAD.bottom
   const volInnerH = VOL_H - 16
 
-  // Price scale
   const minP = Math.min(...data.map(d => d.low))
   const maxP = Math.max(...data.map(d => d.high))
   const priceRange = maxP - minP || 1
   const py = (p: number) => PAD.top + innerH - ((p - minP) / priceRange) * innerH
 
-  // Volume scale
   const maxVol = Math.max(...data.map(d => d.volume))
   const vy = (v: number) => volInnerH - (v / maxVol) * volInnerH
 
-  // Candle layout
   const totalW = innerW
   const candleW = Math.max(2, totalW / data.length - 1)
   const cx = (i: number) => PAD.left + (i + 0.5) * (totalW / data.length)
 
-  // Y-axis ticks (5 levels)
   const yTicks = Array.from({ length: 5 }, (_, i) => minP + (priceRange * i) / 4)
 
-  // X-axis labels (every ~10 candles)
   const xInterval = Math.max(1, Math.floor(data.length / 8))
 
   const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
@@ -185,7 +170,7 @@ export default function CandlestickChart({ data, height = 300, title, subtitle }
           onMouseLeave={() => setTooltip(t => ({ ...t, visible: false }))}
           style={{ display: 'block' }}
         >
-          {/* Grid lines */}
+          {}
           {yTicks.map((tick, i) => (
             <line key={i}
               x1={PAD.left} y1={py(tick)}
@@ -194,7 +179,7 @@ export default function CandlestickChart({ data, height = 300, title, subtitle }
             />
           ))}
 
-          {/* Y-axis labels */}
+          {}
           {yTicks.map((tick, i) => (
             <text key={i}
               x={svgW - PAD.right + 4} y={py(tick) + 3}
@@ -203,7 +188,7 @@ export default function CandlestickChart({ data, height = 300, title, subtitle }
             </text>
           ))}
 
-          {/* X-axis labels */}
+          {}
           {data.map((bar, i) => i % xInterval === 0 && (
             <text key={i}
               x={cx(i)} y={chartH - 4}
@@ -212,7 +197,7 @@ export default function CandlestickChart({ data, height = 300, title, subtitle }
             </text>
           ))}
 
-          {/* Candles */}
+          {}
           {data.map((bar, i) => {
             const bull = bar.close >= bar.open
             const color = bull ? '#10b981' : '#ef4444'
@@ -224,13 +209,13 @@ export default function CandlestickChart({ data, height = 300, title, subtitle }
 
             return (
               <g key={i}>
-                {/* Upper wick */}
+                {}
                 <line x1={x} y1={py(bar.high)} x2={x} y2={bodyTop}
                   stroke={color} strokeWidth={1} />
-                {/* Lower wick */}
+                {}
                 <line x1={x} y1={bodyBot} x2={x} y2={py(bar.low)}
                   stroke={color} strokeWidth={1} />
-                {/* Body */}
+                {}
                 <rect
                   x={x - hw} y={bodyTop}
                   width={candleW} height={bodyH}
@@ -243,14 +228,14 @@ export default function CandlestickChart({ data, height = 300, title, subtitle }
             )
           })}
 
-          {/* Separator line */}
+          {}
           <line
             x1={PAD.left} y1={chartH + 4}
             x2={svgW - PAD.right} y2={chartH + 4}
             stroke="#1e293b" strokeWidth={1}
           />
 
-          {/* Volume bars */}
+          {}
           {data.map((bar, i) => {
             const bull = bar.close >= bar.open
             const color = bull ? '#10b981' : '#ef4444'
@@ -268,7 +253,7 @@ export default function CandlestickChart({ data, height = 300, title, subtitle }
             )
           })}
 
-          {/* Hover crosshair */}
+          {}
           {tooltip.visible && (
             <>
               <line x1={tooltip.x} y1={PAD.top} x2={tooltip.x} y2={chartH - PAD.bottom}
@@ -279,7 +264,7 @@ export default function CandlestickChart({ data, height = 300, title, subtitle }
           )}
         </svg>
 
-        {/* Tooltip */}
+        {}
         {tooltip.visible && tooltip.bar && (
           <div
             className="absolute pointer-events-none z-10 bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs shadow-2xl min-w-[150px]"

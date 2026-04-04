@@ -26,9 +26,9 @@ export const Hero = () => {
 
   return (
     <section className="relative w-full h-screen overflow-hidden bg-black flex items-center pt-24 pb-12">
-      {/* Video Background Layer */}
+      {}
       <div className="absolute inset-0 z-0 pointer-events-none">
-        <div className="absolute inset-0 bg-black/60 z-10" /> {/* Overlay */}
+        <div className="absolute inset-0 bg-black/60 z-10" /> {}
         {videos.map((src, idx) => (
           <video
             id={`hero-video-${idx}`}
@@ -89,7 +89,7 @@ export const Hero = () => {
         </motion.div>
       </div>
 
-      {/* Decorative gradient flare */}
+      {}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-white/5 rounded-full blur-[120px] pointer-events-none z-10 mix-blend-screen" />
     </section>
   );

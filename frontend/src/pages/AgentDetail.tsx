@@ -26,7 +26,7 @@ export default function AgentDetail() {
         </span>
       </div>
 
-      {/* Key metrics */}
+      {}
       <div className="grid grid-cols-5 gap-3">
         {[
           { label: 'Sharpe Ratio', value: agent.sharpe, color: 'text-green' },
@@ -43,7 +43,7 @@ export default function AgentDetail() {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        {/* PnL curve */}
+        {}
         <div className="card">
           <h3 className="text-sm font-semibold text-white mb-4">Cumulative PnL</h3>
           <ResponsiveContainer width="100%" height={200}>
@@ -63,7 +63,7 @@ export default function AgentDetail() {
           </ResponsiveContainer>
         </div>
 
-        {/* Allocation over time */}
+        {}
         <div className="card">
           <h3 className="text-sm font-semibold text-white mb-4">Allocation Weight Over Time</h3>
           <ResponsiveContainer width="100%" height={200}>
@@ -78,7 +78,7 @@ export default function AgentDetail() {
         </div>
       </div>
 
-      {/* Staking info */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-4">Staking & Risk Profile</h3>
         <div className="grid grid-cols-3 gap-4 text-sm">

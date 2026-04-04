@@ -21,8 +21,8 @@ export const About = () => {
   return (
     <section className="bg-black py-32 px-6 border-t border-white/5" ref={ref}>
       <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start justify-between gap-16">
-        
-        <motion.div 
+
+        <motion.div
           className="md:w-1/2 w-full"
           variants={container}
           initial="hidden"
@@ -38,7 +38,7 @@ export const About = () => {
           </motion.h2>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           className="md:w-1/2 w-full flex flex-col gap-6"
           variants={container}
           initial="hidden"

@@ -34,7 +34,7 @@ export const Services = () => {
   return (
     <section className="bg-black py-24 px-6 border-t border-white/5" ref={ref}>
       <div className="max-w-7xl mx-auto flex flex-col gap-12">
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.8 }}
@@ -45,14 +45,14 @@ export const Services = () => {
           </h2>
         </motion.div>
 
-        <motion.div 
+        <motion.div
           className="grid grid-cols-1 md:grid-cols-2 gap-8"
           variants={container}
           initial="hidden"
           animate={isInView ? "show" : "hidden"}
         >
           {cards.map((card, idx) => (
-            <motion.div 
+            <motion.div
               key={idx}
               variants={item}
               className="relative aspect-square md:aspect-auto md:h-[500px] rounded-[2rem] overflow-hidden group cursor-pointer"
@@ -67,7 +67,7 @@ export const Services = () => {
                 preload="auto"
                 className="absolute inset-0 w-full h-full object-cover scale-105 group-hover:scale-110 transition-transform duration-1000 ease-out opacity-80 group-hover:opacity-100"
               />
-              
+
               <div className="absolute inset-0 z-20 flex flex-col justify-end p-8 md:p-12">
                 <div className="liquid-glass p-6 md:p-8 rounded-2xl transform translate-y-4 group-hover:translate-y-0 transition-transform duration-500 ease-out backdrop-blur-2xl">
                   <h3 className="text-2xl md:text-3xl font-medium text-white mb-4">{card.title}</h3>

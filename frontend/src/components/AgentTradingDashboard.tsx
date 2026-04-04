@@ -1,8 +1,3 @@
-/**
- * AgentTradingDashboard — shows live ML predictions per token with mini charts,
- * confidence bars, decision signals, and the agent's swap feed.
- * Uses real backend ML predictions from /api/prices/predictions/{agentId}
- */
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -16,9 +11,6 @@ import { TradeExecutedMessage } from '../hooks/useWebSocket'
 import { useProtocolStore, TradeRecord } from '../store/protocolStore'
 import { API_BASE_URL } from '../utils/api'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 interface Prediction {
   agent_id: string
   symbol: string
@@ -46,9 +38,6 @@ const DECISION_META = {
   HOLD: { color: '#64748b', bg: 'bg-slate-700/30 border-border',   icon: Minus,        label: 'HOLD' },
 }
 
-// ---------------------------------------------------------------------------
-// Hooks
-// ---------------------------------------------------------------------------
 function usePredictions(agentId: string) {
   const [predictions, setPredictions] = useState<Prediction[]>([])
   const [priceHistory, setPriceHistory] = useState<PriceHistory>({
@@ -63,7 +52,7 @@ function usePredictions(agentId: string) {
           const data = await res.json()
           const preds: Prediction[] = data.predictions ?? []
           setPredictions(preds)
-          // Append current prices to history
+
           setPriceHistory(prev => {
             const next = { ...prev }
             preds.forEach(p => {
@@ -82,9 +71,6 @@ function usePredictions(agentId: string) {
   return { predictions, priceHistory }
 }
 
-// ---------------------------------------------------------------------------
-// Per-token prediction card with mini price chart
-// ---------------------------------------------------------------------------
 function TokenPredictionCard({ pred, history }: { pred: Prediction; history: number[] }) {
   const meta = DECISION_META[pred.decision] ?? DECISION_META.HOLD
   const Icon = meta.icon
@@ -98,7 +84,7 @@ function TokenPredictionCard({ pred, history }: { pred: Prediction; history: num
       animate={{ opacity: 1, y: 0 }}
       className={`card p-3 border ${meta.bg}`}
     >
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
           <div className="w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold"
@@ -119,7 +105,7 @@ function TokenPredictionCard({ pred, history }: { pred: Prediction; history: num
         </div>
       </div>
 
-      {/* Mini price chart */}
+      {}
       {chartData.length > 2 && (
         <div className="mb-2 -mx-1">
           <ResponsiveContainer width="100%" height={40}>
@@ -139,7 +125,7 @@ function TokenPredictionCard({ pred, history }: { pred: Prediction; history: num
         </div>
       )}
 
-      {/* Predicted change */}
+      {}
       <div className="flex items-center justify-between text-xs mb-2">
         <span className="text-slate-500">Predicted Δ</span>
         <span className={`font-mono font-semibold ${isUp ? 'text-green' : 'text-red-400'}`}>
@@ -147,7 +133,7 @@ function TokenPredictionCard({ pred, history }: { pred: Prediction; history: num
         </span>
       </div>
 
-      {/* Momentum */}
+      {}
       <div className="flex items-center justify-between text-xs mb-2">
         <span className="text-slate-500">Momentum</span>
         <span className={`font-mono ${pred.momentum >= 0 ? 'text-green' : 'text-red-400'}`}>
@@ -155,7 +141,7 @@ function TokenPredictionCard({ pred, history }: { pred: Prediction; history: num
         </span>
       </div>
 
-      {/* Confidence bar */}
+      {}
       <div>
         <div className="flex justify-between text-xs mb-1">
           <span className="text-slate-500">Confidence</span>
@@ -170,15 +156,12 @@ function TokenPredictionCard({ pred, history }: { pred: Prediction; history: num
         </div>
       </div>
 
-      {/* Reasoning */}
+      {}
       <p className="text-xs text-slate-600 mt-2 leading-relaxed line-clamp-2">{pred.reasoning}</p>
     </motion.div>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Swap feed row
-// ---------------------------------------------------------------------------
 function SwapRow({ msg, idx }: { msg: TradeExecutedMessage; idx: number }) {
   const color = TOKEN_COLORS[msg.token] ?? '#64748b'
   const ethIn = Number(msg.amountIn) / 1e18
@@ -216,9 +199,6 @@ function SwapRow({ msg, idx }: { msg: TradeExecutedMessage; idx: number }) {
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main component
-// ---------------------------------------------------------------------------
 interface Props {
   agentId: string
   agentName: string
@@ -230,11 +210,9 @@ export default function AgentTradingDashboard({ agentId, agentName, messages, se
   const { predictions, priceHistory } = usePredictions(agentId)
   const { sessions } = useProtocolStore()
 
-  // Use store trade records (always populated by simulated trades) as primary source
   const session = sessions.find(s => s.id === sessionId)
   const storeRecords: TradeRecord[] = session?.tradeRecords ?? []
 
-  // Convert store records to display format
   const storeSwaps: TradeExecutedMessage[] = storeRecords.slice(-15).reverse().map(r => ({
     agent: agentId,
     token: r.token,
@@ -244,7 +222,6 @@ export default function AgentTradingDashboard({ agentId, agentName, messages, se
     type: 'swap' as const,
   }))
 
-  // Prefer store records over WebSocket messages (store is always populated)
   const recentSwaps = storeSwaps.length > 0 ? storeSwaps : messages.slice(-15).reverse()
 
   const buyCount = predictions.filter(p => p.decision === 'BUY').length
@@ -255,7 +232,7 @@ export default function AgentTradingDashboard({ agentId, agentName, messages, se
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Brain size={14} className="text-cyan" />
@@ -269,7 +246,7 @@ export default function AgentTradingDashboard({ agentId, agentName, messages, se
         </div>
       </div>
 
-      {/* Per-token prediction cards */}
+      {}
       {predictions.length === 0 ? (
         <div className="grid grid-cols-4 gap-3">
           {['WBTC', 'USDC', 'LINK', 'UNI'].map(sym => (
@@ -292,7 +269,7 @@ export default function AgentTradingDashboard({ agentId, agentName, messages, se
         </div>
       )}
 
-      {/* Swap feed */}
+      {}
       <div className="card">
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
@@ -314,7 +291,7 @@ export default function AgentTradingDashboard({ agentId, agentName, messages, se
         )}
       </div>
 
-      {/* Per-trade PnL breakdown from store */}
+      {}
       {storeRecords.length > 0 && (
         <div className="card">
           <h3 className="text-sm font-semibold text-white mb-3">Trade-by-Trade PnL</h3>

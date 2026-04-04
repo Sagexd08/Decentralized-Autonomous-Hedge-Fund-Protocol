@@ -1,134 +1,197 @@
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
-import { ArrowRight, Shield, Cpu, TrendingUp, Lock, Zap, BarChart2 } from 'lucide-react'
+import { Command } from 'lucide-react'
 
-const features = [
-  { icon: Cpu, title: 'Autonomous Capital Brain', desc: 'A visible multi-stage intelligence loop reallocates capital using MWU, regime detection, and signed agent decisions.' },
-  { icon: Shield, title: 'Cryptoeconomic Enforcement', desc: 'Staking, slashing, drawdown ceilings, and rogue-agent detection create economic accountability.' },
-  { icon: TrendingUp, title: 'Stateful Agent Competition', desc: 'Agents are persistent financial entities with trust scores, confidence, and evolving capital allocations.' },
-  { icon: Lock, title: 'Programmable Trust Layer', desc: 'Capital stays in the vault while intelligence competes off-chain and enforcement remains on-chain.' },
-  { icon: BarChart2, title: 'Risk & World Intelligence', desc: 'VaR, anomaly detection, macro regime sensing, and news-aware signals shape every allocation cycle.' },
-  { icon: Zap, title: 'Hackathon Demo Flow', desc: 'Show judges live orchestration, slashing watchlists, contract prompts, and a self-evolving financial organism.' },
-]
+import { Navbar } from '../components/Navbar'
+import { VideoSection } from '../components/VideoSection'
+import { BentoSection } from '../components/BentoSection'
+import { Philosophy } from '../components/Philosophy'
+import { Services } from '../components/Services'
+import LandingStats from '../components/LandingStats'
+import LandingIntelligenceHub from '../components/LandingIntelligenceHub'
+import LandingRiskEngine from '../components/LandingRiskEngine'
+import LandingCTA from '../components/LandingCTA'
+import LandingCommandPalette from '../components/LandingCommandPalette'
 
-export default function Landing() {
+function Hero() {
   const navigate = useNavigate()
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setPaletteOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    const play = v.play()
+    if (play && 'catch' in play) play.catch(() => undefined)
+  }, [])
 
   return (
-    <div className="min-h-screen bg-bg overflow-hidden">
-      <div className="fixed inset-0 bg-grid bg-grid opacity-40 pointer-events-none" />
-      <div className="fixed inset-0 bg-glow-cyan opacity-30 pointer-events-none" />
-
-      <nav className="relative z-10 flex items-center justify-between px-8 py-5 border-b border-border glass">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#00f5ff,#a855f7)' }}>
-            <Zap size={16} className="text-bg" />
-          </div>
-          <span className="font-bold tracking-wider gradient-text text-lg">DACAP</span>
+    <>
+      <section className="relative flex min-h-screen flex-col overflow-hidden bg-black">
+        {}
+        <div className="pointer-events-none absolute inset-0">
+          <video
+            ref={videoRef}
+            src="https://videos.pexels.com/video-files/856988/856988-hd_1920_1080_25fps.mp4"
+            muted
+            loop
+            playsInline
+            autoPlay
+            preload="auto"
+            className="absolute inset-0 h-full w-full object-cover opacity-25 scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/40 to-black" />
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-10%,rgba(255,255,255,0.07),transparent)]" />
         </div>
-        <div className="flex items-center gap-6 text-sm text-slate-400">
-          <a href="#features" className="hover:text-white transition-colors">Protocol</a>
-          <a href="#math" className="hover:text-white transition-colors">Mathematics</a>
-          <a href="#contracts" className="hover:text-white transition-colors">Contracts</a>
-          <button onClick={() => navigate('/dashboard')} className="btn-primary">
-            Launch App
-          </button>
+
+        {}
+        <div className="relative z-20">
+          <Navbar />
         </div>
-      </nav>
 
-      <section className="relative z-10 flex flex-col items-center justify-center text-center px-6 pt-28 pb-20">
-        <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }}>
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-cyan/30 bg-cyan/5 text-cyan text-xs font-mono mb-8">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan animate-pulse" />
-            Autonomous Financial Intelligence Network · Ethereum Mainnet · $25.3M TVL
-          </div>
-
-          <h1 className="text-5xl md:text-7xl font-extrabold leading-tight mb-6">
-            <span className="gradient-text text-glow-cyan">Autonomous Financial</span>
-            <br />
-            <span className="text-white">Intelligence Network</span>
-          </h1>
-
-          <p className="text-slate-400 text-lg max-w-2xl mx-auto mb-10 leading-relaxed">
-            DACAP turns hedge-fund logic into an autonomous on-chain organism: AI agents compete for capital,
-            risk controls stay visible, and governance adapts the system in real time.
-          </p>
-
-          <div className="flex items-center justify-center gap-4">
-            <motion.button
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.97 }}
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-2 px-8 py-3.5 rounded-xl font-semibold text-bg transition-all"
-              style={{ background: 'linear-gradient(135deg,#00f5ff,#a855f7)' }}
-            >
-              Enter App <ArrowRight size={16} />
-            </motion.button>
-            <button onClick={() => navigate('/intelligence')} className="px-8 py-3.5 rounded-xl font-semibold text-slate-300 border border-border hover:border-slate-500 transition-all">
-              View Intelligence Loop
-            </button>
-          </div>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.8 }}
-          className="grid grid-cols-4 gap-6 mt-20 w-full max-w-3xl"
-        >
-          {[
-            { label: 'Total Value Locked', value: '$25.3M' },
-            { label: 'Active Agents', value: '47' },
-            { label: 'Avg. Sharpe Ratio', value: '2.14' },
-            { label: 'Protocol Uptime', value: '99.97%' },
-          ].map(s => (
-            <div key={s.label} className="card text-center">
-              <div className="text-2xl font-bold gradient-text">{s.value}</div>
-              <div className="text-xs text-slate-500 mt-1">{s.label}</div>
+        {}
+        <div className="relative z-10 mx-auto flex flex-1 w-full max-w-7xl flex-col justify-center px-4 pb-24 pt-8 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+            className="max-w-4xl"
+          >
+            {}
+            <div className="mb-8 flex items-center gap-3">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-50" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
+              </span>
+              <span className="font-['Space_Grotesk',sans-serif] text-[10px] uppercase tracking-[0.4em] text-white/40">
+                Autonomous Protocol · Live
+              </span>
             </div>
-          ))}
-        </motion.div>
-      </section>
 
-      <section id="features" className="relative z-10 px-8 py-20 max-w-6xl mx-auto">
-        <h2 className="text-3xl font-bold text-center mb-3 text-white">Autonomous System Surface</h2>
-        <p className="text-slate-500 text-center mb-12 text-sm">From capital brain to slashing engine, every layer is visible and demoable</p>
-        <div className="grid grid-cols-3 gap-5">
-          {features.map((f, i) => (
-            <motion.div
-              key={f.title}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className="card hover:border-cyan/20 transition-all group"
-            >
-              <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-4 bg-cyan/10 group-hover:bg-cyan/20 transition-colors">
-                <f.icon size={18} className="text-cyan" />
+            <h1 className="font-['Instrument_Serif'] text-6xl italic font-normal leading-[1.04] text-white sm:text-7xl lg:text-[7.5rem]">
+              Decentralised<br />
+              <span className="not-italic font-medium font-['Space_Grotesk',sans-serif] text-5xl sm:text-6xl lg:text-7xl tracking-tight">
+                Autonomous
+              </span>
+              <br />
+              Capital.
+            </h1>
+
+            <p className="mt-8 max-w-xl font-['Space_Grotesk',sans-serif] text-base leading-7 text-white/45 sm:text-lg">
+              AI agents deployed on-chain, executing DeFi strategies across protocols — continuously, without human intervention.
+            </p>
+
+            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="h-12 w-48 bg-white text-black font-['Space_Grotesk',sans-serif] text-sm font-medium tracking-wide transition hover:bg-white/90"
+              >
+                Launch Dashboard
+              </button>
+
+              <button
+                onClick={() => setPaletteOpen(true)}
+                className="flex h-12 items-center gap-3 border border-white/15 px-5 font-['Space_Grotesk',sans-serif] text-sm text-white/50 transition hover:border-white/30 hover:text-white/80"
+              >
+                <Command size={14} />
+                <span>Command Palette</span>
+                <span className="ml-1 rounded border border-white/15 px-1.5 py-0.5 text-[10px] text-white/30">
+                  ⌘K
+                </span>
+              </button>
+            </div>
+          </motion.div>
+
+          {}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1, delay: 0.6 }}
+            className="mt-20 flex flex-wrap items-center gap-x-8 gap-y-3 border-t border-white/8 pt-6"
+          >
+            {[
+              { label: 'AUM', value: '$847M' },
+              { label: 'Agents', value: '12' },
+              { label: 'Protocols', value: '40+' },
+              { label: '30d Return', value: '+31.7%' },
+            ].map((m) => (
+              <div key={m.label} className="flex items-baseline gap-2">
+                <span className="font-['Space_Grotesk',sans-serif] text-[10px] uppercase tracking-[0.3em] text-white/30">
+                  {m.label}
+                </span>
+                <span className="font-['Instrument_Serif'] text-2xl italic text-white">
+                  {m.value}
+                </span>
               </div>
-              <h3 className="font-semibold text-white mb-2 text-sm">{f.title}</h3>
-              <p className="text-slate-500 text-xs leading-relaxed">{f.desc}</p>
-            </motion.div>
-          ))}
+            ))}
+          </motion.div>
         </div>
       </section>
 
-      <section id="math" className="relative z-10 px-8 py-20 max-w-4xl mx-auto text-center">
-        <h2 className="text-3xl font-bold mb-3 text-white">Mathematical Foundation</h2>
-        <p className="text-slate-500 mb-10 text-sm">Regret-minimizing online learning fused with regime-aware autonomous execution</p>
-        <div className="card glow-purple">
-          <p className="text-slate-400 text-sm mb-4">Multiplicative Weights Update Rule</p>
-          <div className="font-mono text-xl text-purple bg-purple/5 rounded-lg p-4 border border-purple/20">
-            w<sub>i</sub>(t+1) = w<sub>i</sub>(t) · exp(η · R<sub>i</sub>(t))
+      {}
+      <LandingCommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+    </>
+  )
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-white/5 bg-black px-4 py-12 sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="flex flex-col items-start justify-between gap-8 sm:flex-row sm:items-center">
+          <div>
+            <p className="font-['Space_Grotesk',sans-serif] text-[10px] uppercase tracking-[0.4em] text-white/30">
+              DACAP
+            </p>
+            <p className="mt-1 text-xs text-white/20">
+              Decentralised Autonomous Capital Allocation Protocol
+            </p>
           </div>
-          <p className="text-slate-500 text-xs mt-4">
-            Normalized across all agents. The protocol rotates capital toward the strongest intelligence while preserving cryptographic trust.
+          <div className="flex gap-8">
+            {['Docs', 'GitHub', 'Governance', 'Discord'].map((link) => (
+              <a
+                key={link}
+                href="#"
+                className="font-['Space_Grotesk',sans-serif] text-xs text-white/30 transition hover:text-white/60"
+              >
+                {link}
+              </a>
+            ))}
+          </div>
+          <p className="font-['Space_Grotesk',sans-serif] text-[10px] text-white/20">
+            © 2024 DACAP. All rights reserved.
           </p>
         </div>
-      </section>
+      </div>
+    </footer>
+  )
+}
 
-      <footer className="relative z-10 border-t border-border px-8 py-6 text-center text-slate-600 text-xs">
-        DACAP Protocol · Decentralized Autonomous Capital Allocation · Research-Grade DeFi Infrastructure
-      </footer>
-    </div>
+export default function Landing() {
+  return (
+    <main className="bg-black text-white selection:bg-white/10">
+      <Hero />
+      <LandingStats />
+      <VideoSection />
+      <LandingIntelligenceHub />
+      <BentoSection />
+      <LandingRiskEngine />
+      <Philosophy />
+      <Services />
+      <LandingCTA />
+      <Footer />
+    </main>
   )
 }

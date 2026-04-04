@@ -10,7 +10,6 @@ logger = logging.getLogger(__name__)
 
 _STORE_PATH = Path(__file__).parent.parent / "governance_store.json"
 
-# Defaults — overridden by governance store on first read
 _DEFAULTS = {
     "eta": 0.01,
     "slashing_threshold_bps": 2000,
@@ -24,7 +23,6 @@ _DEFAULTS = {
     "reputation_decay": 0.95,
     "slash_recovery_epochs": 10,
 }
-
 
 class ProtocolParams:
     """
@@ -82,6 +80,4 @@ class ProtocolParams:
     def reputation_decay(self) -> float:
         return float(self.get("reputation_decay", 0.95))
 
-
-# Global singleton — import this everywhere
 protocol_params = ProtocolParams()

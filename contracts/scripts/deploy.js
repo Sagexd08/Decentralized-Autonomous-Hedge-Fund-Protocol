@@ -2,20 +2,18 @@ const hre = require("hardhat");
 const fs = require("fs");
 const path = require("path");
 
-// Initial prices scaled by 1e8
 const INITIAL_PRICES = {
-  WBTC: "3000000000000",   // 30,000 USD
-  WETH: "200000000000",    // 2,000 USD
-  USDC: "100000000",       // 1 USD
-  LINK: "1500000000",      // 15 USD
-  UNI:  "800000000",       // 8 USD
+  WBTC: "3000000000000",
+  WETH: "200000000000",
+  USDC: "100000000",
+  LINK: "1500000000",
+  UNI:  "800000000",
 };
 
 async function main() {
   const [deployer] = await hre.ethers.getSigners();
   console.log("Deploying with account:", deployer.address);
 
-  // 1. Deploy MockERC20 x4 (WBTC, USDC, LINK, UNI)
   const MockERC20 = await hre.ethers.getContractFactory("MockERC20");
 
   const wbtc = await MockERC20.deploy("Wrapped Bitcoin", "WBTC", 8);
@@ -34,10 +32,7 @@ async function main() {
   await uni.waitForDeployment();
   console.log("UNI deployed to:", await uni.getAddress());
 
-  // 2. Deploy MockPriceFeed
-  // We include WETH as a 5th token (no ERC20 needed, just price tracking)
-  // For simplicity, use a placeholder address for WETH price tracking
-  const wethPlaceholder = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"; // mainnet WETH
+  const wethPlaceholder = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
 
   const tokenAddresses = [
     await wbtc.getAddress(),
@@ -59,43 +54,36 @@ async function main() {
   await priceFeed.waitForDeployment();
   console.log("MockPriceFeed deployed to:", await priceFeed.getAddress());
 
-  // 3. Deploy MockUniswapRouter
   const MockUniswapRouter = await hre.ethers.getContractFactory("MockUniswapRouter");
   const router = await MockUniswapRouter.deploy(await priceFeed.getAddress());
   await router.waitForDeployment();
   console.log("MockUniswapRouter deployed to:", await router.getAddress());
 
-  // 4. Deploy MockAavePool
   const MockAavePool = await hre.ethers.getContractFactory("MockAavePool");
   const aavePool = await MockAavePool.deploy();
   await aavePool.waitForDeployment();
   console.log("MockAavePool deployed to:", await aavePool.getAddress());
 
-  // 5. Deploy MockStakeToken
   const MockStakeToken = await hre.ethers.getContractFactory("MockStakeToken");
   const stakeToken = await MockStakeToken.deploy();
   await stakeToken.waitForDeployment();
   console.log("MockStakeToken deployed to:", await stakeToken.getAddress());
 
-  // 6. Deploy AgentRegistry
   const AgentRegistry = await hre.ethers.getContractFactory("AgentRegistry");
   const registry = await AgentRegistry.deploy(await stakeToken.getAddress());
   await registry.waitForDeployment();
   console.log("AgentRegistry deployed to:", await registry.getAddress());
 
-  // 7. Deploy CapitalVault
   const CapitalVault = await hre.ethers.getContractFactory("CapitalVault");
   const vault = await CapitalVault.deploy();
   await vault.waitForDeployment();
   console.log("CapitalVault deployed to:", await vault.getAddress());
 
-  // 8. Deploy AllocationEngine
   const AllocationEngine = await hre.ethers.getContractFactory("AllocationEngine");
   const engine = await AllocationEngine.deploy(await vault.getAddress());
   await engine.waitForDeployment();
   console.log("AllocationEngine deployed to:", await engine.getAddress());
 
-  // 9. Deploy SlashingModule
   const SlashingModule = await hre.ethers.getContractFactory("SlashingModule");
   const slashing = await SlashingModule.deploy(
     await vault.getAddress(),
@@ -104,7 +92,6 @@ async function main() {
   await slashing.waitForDeployment();
   console.log("SlashingModule deployed to:", await slashing.getAddress());
 
-  // 10. Wire contracts
   await vault.setAllocationEngine(await engine.getAddress());
   await vault.setSlashingModule(await slashing.getAddress());
   await vault.setTradingContracts(
@@ -114,7 +101,6 @@ async function main() {
   );
   console.log("Vault wired to AllocationEngine, SlashingModule, and trading contracts");
 
-  // 11. Register Hardhat accounts as agents in CapitalVault so they can trade
   const hardhatAccounts = [
     "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
@@ -127,16 +113,11 @@ async function main() {
   }
   console.log("Registered 5 Hardhat accounts as agents in CapitalVault");
 
-  // 12. Transfer MockERC20 ownership to MockUniswapRouter and MockAavePool so they can mint
-  // Router gets ownership of WBTC, USDC, LINK, UNI
   await wbtc.transferOwnership(await router.getAddress());
   await usdc.transferOwnership(await router.getAddress());
   await link.transferOwnership(await router.getAddress());
   await uni.transferOwnership(await router.getAddress());
   console.log("MockERC20 ownership transferred to MockUniswapRouter");
-
-  // Note: MockAavePool uses mint via borrow — for borrow to work, router must be owner.
-  // In a real setup you'd use a multi-owner pattern; for simulation, router owns all tokens.
 
   console.log("\n--- Deployment Summary ---");
   console.log("WBTC:             ", await wbtc.getAddress());
@@ -152,7 +133,6 @@ async function main() {
   console.log("AllocationEngine: ", await engine.getAddress());
   console.log("SlashingModule:   ", await slashing.getAddress());
 
-  // 12. Write extended config.json for the frontend
   const configDir = path.resolve(__dirname, "../../frontend/src/contracts");
   fs.mkdirSync(configDir, { recursive: true });
 

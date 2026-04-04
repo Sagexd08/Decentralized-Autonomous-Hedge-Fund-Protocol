@@ -7,7 +7,7 @@ export const Philosophy = () => {
 
   return (
     <section className="relative w-full min-h-[80vh] bg-black flex items-center justify-center overflow-hidden border-t border-white/5" ref={ref}>
-      {/* Background Video */}
+      {}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-black/60 z-10" />
         <video
@@ -21,7 +21,7 @@ export const Philosophy = () => {
         />
       </div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
         transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
@@ -33,7 +33,7 @@ export const Philosophy = () => {
           <span className="font-['Instrument_Serif'] italic text-white/50">&times; Intelligence.</span>
           <span>Capital.</span>
         </h2>
-        
+
         <p className="text-lg md:text-xl text-white/70 max-w-2xl mx-auto font-light leading-relaxed">
           We believe the future of finance is not human. It is mathematical, deterministic, and autonomous. DACAP strips away human emotion to present an immutable layer of truth in capital allocation.
         </p>

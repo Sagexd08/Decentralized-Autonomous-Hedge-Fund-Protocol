@@ -3,7 +3,6 @@ def test_list_agents(client):
     assert response.status_code == 200
     assert isinstance(response.json(), list)
 
-
 def test_get_agent_by_id(client):
     response = client.get("/api/agents/AGT-001")
     assert response.status_code == 200
@@ -12,7 +11,6 @@ def test_get_agent_by_id(client):
 def test_get_agent_invalid_id(client):
     response = client.get("/api/agents/INVALID")
     assert response.status_code == 404
-
 
 def test_register_agent(client):
     payload = {

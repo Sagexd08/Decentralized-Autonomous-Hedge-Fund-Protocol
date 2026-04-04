@@ -7,7 +7,7 @@ describe("SlashingModule", function () {
   let owner, agentAddr, other;
 
   const MIN_STAKE = ethers.parseEther("10000");
-  const SIMULATION_PERIOD = 7 * 24 * 60 * 60; // 7 days
+  const SIMULATION_PERIOD = 7 * 24 * 60 * 60;
 
   async function deployStack() {
     [owner, agentAddr, other] = await ethers.getSigners();
@@ -27,10 +27,8 @@ describe("SlashingModule", function () {
       await registry.getAddress()
     );
 
-    // Wire vault to recognize slashing module
     await vault.connect(owner).setSlashingModule(await slashing.getAddress());
 
-    // Transfer AgentRegistry ownership to SlashingModule so it can call slashAgent
     await registry.connect(owner).transferOwnership(await slashing.getAddress());
   }
 
@@ -38,18 +36,16 @@ describe("SlashingModule", function () {
 
   describe("reportPerformance - DrawdownReported event", function () {
     it("emits DrawdownReported when drawdown > 0 (below slash threshold)", async function () {
-      // Set a very high threshold so slash is not triggered, only event emitted
-      await slashing.connect(owner).setThreshold(5000); // 50%
 
-      // First call establishes peak at 1_000_000
+      await slashing.connect(owner).setThreshold(5000);
+
       await slashing.connect(owner).reportPerformance(agentAddr.address, 1_000_000);
 
-      // Second call: value drops to 900_000 → drawdown = 10% (1000 bps), below 50% threshold
       await expect(
         slashing.connect(owner).reportPerformance(agentAddr.address, 900_000)
       )
         .to.emit(slashing, "DrawdownReported")
-        .withArgs(agentAddr.address, 1000); // 10% = 1000 bps
+        .withArgs(agentAddr.address, 1000);
     });
   });
 
@@ -79,7 +75,7 @@ describe("SlashingModule", function () {
 
   describe("slash history", function () {
     it("records slash history after drawdown exceeds threshold", async function () {
-      // Deploy a fresh stack: activate agent BEFORE transferring registry ownership to slashing
+
       [owner, agentAddr, other] = await ethers.getSigners();
 
       const MockERC20 = await ethers.getContractFactory("MockERC20");
@@ -99,7 +95,6 @@ describe("SlashingModule", function () {
 
       await vlt.connect(owner).setSlashingModule(await slash.getAddress());
 
-      // Register and activate agent BEFORE transferring registry ownership
       await tok.connect(owner).approve(await reg.getAddress(), MIN_STAKE);
       await reg.connect(owner).registerAgent(
         agentAddr.address,
@@ -110,20 +105,16 @@ describe("SlashingModule", function () {
       await time.increase(SIMULATION_PERIOD + 1);
       await reg.connect(owner).activateAgent(agentAddr.address);
 
-      // Now transfer registry ownership to slashing module
       await reg.connect(owner).transferOwnership(await slash.getAddress());
 
-      // Establish peak value
       await slash.connect(owner).reportPerformance(agentAddr.address, 1_000_000);
 
-      // Report a value that causes >20% drawdown (default threshold = 2000 bps)
-      // Drop to 700_000 → drawdown = 30% = 3000 bps > 2000 threshold → slash triggered
       await slash.connect(owner).reportPerformance(agentAddr.address, 700_000);
 
       const history = await slash.getSlashHistory(agentAddr.address);
       expect(history.length).to.equal(1);
-      expect(history[0].drawdownBps).to.equal(3000); // 30%
-      // slashBps = min(3000 - 2000, 5000) = 1000
+      expect(history[0].drawdownBps).to.equal(3000);
+
       expect(history[0].slashedBps).to.equal(1000);
     });
   });

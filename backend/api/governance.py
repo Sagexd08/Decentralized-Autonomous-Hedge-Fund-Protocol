@@ -17,9 +17,6 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# Persistent store
-# ---------------------------------------------------------------------------
 _STORE_PATH = Path(__file__).parent.parent / "governance_store.json"
 
 _DEFAULT_PARAMS = {
@@ -39,8 +36,8 @@ _DEFAULT_PARAMS = {
 _DEFAULT_STORE = {
     "params": {k: v["value"] for k, v in _DEFAULT_PARAMS.items()},
     "proposals": [],
-    "votes": [],          # {id, proposal_id, voter, support, weight, ts}
-    "executed": [],       # proposal ids that were executed
+    "votes": [],
+    "executed": [],
 }
 
 _SEED_PROPOSALS = [
@@ -110,13 +107,12 @@ _SEED_PROPOSALS = [
     },
 ]
 
-
 def _load_store() -> dict:
     if _STORE_PATH.exists():
         try:
             with open(_STORE_PATH) as f:
                 store = json.load(f)
-            # Backfill any missing keys
+
             for k, v in _DEFAULT_STORE.items():
                 store.setdefault(k, v)
             return store
@@ -127,19 +123,17 @@ def _load_store() -> dict:
     _save_store(store)
     return store
 
-
 def _save_store(store: dict):
     _STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(_STORE_PATH, "w") as f:
         json.dump(store, f, indent=2)
-
 
 def _resolve_proposals(store: dict):
     """Auto-close expired active proposals and execute passed ones.
     Also immediately executes if quorum + supermajority (>66%) is reached before deadline."""
     now = time.time()
     changed = False
-    quorum_total = 10000  # total voting power baseline
+    quorum_total = 10000
 
     for p in store["proposals"]:
         if p["status"] != "active":
@@ -148,7 +142,6 @@ def _resolve_proposals(store: dict):
         quorum_pct = store["params"].get("quorum_pct", 20)
         p["quorum_reached"] = (total_votes / quorum_total * 100) >= quorum_pct
 
-        # Early execution: quorum reached + supermajority (>66%) — no need to wait for deadline
         if p["quorum_reached"] and total_votes > 0:
             for_pct = p["votes_for"] / total_votes * 100
             if for_pct > 66:
@@ -165,7 +158,6 @@ def _resolve_proposals(store: dict):
                 changed = True
                 continue
 
-        # Normal deadline-based resolution
         if p["ends_at"] <= now:
             if p["quorum_reached"] and p["votes_for"] > p["votes_against"]:
                 p["status"] = "passed"
@@ -181,7 +173,6 @@ def _resolve_proposals(store: dict):
     if changed:
         _save_store(store)
 
-
 def _apply_live(key: str, value):
     """Push param change into the in-process singleton so agents pick it up immediately."""
     try:
@@ -190,50 +181,37 @@ def _apply_live(key: str, value):
     except Exception as e:
         logger.warning(f"Failed to apply live param {key}={value}: {e}")
 
-
-# ---------------------------------------------------------------------------
-# Pydantic models
-# ---------------------------------------------------------------------------
-# Hardcoded admin address — in production this would be a multisig or env var
 ADMIN_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-
 
 class ProposalCreate(BaseModel):
     title: str
     description: str
-    category: str          # allocation | risk | agents | governance | general
+    category: str
     param_name: Optional[str] = None
     proposed_value: Optional[float] = None
     proposer: str = "0x0000000000000000000000000000000000000000"
     duration_days: Optional[int] = None
 
-
 class VoteRequest(BaseModel):
     proposal_id: str
     voter: str
     support: bool
-    weight: float = 100.0   # voting power (token-weighted in real impl)
-
+    weight: float = 100.0
 
 class VetoRequest(BaseModel):
     admin_address: str
     reason: str = ""
-
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 
 @router.get("/proposals")
 def list_proposals():
     store = _load_store()
     _resolve_proposals(store)
     proposals = store["proposals"]
-    # Enrich with computed fields
+
     quorum_total = 10000
     quorum_pct = store["params"].get("quorum_pct", 20)
     result = []
-    for p in reversed(proposals):  # newest first
+    for p in reversed(proposals):
         total = p["votes_for"] + p["votes_against"]
         pct_for = round(p["votes_for"] / total * 100, 1) if total > 0 else 0
         pct_against = round(p["votes_against"] / total * 100, 1) if total > 0 else 0
@@ -250,7 +228,6 @@ def list_proposals():
         })
     return result
 
-
 @router.get("/proposals/{proposal_id}")
 def get_proposal(proposal_id: str):
     store = _load_store()
@@ -259,7 +236,6 @@ def get_proposal(proposal_id: str):
         raise HTTPException(status_code=404, detail="Proposal not found")
     votes = [v for v in store["votes"] if v["proposal_id"] == proposal_id]
     return {**p, "vote_history": votes}
-
 
 @router.post("/propose")
 def create_proposal(data: ProposalCreate):
@@ -289,7 +265,6 @@ def create_proposal(data: ProposalCreate):
     _save_store(store)
     return proposal
 
-
 @router.post("/vote")
 def cast_vote(data: VoteRequest):
     store = _load_store()
@@ -301,7 +276,6 @@ def cast_vote(data: VoteRequest):
     if time.time() > proposal["ends_at"]:
         raise HTTPException(status_code=400, detail="Voting period has ended")
 
-    # Check duplicate vote
     existing = next((v for v in store["votes"]
                      if v["proposal_id"] == data.proposal_id and v["voter"].lower() == data.voter.lower()), None)
     if existing:
@@ -326,7 +300,6 @@ def cast_vote(data: VoteRequest):
     _save_store(store)
     return {"message": "Vote recorded", "proposal": proposal}
 
-
 @router.post("/proposals/{proposal_id}/veto")
 def veto_proposal(proposal_id: str, data: VetoRequest):
     """Admin-only: veto any proposal regardless of vote outcome. Reverts param if already executed."""
@@ -346,7 +319,6 @@ def veto_proposal(proposal_id: str, data: VetoRequest):
     proposal["vetoed_by"] = data.admin_address
     proposal["vetoed_at"] = time.time()
 
-    # If already executed, revert the param to its previous value
     if prev_status == "passed" and proposal.get("param_name") and proposal.get("current_value") is not None:
         store["params"][proposal["param_name"]] = proposal["current_value"]
         _apply_live(proposal["param_name"], proposal["current_value"])
@@ -358,7 +330,6 @@ def veto_proposal(proposal_id: str, data: VetoRequest):
     _save_store(store)
     return {"message": "Proposal vetoed", "proposal": proposal}
 
-
 @router.get("/params")
 def get_params():
     store = _load_store()
@@ -369,7 +340,6 @@ def get_params():
             "value": store["params"].get(key, meta["value"]),
         }
     return result
-
 
 @router.get("/stats")
 def get_stats():
@@ -385,17 +355,12 @@ def get_stats():
         "params_executed": len(store["executed"]),
     }
 
-
 @router.get("/votes/{voter_address}")
 def get_voter_history(voter_address: str):
     store = _load_store()
     votes = [v for v in store["votes"] if v["voter"].lower() == voter_address.lower()]
     return votes
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 def _fmt_ts(ts: float) -> str:
     import datetime
     return datetime.datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M UTC")
@@ -418,9 +383,6 @@ from pydantic import BaseModel
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# Persistent store
-# ---------------------------------------------------------------------------
 _STORE_PATH = Path(__file__).parent.parent / "governance_store.json"
 
 _DEFAULT_PARAMS = {
@@ -440,8 +402,8 @@ _DEFAULT_PARAMS = {
 _DEFAULT_STORE = {
     "params": {k: v["value"] for k, v in _DEFAULT_PARAMS.items()},
     "proposals": [],
-    "votes": [],          # {id, proposal_id, voter, support, weight, ts}
-    "executed": [],       # proposal ids that were executed
+    "votes": [],
+    "executed": [],
 }
 
 _SEED_PROPOSALS = [
@@ -511,13 +473,12 @@ _SEED_PROPOSALS = [
     },
 ]
 
-
 def _load_store() -> dict:
     if _STORE_PATH.exists():
         try:
             with open(_STORE_PATH) as f:
                 store = json.load(f)
-            # Backfill any missing keys
+
             for k, v in _DEFAULT_STORE.items():
                 store.setdefault(k, v)
             return store
@@ -528,19 +489,17 @@ def _load_store() -> dict:
     _save_store(store)
     return store
 
-
 def _save_store(store: dict):
     _STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(_STORE_PATH, "w") as f:
         json.dump(store, f, indent=2)
-
 
 def _resolve_proposals(store: dict):
     """Auto-close expired active proposals and execute passed ones.
     Also immediately executes if quorum + supermajority (>66%) is reached before deadline."""
     now = time.time()
     changed = False
-    quorum_total = 10000  # total voting power baseline
+    quorum_total = 10000
 
     for p in store["proposals"]:
         if p["status"] != "active":
@@ -549,7 +508,6 @@ def _resolve_proposals(store: dict):
         quorum_pct = store["params"].get("quorum_pct", 20)
         p["quorum_reached"] = (total_votes / quorum_total * 100) >= quorum_pct
 
-        # Early execution: quorum reached + supermajority (>66%) — no need to wait for deadline
         if p["quorum_reached"] and total_votes > 0:
             for_pct = p["votes_for"] / total_votes * 100
             if for_pct > 66:
@@ -566,7 +524,6 @@ def _resolve_proposals(store: dict):
                 changed = True
                 continue
 
-        # Normal deadline-based resolution
         if p["ends_at"] <= now:
             if p["quorum_reached"] and p["votes_for"] > p["votes_against"]:
                 p["status"] = "passed"
@@ -582,7 +539,6 @@ def _resolve_proposals(store: dict):
     if changed:
         _save_store(store)
 
-
 def _apply_live(key: str, value):
     """Push param change into the in-process singleton so agents pick it up immediately."""
     try:
@@ -591,50 +547,37 @@ def _apply_live(key: str, value):
     except Exception as e:
         logger.warning(f"Failed to apply live param {key}={value}: {e}")
 
-
-# ---------------------------------------------------------------------------
-# Pydantic models
-# ---------------------------------------------------------------------------
-# Hardcoded admin address — in production this would be a multisig or env var
 ADMIN_ADDRESS = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-
 
 class ProposalCreate(BaseModel):
     title: str
     description: str
-    category: str          # allocation | risk | agents | governance | general
+    category: str
     param_name: Optional[str] = None
     proposed_value: Optional[float] = None
     proposer: str = "0x0000000000000000000000000000000000000000"
     duration_days: Optional[int] = None
 
-
 class VoteRequest(BaseModel):
     proposal_id: str
     voter: str
     support: bool
-    weight: float = 100.0   # voting power (token-weighted in real impl)
-
+    weight: float = 100.0
 
 class VetoRequest(BaseModel):
     admin_address: str
     reason: str = ""
-
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 
 @router.get("/proposals")
 def list_proposals():
     store = _load_store()
     _resolve_proposals(store)
     proposals = store["proposals"]
-    # Enrich with computed fields
+
     quorum_total = 10000
     quorum_pct = store["params"].get("quorum_pct", 20)
     result = []
-    for p in reversed(proposals):  # newest first
+    for p in reversed(proposals):
         total = p["votes_for"] + p["votes_against"]
         pct_for = round(p["votes_for"] / total * 100, 1) if total > 0 else 0
         pct_against = round(p["votes_against"] / total * 100, 1) if total > 0 else 0
@@ -651,7 +594,6 @@ def list_proposals():
         })
     return result
 
-
 @router.get("/proposals/{proposal_id}")
 def get_proposal(proposal_id: str):
     store = _load_store()
@@ -660,7 +602,6 @@ def get_proposal(proposal_id: str):
         raise HTTPException(status_code=404, detail="Proposal not found")
     votes = [v for v in store["votes"] if v["proposal_id"] == proposal_id]
     return {**p, "vote_history": votes}
-
 
 @router.post("/propose")
 def create_proposal(data: ProposalCreate):
@@ -690,7 +631,6 @@ def create_proposal(data: ProposalCreate):
     _save_store(store)
     return proposal
 
-
 @router.post("/vote")
 def cast_vote(data: VoteRequest):
     store = _load_store()
@@ -702,7 +642,6 @@ def cast_vote(data: VoteRequest):
     if time.time() > proposal["ends_at"]:
         raise HTTPException(status_code=400, detail="Voting period has ended")
 
-    # Check duplicate vote
     existing = next((v for v in store["votes"]
                      if v["proposal_id"] == data.proposal_id and v["voter"].lower() == data.voter.lower()), None)
     if existing:
@@ -727,7 +666,6 @@ def cast_vote(data: VoteRequest):
     _save_store(store)
     return {"message": "Vote recorded", "proposal": proposal}
 
-
 @router.post("/proposals/{proposal_id}/veto")
 def veto_proposal(proposal_id: str, data: VetoRequest):
     """Admin-only: veto any proposal regardless of vote outcome. Reverts param if already executed."""
@@ -747,7 +685,6 @@ def veto_proposal(proposal_id: str, data: VetoRequest):
     proposal["vetoed_by"] = data.admin_address
     proposal["vetoed_at"] = time.time()
 
-    # If already executed, revert the param to its previous value
     if prev_status == "passed" and proposal.get("param_name") and proposal.get("current_value") is not None:
         store["params"][proposal["param_name"]] = proposal["current_value"]
         _apply_live(proposal["param_name"], proposal["current_value"])
@@ -759,7 +696,6 @@ def veto_proposal(proposal_id: str, data: VetoRequest):
     _save_store(store)
     return {"message": "Proposal vetoed", "proposal": proposal}
 
-
 @router.get("/params")
 def get_params():
     store = _load_store()
@@ -770,7 +706,6 @@ def get_params():
             "value": store["params"].get(key, meta["value"]),
         }
     return result
-
 
 @router.get("/stats")
 def get_stats():
@@ -786,17 +721,12 @@ def get_stats():
         "params_executed": len(store["executed"]),
     }
 
-
 @router.get("/votes/{voter_address}")
 def get_voter_history(voter_address: str):
     store = _load_store()
     votes = [v for v in store["votes"] if v["voter"].lower() == voter_address.lower()]
     return votes
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 def _fmt_ts(ts: float) -> str:
     import datetime
     return datetime.datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d %H:%M UTC")

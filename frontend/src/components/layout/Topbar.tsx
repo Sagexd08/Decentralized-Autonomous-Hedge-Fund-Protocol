@@ -27,7 +27,7 @@ export default function Topbar() {
       const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' }) as string[]
       if (accounts.length > 0) {
         connect(accounts[0])
-        // Listen for account changes
+
         window.ethereum.on('accountsChanged', (accs: unknown) => {
           const updated = accs as string[]
           if (updated.length === 0) disconnect()

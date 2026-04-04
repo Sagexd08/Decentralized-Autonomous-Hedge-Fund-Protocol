@@ -17,11 +17,6 @@ from ml.monte_carlo import gbm_paths, var_cvar
 from ml.regime_classifier import rolling_volatility
 from core.allocation import mwu_update, risk_adjusted_return
 
-
-# ---------------------------------------------------------------------------
-# Helpers / strategies
-# ---------------------------------------------------------------------------
-
 def normalized_weights(n):
     """Strategy: array of n positive floats that sum to 1.0."""
     return arrays(
@@ -29,11 +24,6 @@ def normalized_weights(n):
         shape=n,
         elements=st.floats(min_value=1e-6, max_value=1.0, allow_nan=False, allow_infinity=False),
     ).map(lambda w: w / w.sum())
-
-
-# ---------------------------------------------------------------------------
-# Property: mwu_update weights sum to 1.0
-# ---------------------------------------------------------------------------
 
 @given(
     n=st.integers(min_value=2, max_value=20),
@@ -50,11 +40,6 @@ def test_mwu_update_weights_sum_to_one(n, eta, seed):
     result = mwu_update(weights, returns, eta)
     assert abs(result.sum() - 1.0) < 1e-9, f"weights sum to {result.sum()}, expected 1.0"
 
-
-# ---------------------------------------------------------------------------
-# Property: gbm_paths all positive
-# ---------------------------------------------------------------------------
-
 @given(
     S0=st.floats(min_value=1.0, max_value=1e6, allow_nan=False, allow_infinity=False),
     mu=st.floats(min_value=-0.5, max_value=0.5, allow_nan=False, allow_infinity=False),
@@ -68,11 +53,6 @@ def test_gbm_paths_all_positive(S0, mu, sigma, T, n_paths):
     paths = gbm_paths(S0, mu, sigma, T, n_paths)
     assert paths.shape == (n_paths, T + 1)
     assert (paths > 0).all(), "GBM paths must always be strictly positive"
-
-
-# ---------------------------------------------------------------------------
-# Property: var_cvar CVaR <= VaR
-# ---------------------------------------------------------------------------
 
 @given(
     S0=st.floats(min_value=1.0, max_value=1e5, allow_nan=False, allow_infinity=False),
@@ -90,11 +70,6 @@ def test_var_cvar_cvar_lte_var(S0, mu, sigma, T, n_paths):
         f"CVaR ({result['cvar']:.6f}) must be <= VaR ({result['var']:.6f})"
     )
 
-
-# ---------------------------------------------------------------------------
-# Property: rolling_volatility all non-negative
-# ---------------------------------------------------------------------------
-
 @given(
     returns=arrays(
         dtype=np.float64,
@@ -109,11 +84,6 @@ def test_rolling_volatility_all_non_negative(returns, window):
     vol = rolling_volatility(returns, window)
     assert len(vol) == len(returns), "output length must match input length"
     assert (vol >= 0).all(), "volatility must be non-negative"
-
-
-# ---------------------------------------------------------------------------
-# Edge case: risk_adjusted_return with zero denominator returns 0.0
-# ---------------------------------------------------------------------------
 
 @given(
     raw_return=st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False),

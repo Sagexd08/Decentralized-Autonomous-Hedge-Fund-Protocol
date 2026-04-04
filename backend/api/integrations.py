@@ -5,11 +5,9 @@ from core.supabase import fetch_table_rows, get_supabase_status
 
 router = APIRouter()
 
-
 @router.get("/supabase/status")
 def supabase_status():
     return get_supabase_status()
-
 
 @router.get("/supabase/table/{table_name}")
 def supabase_table_rows(table_name: str, limit: int = Query(default=20, ge=1, le=200)):

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-<<<<<<< HEAD
 from db.connection import execute_statement, fetch_all_dicts, fetch_one_dict
 
 router = APIRouter()
@@ -12,25 +11,11 @@ POOLS = [
     {"id": "aggressive", "name": "Aggressive", "tvl": 12400000, "apy": 47.2, "agents": 6, "volatility_cap": 35},
 ]
 
-
-=======
-router = APIRouter()
-
-POOLS = [
-    {"id": "conservative", "name": "Conservative", "tvl": 4200000, "apy": 12.4, "agents": 3, "volatility_cap": 8},
-    {"id": "balanced", "name": "Balanced", "tvl": 8700000, "apy": 24.7, "agents": 5, "volatility_cap": 18},
-    {"id": "aggressive", "name": "Aggressive", "tvl": 12400000, "apy": 47.2, "agents": 6, "volatility_cap": 35},
-]
-
-
->>>>>>> D!
 class Deposit(BaseModel):
     pool_id: str
     amount: float
     investor_address: str
 
-
-<<<<<<< HEAD
 def _fetch_pools_from_db():
     rows = fetch_all_dicts(
         """
@@ -58,7 +43,6 @@ def _fetch_pools_from_db():
         for row in rows
     ]
 
-
 @router.get("/")
 def list_pools():
     try:
@@ -67,16 +51,10 @@ def list_pools():
             return pools
     except Exception:
         pass
-=======
-@router.get("/")
-def list_pools():
->>>>>>> D!
     return POOLS
-
 
 @router.get("/{pool_id}")
 def get_pool(pool_id: str):
-<<<<<<< HEAD
     try:
         pool = fetch_one_dict(
             """
@@ -105,17 +83,13 @@ def get_pool(pool_id: str):
     except Exception:
         pass
 
-=======
->>>>>>> D!
     pool = next((p for p in POOLS if p["id"] == pool_id), None)
     if not pool:
         raise HTTPException(status_code=404, detail="Pool not found")
     return pool
 
-
 @router.post("/deposit")
 def deposit(data: Deposit):
-<<<<<<< HEAD
     try:
         pool = fetch_one_dict("select id from pools where id = :pool_id", {"pool_id": data.pool_id})
         if pool:
@@ -156,8 +130,6 @@ def deposit(data: Deposit):
     except Exception:
         pass
 
-=======
->>>>>>> D!
     pool = next((p for p in POOLS if p["id"] == data.pool_id), None)
     if not pool:
         raise HTTPException(status_code=404, detail="Pool not found")

@@ -14,9 +14,6 @@ import {
 import { pools, agents, generateTimeSeries } from '../utils/mockData'
 import { api } from '../utils/api'
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
 const POOL_META = {
   conservative: {
     color: '#10b981', gradient: 'from-emerald-500/10 to-transparent',
@@ -41,7 +38,6 @@ const POOL_META = {
   },
 }
 
-// Simulated rolling volatility (% of cap consumed)
 function useRollingVol() {
   const [volData, setVolData] = useState<Record<string, number>>({
     conservative: 5.2, balanced: 13.8, aggressive: 28.4,
@@ -59,7 +55,6 @@ function useRollingVol() {
   return volData
 }
 
-// Simulated TVL history per pool
 function useTVLHistory() {
   const [history, setHistory] = useState(() => ({
     conservative: generateTimeSeries(30, 4.2, 0.1),
@@ -82,7 +77,6 @@ function useTVLHistory() {
   return history
 }
 
-// Merge TVL histories for combined chart
 function mergeTVL(history: Record<string, { time: string; value: number }[]>) {
   return history.conservative.map((p, i) => ({
     time: p.time,
@@ -92,9 +86,6 @@ function mergeTVL(history: Record<string, { time: string; value: number }[]>) {
   }))
 }
 
-// ---------------------------------------------------------------------------
-// Deposit Modal
-// ---------------------------------------------------------------------------
 function DepositModal({ pool, onClose }: { pool: typeof pools[0]; onClose: () => void }) {
   const meta = POOL_META[pool.id as keyof typeof POOL_META]
   const [amount, setAmount] = useState('')
@@ -195,9 +186,6 @@ function DepositModal({ pool, onClose }: { pool: typeof pools[0]; onClose: () =>
   )
 }
 
-// ---------------------------------------------------------------------------
-// Vol gauge component
-// ---------------------------------------------------------------------------
 function VolGauge({ current, cap, color }: { current: number; cap: number; color: string }) {
   const pct = (current / cap) * 100
   const warn = pct > 80
@@ -216,7 +204,7 @@ function VolGauge({ current, cap, color }: { current: number; cap: number; color
           animate={{ opacity: critical ? [1, 0.5, 1] : 1 }}
           transition={{ repeat: critical ? Infinity : 0, duration: 0.8 }}
         />
-        {/* Warning zone marker at 80% */}
+        {}
         <div className="absolute top-0 h-full w-px bg-yellow-400/40" style={{ left: '80%' }} />
       </div>
       {critical && <p className="text-xs text-red-400 mt-1 flex items-center gap-1"><AlertTriangle size={9} /> Near vol cap — agents may be restricted</p>}
@@ -224,9 +212,6 @@ function VolGauge({ current, cap, color }: { current: number; cap: number; color
   )
 }
 
-// ---------------------------------------------------------------------------
-// Pool card
-// ---------------------------------------------------------------------------
 function PoolCard({
   pool, volData, tvlHistory, onDeposit,
 }: {
@@ -248,7 +233,7 @@ function PoolCard({
       className="card hover:border-opacity-40 transition-all"
       style={{ borderColor: `${meta.color}25` }}>
 
-      {/* Header */}
+      {}
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -265,7 +250,7 @@ function PoolCard({
         </div>
       </div>
 
-      {/* Key metrics */}
+      {}
       <div className="grid grid-cols-3 gap-2 mb-4">
         {[
           { label: 'TVL', value: `$${(pool.tvl / 1e6).toFixed(1)}M`, icon: DollarSign, color: 'text-white' },
@@ -282,7 +267,7 @@ function PoolCard({
         ))}
       </div>
 
-      {/* Capacity utilization */}
+      {}
       <div className="mb-3">
         <div className="flex justify-between text-xs mb-1">
           <span className="text-slate-500">Capacity</span>
@@ -293,12 +278,12 @@ function PoolCard({
         </div>
       </div>
 
-      {/* Vol gauge */}
+      {}
       <div className="mb-4">
         <VolGauge current={vol} cap={pool.volatilityCap} color={meta.color} />
       </div>
 
-      {/* Mini TVL chart */}
+      {}
       <ResponsiveContainer width="100%" height={60}>
         <AreaChart data={history}>
           <defs>
@@ -314,14 +299,14 @@ function PoolCard({
         </AreaChart>
       </ResponsiveContainer>
 
-      {/* Strategies */}
+      {}
       <div className="flex gap-1.5 mt-3 mb-4 flex-wrap">
         {meta.strategies.map(s => (
           <span key={s} className="text-xs px-2 py-0.5 rounded-md bg-slate-800 text-slate-400">{s}</span>
         ))}
       </div>
 
-      {/* Expandable agent list */}
+      {}
       <button onClick={() => setExpanded(e => !e)}
         className="w-full flex items-center justify-between text-xs text-slate-500 hover:text-slate-300 transition-colors mb-3">
         <span>{poolAgents.length} agents in this pool</span>
@@ -355,9 +340,6 @@ function PoolCard({
   )
 }
 
-// ---------------------------------------------------------------------------
-// Main page
-// ---------------------------------------------------------------------------
 export default function RiskPools() {
   const [depositPool, setDepositPool] = useState<typeof pools[0] | null>(null)
   const [tvlTab, setTvlTab] = useState<'combined' | 'conservative' | 'balanced' | 'aggressive'>('combined')
@@ -365,12 +347,10 @@ export default function RiskPools() {
   const tvlHistory = useTVLHistory()
   const combinedTVL = mergeTVL(tvlHistory)
 
-  // Protocol-wide stats
   const totalTVL = pools.reduce((s, p) => s + p.tvl, 0)
   const weightedAPY = pools.reduce((s, p) => s + p.apy * p.tvl, 0) / totalTVL
   const totalAgents = pools.reduce((s, p) => s + p.agents, 0)
 
-  // Risk/return scatter data
   const scatterData = pools.map(p => ({
     name: p.name,
     x: p.volatilityCap,
@@ -379,7 +359,6 @@ export default function RiskPools() {
     color: POOL_META[p.id as keyof typeof POOL_META].color,
   }))
 
-  // Radar data per pool
   const radarData = [
     { metric: 'APY', Conservative: 25, Balanced: 53, Aggressive: 100 },
     { metric: 'Safety', Conservative: 100, Balanced: 65, Aggressive: 30 },
@@ -389,7 +368,6 @@ export default function RiskPools() {
     { metric: 'Diversif.', Conservative: 70, Balanced: 85, Aggressive: 60 },
   ]
 
-  // Correlation matrix (simulated)
   const corrMatrix = [
     { pool: 'Conservative', Conservative: 1.00, Balanced: 0.42, Aggressive: 0.18 },
     { pool: 'Balanced',     Conservative: 0.42, Balanced: 1.00, Aggressive: 0.61 },
@@ -407,7 +385,7 @@ export default function RiskPools() {
     <div className="space-y-5">
       {depositPool && <DepositModal pool={depositPool} onClose={() => setDepositPool(null)} />}
 
-      {/* Header */}
+      {}
       <div className="flex items-start justify-between">
         <div>
           <h1 className="text-xl font-bold text-white">Risk Pools</h1>
@@ -429,14 +407,14 @@ export default function RiskPools() {
         </div>
       </div>
 
-      {/* Pool cards */}
+      {}
       <div className="grid grid-cols-3 gap-5">
         {pools.map((pool, i) => (
           <PoolCard key={pool.id} pool={pool} volData={volData} tvlHistory={tvlHistory} onDeposit={setDepositPool} />
         ))}
       </div>
 
-      {/* TVL history chart */}
+      {}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-sm font-semibold text-white flex items-center gap-2">
@@ -493,9 +471,9 @@ export default function RiskPools() {
         </ResponsiveContainer>
       </div>
 
-      {/* Risk/return scatter + Radar */}
+      {}
       <div className="grid grid-cols-2 gap-4">
-        {/* Efficient frontier scatter */}
+        {}
         <div className="card">
           <h3 className="text-sm font-semibold text-white mb-1">Risk / Return Profile</h3>
           <p className="text-xs text-slate-500 mb-4">Bubble size = TVL · X = volatility cap · Y = APY</p>
@@ -522,7 +500,7 @@ export default function RiskPools() {
           </ResponsiveContainer>
         </div>
 
-        {/* Radar comparison */}
+        {}
         <div className="card">
           <h3 className="text-sm font-semibold text-white mb-1">Pool Comparison Radar</h3>
           <p className="text-xs text-slate-500 mb-2">Normalized scores across key dimensions</p>
@@ -539,7 +517,7 @@ export default function RiskPools() {
         </div>
       </div>
 
-      {/* Correlation matrix */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-1">Pool Correlation Matrix</h3>
         <p className="text-xs text-slate-500 mb-4">Lower correlation = better diversification benefit across pools</p>
@@ -578,7 +556,7 @@ export default function RiskPools() {
         </div>
       </div>
 
-      {/* Comparison table */}
+      {}
       <div className="card">
         <h3 className="text-sm font-semibold text-white mb-4">Full Pool Comparison</h3>
         <table className="w-full text-xs">

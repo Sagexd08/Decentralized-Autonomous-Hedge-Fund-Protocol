@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
 class TradingBroadcaster:
     def __init__(self):
         self._clients: set[WebSocket] = set()
@@ -35,21 +34,18 @@ class TradingBroadcaster:
                 dead.add(ws)
         self._clients -= dead
 
-
 broadcaster = TradingBroadcaster()
-
 
 @router.websocket("/ws/trading")
 async def ws_trading(websocket: WebSocket):
     await broadcaster.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()  # keep-alive; client sends pings
+            await websocket.receive_text()
     except WebSocketDisconnect:
         broadcaster.disconnect(websocket)
     except Exception:
         broadcaster.disconnect(websocket)
-
 
 async def event_listener(app) -> None:
     """Background task: poll TradeExecuted events and broadcast to WebSocket clients."""
@@ -102,7 +98,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-
 class TradingBroadcaster:
     def __init__(self):
         self._clients: set[WebSocket] = set()
@@ -123,21 +118,18 @@ class TradingBroadcaster:
                 dead.add(ws)
         self._clients -= dead
 
-
 broadcaster = TradingBroadcaster()
-
 
 @router.websocket("/ws/trading")
 async def ws_trading(websocket: WebSocket):
     await broadcaster.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()  # keep-alive; client sends pings
+            await websocket.receive_text()
     except WebSocketDisconnect:
         broadcaster.disconnect(websocket)
     except Exception:
         broadcaster.disconnect(websocket)
-
 
 async def event_listener(app) -> None:
     """Background task: poll TradeExecuted events and broadcast to WebSocket clients."""

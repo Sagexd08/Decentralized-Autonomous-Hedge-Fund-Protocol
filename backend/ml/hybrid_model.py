@@ -3,7 +3,6 @@
 import torch
 import torch.nn as nn
 
-
 class CNNLSTMModel(nn.Module):
     """
     Hybrid CNN-LSTM regression model.
@@ -23,7 +22,6 @@ class CNNLSTMModel(nn.Module):
     ):
         super().__init__()
 
-        # CNN block — Conv1D expects (batch, channels, seq)
         cnn_layers = []
         in_ch = input_size
         for out_ch in cnn_channels:
@@ -35,7 +33,6 @@ class CNNLSTMModel(nn.Module):
             in_ch = out_ch
         self.cnn = nn.Sequential(*cnn_layers)
 
-        # LSTM block
         self.lstm = nn.LSTM(
             input_size=in_ch,
             hidden_size=lstm_hidden,
@@ -44,7 +41,6 @@ class CNNLSTMModel(nn.Module):
             dropout=dropout if lstm_layers > 1 else 0.0,
         )
 
-        # Regression head
         self.fc = nn.Sequential(
             nn.Linear(lstm_hidden, 32),
             nn.ReLU(),
@@ -53,9 +49,9 @@ class CNNLSTMModel(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = x.permute(0, 2, 1)       # (B, F, T)
-        x = self.cnn(x)               # (B, C, T)
-        x = x.permute(0, 2, 1)       # (B, T, C)
-        _, (h_n, _) = self.lstm(x)   # h_n: (layers, B, H)
-        x = h_n[-1]                   # (B, H)
-        return self.fc(x).squeeze(-1) # (B,)
+        x = x.permute(0, 2, 1)
+        x = self.cnn(x)
+        x = x.permute(0, 2, 1)
+        _, (h_n, _) = self.lstm(x)
+        x = h_n[-1]
+        return self.fc(x).squeeze(-1)

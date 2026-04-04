@@ -171,7 +171,6 @@ AGENTS = [
     },
 ]
 
-
 =======
 router = APIRouter()
 
@@ -339,7 +338,6 @@ AGENTS = [
     },
 ]
 
-
 >>>>>>> D!
 class AgentRegister(BaseModel):
     name: str
@@ -347,7 +345,6 @@ class AgentRegister(BaseModel):
     risk: str
     stake: float
     address: str
-
 
 <<<<<<< HEAD
 _RISK_POOL_TO_LABEL = {
@@ -357,7 +354,6 @@ _RISK_POOL_TO_LABEL = {
 }
 
 _RISK_LABEL_TO_POOL = {value.lower(): key for key, value in _RISK_POOL_TO_LABEL.items()}
-
 
 def _db_agent_to_api(agent: dict):
     risk = _RISK_POOL_TO_LABEL.get((agent.get("risk_pool") or "").lower(), "Balanced")
@@ -377,7 +373,6 @@ def _db_agent_to_api(agent: dict):
         "address": agent.get("owner_address"),
         "description": agent.get("strategy_description") or "No strategy description available.",
     }
-
 
 def _fetch_agents_from_db(risk: Optional[str] = None):
     params = {"risk_pool": _RISK_LABEL_TO_POOL.get(risk.lower())} if risk else {}
@@ -418,7 +413,6 @@ def _fetch_agents_from_db(risk: Optional[str] = None):
     )
     return [_db_agent_to_api(row) for row in rows]
 
-
 def _augment_agent(agent: dict):
     trust_score = max(1, min(100, int(round(agent["score"] * 0.55 + agent["sharpe"] * 12 - abs(agent["drawdown"]) * 0.8))))
     confidence_score = round(max(0.35, min(0.97, 0.55 + agent["sharpe"] * 0.08 - abs(agent["drawdown"]) * 0.006)), 2)
@@ -437,7 +431,6 @@ def _augment_agent(agent: dict):
             "economic_posture": "capital seeking" if agent["allocation"] < 12 else "capital dominant",
         },
     }
-
 
 @router.get("/")
 def list_agents(risk: Optional[str] = None):
@@ -468,14 +461,12 @@ def _augment_agent(agent: dict):
         },
     }
 
-
 @router.get("/")
 def list_agents(risk: Optional[str] = None):
 >>>>>>> D!
     if risk:
         return [_augment_agent(a) for a in AGENTS if a["risk"].lower() == risk.lower()]
     return [_augment_agent(a) for a in AGENTS]
-
 
 @router.get("/{agent_id}")
 def get_agent(agent_id: str):
@@ -526,7 +517,6 @@ def get_agent(agent_id: str):
     if not agent:
         raise HTTPException(404, "Agent not found")
     return _augment_agent(agent)
-
 
 @router.post("/register")
 def register_agent(data: AgentRegister):

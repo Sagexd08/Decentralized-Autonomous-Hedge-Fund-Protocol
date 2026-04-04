@@ -4,19 +4,16 @@ import pytest
 
 from agents.gemini_social import GeminiSocialEngine, SocialPost, _enforce_length
 
-
 def test_enforce_length_truncates_long_text():
     text = " ".join(["word"] * 60)
     truncated = _enforce_length(text, min_words=5, max_words=20)
-    assert len(truncated.split()) <= 21 
-
+    assert len(truncated.split()) <= 21
 
 def test_fallback_post_is_non_empty():
     engine = GeminiSocialEngine()
     post = engine._fallback_post("system")
     assert isinstance(post, str)
     assert post.strip()
-
 
 @pytest.mark.asyncio
 async def test_generate_post_cycle_adds_post_and_broadcasts(monkeypatch):
@@ -38,7 +35,6 @@ async def test_generate_post_cycle_adds_post_and_broadcasts(monkeypatch):
     assert len(engine._posts) == 1
     assert seen
     assert seen[0]["type"] == "post"
-
 
 @pytest.mark.asyncio
 async def test_generate_comment_cycle_appends_comment(monkeypatch):

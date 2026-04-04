@@ -12,7 +12,6 @@ interface Props {
   status:   WebSocketStatus
 }
 
-// Approximate token prices in ETH for PnL computation (fallback when no price feed)
 const TOKEN_PRICE_ETH: Record<string, number> = {
   WBTC: 15.0,
   USDC: 0.0005,
@@ -58,8 +57,7 @@ export default function LivePnLChart({ messages, status }: Props) {
         const ethSpent = BigInt(msg.amountIn || '0')
         const amountOut = BigInt(msg.amountOut || '0')
         const priceEth = TOKEN_PRICE_ETH[msg.token] ?? 0
-        // tokenValue in wei-equivalent: amountOut * priceEth (scaled)
-        // For simplicity: tokenValue ≈ amountOut * priceEth / 1e18 (assuming 18 decimals)
+
         const tokenValueEth = Number(amountOut) * priceEth / 1e18
         const ethSpentEth = Number(ethSpent) / 1e18
         cumPnL += tokenValueEth - ethSpentEth

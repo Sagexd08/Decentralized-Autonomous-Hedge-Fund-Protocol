@@ -16,7 +16,7 @@ export const Intelligence = () => {
 
   return (
     <section className="bg-black py-24 border-t border-white/5 overflow-hidden" ref={ref}>
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={isInView ? { opacity: 1 } : { opacity: 0 }}
         transition={{ duration: 1 }}
@@ -29,11 +29,11 @@ export const Intelligence = () => {
           </h2>
         </div>
 
-        {/* Marquee 1 */}
+        {}
         <div className="relative flex overflow-x-hidden w-full group">
           <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-black to-transparent z-10" />
           <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-black to-transparent z-10" />
-          
+
           <div className="animate-marquee whitespace-nowrap flex items-center group-hover:[animation-play-state:paused]">
             {[...MOCK_NEWS, ...MOCK_NEWS].map((news, idx) => (
               <div key={idx} className="flex items-center mx-4">
@@ -43,8 +43,8 @@ export const Intelligence = () => {
             ))}
           </div>
         </div>
-        
-        {/* Marquee 2 Reverse */}
+
+        {}
         <div className="relative flex overflow-x-hidden w-full group">
           <div className="animate-marquee2 whitespace-nowrap flex items-center group-hover:[animation-play-state:paused]">
             {[...MOCK_NEWS, ...MOCK_NEWS].reverse().map((news, idx) => (

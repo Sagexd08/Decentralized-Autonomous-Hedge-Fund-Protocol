@@ -17,7 +17,6 @@ interface Props {
   connected: boolean
 }
 
-// Per-token live chart — each token gets its own stable walk
 function TokenChart({ sym, prices }: { sym: string; prices: TokenPrices }) {
   const liveData = useLiveOHLC(TOKEN_BASE[sym] ?? 100, TOKEN_VOL[sym] ?? 0.015)
   const hist = prices[sym]?.history ?? []
@@ -30,7 +29,7 @@ export default function LivePriceChart({ prices, connected }: Props) {
 
   return (
     <div className="card">
-      {/* Header */}
+      {}
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-sm font-semibold text-white">Live Asset Prices</h3>
@@ -44,7 +43,7 @@ export default function LivePriceChart({ prices, connected }: Props) {
         </span>
       </div>
 
-      {/* Token selector */}
+      {}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
         {Object.keys(TOKEN_BASE).map(sym => {
           const tp = prices[sym]
@@ -73,7 +72,7 @@ export default function LivePriceChart({ prices, connected }: Props) {
         })}
       </div>
 
-      {/* Chart — stable per-token, only re-renders when selected changes */}
+      {}
       <TokenChart sym={selected} prices={prices} />
     </div>
   )

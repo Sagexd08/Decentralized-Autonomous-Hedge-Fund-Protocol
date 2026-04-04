@@ -10,15 +10,12 @@ from core.settings import settings
 
 _SUPABASE_TIMEOUT = 8.0
 
-
 def _project_ref_from_url(url: str) -> str:
     host = url.removeprefix("https://").removeprefix("http://").split("/")[0]
     return host.split(".")[0] if host else ""
 
-
 def _uses_supabase_database(database_url: str) -> bool:
     return "supabase.co" in database_url or "pooler.supabase.com" in database_url
-
 
 def _service_headers() -> dict[str, str]:
     token = settings.supabase_secret_key or settings.supabase_publishable_key
@@ -30,14 +27,12 @@ def _service_headers() -> dict[str, str]:
         "Authorization": f"Bearer {token}",
     }
 
-
 def _auth_headers() -> dict[str, str]:
     token = settings.supabase_publishable_key or settings.supabase_secret_key
     if not settings.supabase_url or not token:
         raise RuntimeError("Supabase is not configured. Set SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY.")
 
     return {"apikey": token}
-
 
 def get_supabase_status() -> dict[str, Any]:
     configured = bool(settings.supabase_url and (settings.supabase_secret_key or settings.supabase_publishable_key))
@@ -75,7 +70,6 @@ def get_supabase_status() -> dict[str, Any]:
         status["error"] = str(exc)
         return status
 
-
 def fetch_table_rows(table_name: str, limit: int = 20) -> list[dict[str, Any]]:
     if not table_name.strip():
         raise RuntimeError("A Supabase table name is required.")
@@ -97,7 +91,6 @@ def fetch_table_rows(table_name: str, limit: int = 20) -> list[dict[str, Any]]:
         raise RuntimeError("Supabase returned an unexpected response shape.")
 
     return data
-
 
 def ensure_storage_bucket(bucket_name: str, public: bool = False) -> dict[str, Any]:
     if not bucket_name.strip():
@@ -122,7 +115,6 @@ def ensure_storage_bucket(bucket_name: str, public: bool = False) -> dict[str, A
         created_bucket = create_response.json()
 
     return {"id": created_bucket.get("id", bucket_name), "created": True}
-
 
 def upload_storage_bytes(
     bucket_name: str,
@@ -159,7 +151,6 @@ def upload_storage_bytes(
         "key": payload.get("Key") or payload.get("key") or f"{bucket_name}/{object_path}",
     }
 
-
 def upload_storage_file(
     local_path: str | Path,
     bucket_name: str,
@@ -178,7 +169,6 @@ def upload_storage_file(
         content_type=content_type,
         upsert=upsert,
     )
-
 
 def download_storage_file(bucket_name: str, object_path: str, destination: str | Path) -> Path:
     if not object_path.strip():

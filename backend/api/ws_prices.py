@@ -18,17 +18,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Agent IDs that are currently in "agent mode"
 _agent_mode: dict[str, bool] = {}
-
 
 def set_agent_mode(agent_id: str, enabled: bool) -> None:
     _agent_mode[agent_id] = enabled
 
-
 def is_agent_mode(agent_id: str) -> bool:
     return _agent_mode.get(agent_id, False)
-
 
 @router.websocket("/ws/prices")
 async def ws_prices(websocket: WebSocket):
@@ -40,7 +36,7 @@ async def ws_prices(websocket: WebSocket):
                 item = await asyncio.wait_for(q.get(), timeout=5.0)
                 await websocket.send_json(item)
             except asyncio.TimeoutError:
-                # Send keepalive ping
+
                 await websocket.send_json({"type": "ping"})
     except WebSocketDisconnect:
         pass
@@ -48,7 +44,6 @@ async def ws_prices(websocket: WebSocket):
         logger.debug(f"ws_prices client disconnected: {e}")
     finally:
         price_engine.unsubscribe(q)
-
 
 @router.websocket("/ws/market")
 async def ws_market(websocket: WebSocket):
@@ -68,7 +63,6 @@ async def ws_market(websocket: WebSocket):
     finally:
         market_stream.unsubscribe(q)
 
-
 @router.get("/api/prices/current")
 async def get_current_prices():
     """REST endpoint for current prices."""
@@ -81,7 +75,6 @@ async def get_current_prices():
         }
         for sym, p in prices.items()
     }
-
 
 @router.get("/api/stream/config")
 async def get_stream_config():
@@ -97,7 +90,6 @@ async def get_stream_config():
         "graph_configured": bool(settings.graph_api_key),
     }
 
-
 @router.get("/api/prices/predictions/{agent_id}")
 async def get_predictions(agent_id: str):
     """Get agent's current predictions for all tokens."""
@@ -109,14 +101,12 @@ async def get_predictions(agent_id: str):
         predictions.append(asdict(pred))
     return {"agent_id": agent_id, "predictions": predictions}
 
-
 @router.post("/api/agent-mode/{agent_id}")
 async def set_mode(agent_id: str, body: dict):
     """Enable or disable agent mode for an agent."""
     enabled = body.get("enabled", True)
     set_agent_mode(agent_id, enabled)
     return {"agent_id": agent_id, "agent_mode": enabled}
-
 
 @router.get("/api/agent-mode/{agent_id}")
 async def get_mode(agent_id: str):
@@ -141,17 +131,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Agent IDs that are currently in "agent mode"
 _agent_mode: dict[str, bool] = {}
-
 
 def set_agent_mode(agent_id: str, enabled: bool) -> None:
     _agent_mode[agent_id] = enabled
 
-
 def is_agent_mode(agent_id: str) -> bool:
     return _agent_mode.get(agent_id, False)
-
 
 @router.websocket("/ws/prices")
 async def ws_prices(websocket: WebSocket):
@@ -163,7 +149,7 @@ async def ws_prices(websocket: WebSocket):
                 item = await asyncio.wait_for(q.get(), timeout=5.0)
                 await websocket.send_json(item)
             except asyncio.TimeoutError:
-                # Send keepalive ping
+
                 await websocket.send_json({"type": "ping"})
     except WebSocketDisconnect:
         pass
@@ -171,7 +157,6 @@ async def ws_prices(websocket: WebSocket):
         logger.debug(f"ws_prices client disconnected: {e}")
     finally:
         price_engine.unsubscribe(q)
-
 
 @router.websocket("/ws/market")
 async def ws_market(websocket: WebSocket):
@@ -191,7 +176,6 @@ async def ws_market(websocket: WebSocket):
     finally:
         market_stream.unsubscribe(q)
 
-
 @router.get("/api/prices/current")
 async def get_current_prices():
     """REST endpoint for current prices."""
@@ -204,7 +188,6 @@ async def get_current_prices():
         }
         for sym, p in prices.items()
     }
-
 
 @router.get("/api/stream/config")
 async def get_stream_config():
@@ -220,7 +203,6 @@ async def get_stream_config():
         "graph_configured": bool(settings.graph_api_key),
     }
 
-
 @router.get("/api/prices/predictions/{agent_id}")
 async def get_predictions(agent_id: str):
     """Get agent's current predictions for all tokens."""
@@ -232,14 +214,12 @@ async def get_predictions(agent_id: str):
         predictions.append(asdict(pred))
     return {"agent_id": agent_id, "predictions": predictions}
 
-
 @router.post("/api/agent-mode/{agent_id}")
 async def set_mode(agent_id: str, body: dict):
     """Enable or disable agent mode for an agent."""
     enabled = body.get("enabled", True)
     set_agent_mode(agent_id, enabled)
     return {"agent_id": agent_id, "agent_mode": enabled}
-
 
 @router.get("/api/agent-mode/{agent_id}")
 async def get_mode(agent_id: str):

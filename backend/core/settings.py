@@ -3,13 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from dotenv import load_dotenv
 
-<<<<<<< HEAD
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-=======
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
->>>>>>> D!
 load_dotenv(PROJECT_ROOT / ".env")
-
 
 @dataclass(frozen=True)
 class Settings:
@@ -38,24 +33,18 @@ class Settings:
     alpha_vantage_api_key: str
     ws_market_source: str
     ws_normalized_stream_enabled: bool
-<<<<<<< HEAD
     groq_api_key: str
     groq_model: str
     groq_requests_per_minute: int
     groq_requests_per_day: int
     groq_tokens_per_minute: int
     groq_tokens_per_day: int
-=======
->>>>>>> D!
-
 
 def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
 
-
 def _bool_env(name: str, default: str = "false") -> bool:
     return _env(name, default).lower() in {"1", "true", "yes", "on"}
-
 
 def get_settings() -> Settings:
     alchemy_api_key = _env("ALCHEMY_API_KEY")
@@ -85,16 +74,12 @@ def get_settings() -> Settings:
         alpha_vantage_api_key=_env("ALPHA_VANTAGE_API_KEY"),
         ws_market_source=_env("WS_MARKET_SOURCE", "simulated"),
         ws_normalized_stream_enabled=_bool_env("WS_NORMALIZED_STREAM_ENABLED", "true"),
-<<<<<<< HEAD
         groq_api_key=_env("GROQ_API_KEY"),
         groq_model=_env("GROQ_MODEL", "llama-3.1-8b-instant"),
         groq_requests_per_minute=int(_env("GROQ_REQUESTS_PER_MINUTE", "30") or "30"),
         groq_requests_per_day=int(_env("GROQ_REQUESTS_PER_DAY", "14400") or "14400"),
         groq_tokens_per_minute=int(_env("GROQ_TOKENS_PER_MINUTE", "6000") or "6000"),
         groq_tokens_per_day=int(_env("GROQ_TOKENS_PER_DAY", "100000") or "100000"),
-=======
->>>>>>> D!
     )
-
 
 settings = get_settings()
