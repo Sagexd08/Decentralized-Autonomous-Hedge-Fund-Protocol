@@ -2,7 +2,6 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-<<<<<<< HEAD
 from db.connection import execute_statement, fetch_all_dicts, fetch_one_dict
 
 router = APIRouter()
@@ -171,7 +170,6 @@ AGENTS = [
     },
 ]
 
-=======
 router = APIRouter()
 
 _MODEL_FAMILY = {
@@ -338,7 +336,6 @@ AGENTS = [
     },
 ]
 
->>>>>>> D!
 class AgentRegister(BaseModel):
     name: str
     strategy: str
@@ -346,7 +343,6 @@ class AgentRegister(BaseModel):
     stake: float
     address: str
 
-<<<<<<< HEAD
 _RISK_POOL_TO_LABEL = {
     "conservative": "Conservative",
     "balanced": "Balanced",
@@ -463,14 +459,12 @@ def _augment_agent(agent: dict):
 
 @router.get("/")
 def list_agents(risk: Optional[str] = None):
->>>>>>> D!
     if risk:
         return [_augment_agent(a) for a in AGENTS if a["risk"].lower() == risk.lower()]
     return [_augment_agent(a) for a in AGENTS]
 
 @router.get("/{agent_id}")
 def get_agent(agent_id: str):
-<<<<<<< HEAD
     try:
         agent = fetch_one_dict(
             """
@@ -511,8 +505,6 @@ def get_agent(agent_id: str):
     except Exception:
         pass
 
-=======
->>>>>>> D!
     agent = next((a for a in AGENTS if a["id"] == agent_id), None)
     if not agent:
         raise HTTPException(404, "Agent not found")
@@ -520,7 +512,6 @@ def get_agent(agent_id: str):
 
 @router.post("/register")
 def register_agent(data: AgentRegister):
-<<<<<<< HEAD
     try:
         risk_pool = _RISK_LABEL_TO_POOL.get(data.risk.lower(), "balanced")
         existing = fetch_all_dicts("select id from agents order by id")
@@ -550,10 +541,3 @@ def register_agent(data: AgentRegister):
              "pnl": 0, "drawdown": 0, "sharpe": 0, "volatility": 0, **data.dict()}
     AGENTS.append(agent)
     return {"id": new_id, "message": "Agent registered. Entering simulation arena."}
-=======
-    new_id = f"AGT-{len(AGENTS) + 1:03d}"
-    agent = {"id": new_id, "score": 50, "status": "probation", "allocation": 0,
-             "pnl": 0, "drawdown": 0, "sharpe": 0, "volatility": 0, **data.dict()}
-    AGENTS.append(agent)
-    return {"id": new_id, "message": "Agent registered. Entering simulation arena."}
->>>>>>> D!

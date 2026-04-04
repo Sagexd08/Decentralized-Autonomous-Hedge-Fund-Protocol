@@ -21,7 +21,7 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
-_CONFIG_PATH = Path(__file__).parent.parent.parent / "frontend" / "src" / "contracts" / "config.json"
+_CONFIG_PATH = Path(__file__).parent.parent / "contracts" / "config.json"
 
 def _load_token_addresses() -> dict[str, str]:
     """Load token addresses from deployed config.json."""
