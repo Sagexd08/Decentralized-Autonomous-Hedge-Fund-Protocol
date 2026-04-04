@@ -3,3 +3,8 @@ frontend/node_modules/
 .env
 .env.local
 *.env
+.hypothesis/
+__pycache__/
+*.pyc
+*.pyo
+frontend/dist/
