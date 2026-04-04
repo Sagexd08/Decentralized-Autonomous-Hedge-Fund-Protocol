@@ -1,0 +1,4 @@
+# file: /Users/debdeepbanerjee/Desktop/DAHFP/dacap/backend/ml/regime_classifier.py
+# hypothesis_version: 6.151.10
+
+[-0.5, -0.001, 0.0, 0.001, 0.008, 0.01, 0.015, 252, 'Bear', 'Bull', 'Sideways']

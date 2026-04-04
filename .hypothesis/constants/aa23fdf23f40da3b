@@ -1,0 +1,4 @@
+# file: /Users/debdeepbanerjee/Desktop/DAHFP/dacap/backend/api/analytics.py
+# hypothesis_version: 6.151.10
+
+[0.001, 0.01, 0.015, 0.05, 0.15, 0.2, 0.3, 200, 252, 100000, '/allocation-weights', '/monte-carlo', '/regime', '/rolling-volatility', 'confidences', 'final_weights', 'paths', 'regimes', 'regret_bound', 'stats', 'volatility', 'weights_history']
