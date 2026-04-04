@@ -1,9 +1,5 @@
-<<<<<<< HEAD
-=======
-"""Monte Carlo simulation using Geometric Brownian Motion."""
->>>>>>> D!
 import numpy as np
-from typing import List, Dict
+from typing import Dict
 
 
 def gbm_paths(S0: float, mu: float, sigma: float, T: int, n_paths: int = 1000) -> np.ndarray:
