@@ -8,5 +8,6 @@
   "solidity.packageDefaultDependenciesContractsDirectory": "contracts/src",
   "solidity.remappings": [
     "@openzeppelin/=contracts/node_modules/@openzeppelin/"
-  ]
+  ],
+  "postman.settings.dotenv-detection-notification-visibility": false
 }

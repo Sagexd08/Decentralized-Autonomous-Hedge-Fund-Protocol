@@ -13,10 +13,10 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix, mean_squared_error, mean_absolute_error
 
-from backend.core.supabase import download_storage_file, upload_storage_file
-from backend.ml.hybrid_model import CNNLSTMModel
-from backend.ml.regime_classifier import RegimeClassifier, rolling_volatility
-from backend.ml.monte_carlo import gbm_paths, var_cvar
+from core.supabase import download_storage_file, upload_storage_file
+from ml.hybrid_model import CNNLSTMModel
+from ml.regime_classifier import RegimeClassifier, rolling_volatility
+from ml.monte_carlo import gbm_paths, var_cvar
 
 warnings.filterwarnings("ignore")
 
