@@ -4,8 +4,16 @@ import { use, useState } from "react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { MetricCard } from "@/components/dacap/metric-card"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 import {
   ArrowLeft,
   TrendingUp,
@@ -23,6 +31,7 @@ import {
 import { useAgent } from "@/hooks/use-agents"
 import { useTradingFeed } from "@/hooks/use-trading-feed"
 import { agentsApi } from "@/lib/api"
+import { CandleChart } from "@/components/dacap/candle-chart"
 
 const riskColors: Record<string, string> = {
   Conservative: "bg-chart-3/20 text-chart-3 border-chart-3/30",
@@ -35,6 +44,11 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const { agent, loading, refetch } = useAgent(id)
   const { events } = useTradingFeed()
   const [actionLoading, setActionLoading] = useState(false)
+  const [stakeOpen, setStakeOpen] = useState(false)
+  const [stakeAmount, setStakeAmount] = useState("")
+  const [stakeAddress, setStakeAddress] = useState("")
+  const [stakeLoading, setStakeLoading] = useState(false)
+  const [stakeError, setStakeError] = useState<string | null>(null)
 
   // Filter trade events for this agent
   const agentTrades = events
@@ -55,6 +69,29 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
       console.error("Trading toggle failed", e)
     } finally {
       setActionLoading(false)
+    }
+  }
+
+  const handleStake = async () => {
+    if (!agent || !stakeAmount || !stakeAddress) return
+    setStakeLoading(true)
+    setStakeError(null)
+    try {
+      await agentsApi.stake({
+        agent_id: agent.id,
+        amount: parseFloat(stakeAmount),
+        address: stakeAddress,
+      })
+      // Start trading engine once staked
+      await agentsApi.startTrading(agent.id)
+      setStakeOpen(false)
+      setStakeAmount("")
+      setStakeAddress("")
+      refetch()
+    } catch (e: unknown) {
+      setStakeError(e instanceof Error ? e.message : "Stake failed")
+    } finally {
+      setStakeLoading(false)
     }
   }
 
@@ -82,6 +119,49 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-screen bg-transparent">
+      {/* Stake Dialog */}
+      <Dialog open={stakeOpen} onOpenChange={setStakeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delegate Capital to {agent?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Your Wallet Address</label>
+              <Input
+                placeholder="0x... or G..."
+                value={stakeAddress}
+                onChange={(e) => setStakeAddress(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-sm text-muted-foreground mb-1 block">Amount (USD)</label>
+              <Input
+                type="number"
+                min="0"
+                placeholder="e.g. 1000"
+                value={stakeAmount}
+                onChange={(e) => setStakeAmount(e.target.value)}
+              />
+            </div>
+            {stakeError && (
+              <p className="text-sm text-destructive">{stakeError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStakeOpen(false)}>Cancel</Button>
+            <Button
+              className="glow-cyan"
+              disabled={stakeLoading || !stakeAmount || !stakeAddress}
+              onClick={handleStake}
+            >
+              {stakeLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <DollarSign className="w-4 h-4 mr-2" />}
+              Stake & Start Agent
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Header */}
       <div className="border-b border-border/30 bg-muted/10">
         <div className="max-w-[1800px] mx-auto px-4 md:px-6 py-8">
@@ -118,7 +198,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline">
+              <Button variant="outline" onClick={() => setStakeOpen(true)}>
                 <DollarSign className="w-4 h-4 mr-2" />
                 Delegate Capital
               </Button>
@@ -292,6 +372,27 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
               </div>
             )}
           </div>
+        </div>
+
+        {/* ── Candle Chart ─────────────────────────────────────────────── */}
+        <div className="glass rounded-xl border border-border/30 overflow-hidden mb-8">
+          <div className="px-6 pt-5 pb-2 border-b border-border/30 flex items-center justify-between">
+            <h3 className="font-semibold text-foreground">Price Chart</h3>
+            <span className="text-xs text-muted-foreground font-mono">
+              30s candles · live
+            </span>
+          </div>
+          <CandleChart
+            tradeEvents={agentTrades}
+            defaultSymbol={
+              agent.strategy.toLowerCase().includes("sol") ? "SOL"
+              : agent.strategy.toLowerCase().includes("arb") ? "ETH"
+              : agent.strategy.toLowerCase().includes("link") ? "LINK"
+              : "WBTC"
+            }
+            height={300}
+            showSymbolTabs
+          />
         </div>
 
         {/* Trading Status */}
