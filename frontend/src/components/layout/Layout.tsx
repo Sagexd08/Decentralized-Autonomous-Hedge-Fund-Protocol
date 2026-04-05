@@ -1,4 +1,4 @@
-import { useLocation } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Topbar from './Topbar'
 import Dashboard from '../../pages/Dashboard'
@@ -6,22 +6,26 @@ import Agents from '../../pages/Agents'
 import AgentDetail from '../../pages/AgentDetail'
 import RiskPools from '../../pages/RiskPools'
 import AllocationEngine from '../../pages/AllocationEngine'
+import Intelligence from '../../pages/Intelligence'
 import Analytics from '../../pages/Analytics'
 import Governance from '../../pages/Governance'
 import Contracts from '../../pages/Contracts'
 import WorldMonitor from '../../pages/WorldMonitor'
 import AgentSocial from '../../pages/AgentSocial'
+import PnLHistory from '../../pages/PnLHistory'
 
 const KEEP_ALIVE_PAGES = [
-  { path: '/dashboard',  Component: Dashboard },
-  { path: '/agents',     Component: Agents },
-  { path: '/pools',      Component: RiskPools },
-  { path: '/allocation', Component: AllocationEngine },
-  { path: '/analytics',  Component: Analytics },
-  { path: '/governance', Component: Governance },
-  { path: '/contracts',  Component: Contracts },
-  { path: '/world',      Component: WorldMonitor },
-  { path: '/social',     Component: AgentSocial },
+  { path: '/dashboard',   Component: Dashboard },
+  { path: '/agents',      Component: Agents },
+  { path: '/pools',       Component: RiskPools },
+  { path: '/allocation',  Component: AllocationEngine },
+  { path: '/intelligence',Component: Intelligence },
+  { path: '/analytics',   Component: Analytics },
+  { path: '/governance',  Component: Governance },
+  { path: '/contracts',   Component: Contracts },
+  { path: '/world',       Component: WorldMonitor },
+  { path: '/social',      Component: AgentSocial },
+  { path: '/pnl-history', Component: PnLHistory },
 ]
 
 export default function Layout() {
@@ -36,7 +40,6 @@ export default function Layout() {
       <div className="flex flex-col flex-1 overflow-hidden">
         <Topbar />
         <main className="flex-1 overflow-y-auto p-6">
-          {}
           {KEEP_ALIVE_PAGES.map(({ path, Component }) => (
             <div
               key={path}
@@ -46,7 +49,6 @@ export default function Layout() {
             </div>
           ))}
 
-          {}
           {isAgentDetail && <AgentDetail />}
         </main>
       </div>

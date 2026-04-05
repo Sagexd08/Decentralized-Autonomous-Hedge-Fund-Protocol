@@ -1,4 +1,3 @@
-// @ts-expect-error missing supabase types
 import { createClient as createSupabaseBrowserClient } from '@supabase/supabase-js'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
