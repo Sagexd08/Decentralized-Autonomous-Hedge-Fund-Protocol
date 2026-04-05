@@ -97,3 +97,31 @@ async def get_portfolio(agent_id: str, request: Request):
             "network":           "testnet",
         },
     }
+
+
+@router.post("/{agent_id}/force-trade")
+async def force_trade(agent_id: str, request: Request):
+    """
+    Test endpoint: immediately fires one trade cycle for the agent
+    and broadcasts the result over WebSocket. Used for live testing.
+    """
+    engine: AgentTradingEngine = request.app.state.trading_engine
+    from collections import deque
+    history: deque = deque(maxlen=4)
+
+    # Seed history with current + slightly varied prices to guarantee a signal
+    try:
+        from agents.price_engine import price_engine
+        prices = price_engine.get_current_prices()
+        import random
+        for i in range(4):
+            varied = {sym: p * (1 + random.uniform(-0.003, 0.003)) for sym, p in prices.items()}
+            history.append(varied)
+        # Make last tick clearly higher to force a BUY signal
+        bullish = {sym: p * 1.005 for sym, p in prices.items()}
+        history.append(bullish)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Price engine unavailable: {exc}")
+
+    await engine._cycle(agent_id, history)
+    return {"status": "trade_cycle_executed", "agent_id": agent_id}

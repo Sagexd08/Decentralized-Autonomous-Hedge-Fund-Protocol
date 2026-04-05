@@ -104,18 +104,29 @@ class AgentTradingEngine:
             try:
                 from agents.price_engine import price_engine as pe
                 from ml.live_inference import ml_decision
+                # Use longer history from price engine for better signal
                 hist100 = pe.get_history(sym, 100)
                 pred = ml_decision(sym, hist100, self.ml_model, self.ml_scaler)
                 decision = pred.decision.upper()
                 return_bps = int(pred.predicted_log_return * 10_000)
             except Exception as exc:
                 logger.debug("ML inference skipped for %s/%s: %s", agent_id, sym, exc)
-                decision = _compute_decision(price_series)
-                price_now = price_series[-1]
-                price_old = price_series[0]
-                return_bps = int(((price_now - price_old) / max(price_old, 1e-9)) * 10_000)
+                # Use price engine history for momentum (more data = better signal)
+                try:
+                    from agents.price_engine import price_engine as pe
+                    long_hist = pe.get_history(sym, 20)
+                    decision = _compute_decision(long_hist[-4:] if len(long_hist) >= 4 else long_hist)
+                    price_now = long_hist[-1] if long_hist else price_series[-1]
+                    price_old = long_hist[0]  if long_hist else price_series[0]
+                    return_bps = int(((price_now - price_old) / max(price_old, 1e-9)) * 10_000)
+                except Exception:
+                    decision = _compute_decision(price_series)
+                    price_now = price_series[-1]
+                    price_old = price_series[0]
+                    return_bps = int(((price_now - price_old) / max(price_old, 1e-9)) * 10_000)
 
             total_return_bps += return_bps
+            logger.debug("Agent %s | %s | decision=%s bps=%d", agent_id, sym, decision, return_bps)
             if decision in ("BUY", "SELL"):
                 await self._execute_trade(agent_id, sym, decision, return_bps, current_prices)
 
@@ -290,6 +301,12 @@ class AgentTradingEngine:
             try:
                 raw = self.stellar.vault_agent_weight(self.stellar.public_key)
                 return raw / 1e18
+            except Exception:
+                pass
+        if self.solana and self.solana.wallet_address:
+            try:
+                score = self.solana.allocation_get_agent_score(self.solana.wallet_address)
+                return score / 100.0
             except Exception:
                 pass
         return 0.0

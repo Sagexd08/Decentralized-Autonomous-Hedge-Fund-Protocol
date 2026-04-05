@@ -26,6 +26,16 @@ class Deposit(BaseModel):
 
 def _fetch_pools_from_db():
     rows = fetch_all_dicts(
+        """
+        select
+            p.id, p.name, p.tvl, p.apy,
+            round(p.volatility_cap_bps / 100.0, 2) as volatility_cap,
+            count(a.id) as agents
+        from pools p
+        left join agents a on a.risk_pool = p.id
+        group by p.id, p.name, p.tvl, p.apy, p.volatility_cap_bps
+        order by p.id
+        """,
     )
     return [
         {
