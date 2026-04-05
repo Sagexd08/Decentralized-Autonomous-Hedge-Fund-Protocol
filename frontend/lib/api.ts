@@ -116,7 +116,7 @@ export const agentsApi = {
     get<Agent[]>(`/api/agents/${risk ? `?risk=${encodeURIComponent(risk)}` : ""}`),
   get: (id: string) => get<Agent>(`/api/agents/${id}`),
   register: (data: unknown) => post("/api/agents/register", data),
-  stake: (data: { agent_id: string; amount: number; address: string }) =>
+  stake: (data: { agent_id: string; amount: number; address: string; chain?: string; txid?: string }) =>
     post("/api/agents/stake", data),
   chainActive: () => get("/api/agents/chain/active"),
   startTrading: (id: string) => post<{ status: string }>(`/api/agents/${id}/start-trading`),

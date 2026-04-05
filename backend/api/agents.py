@@ -401,32 +401,46 @@ class StakeRequest(BaseModel):
     agent_id: str
     amount: float
     address: str
+    chain: Optional[str] = None   # "stellar" | "solana" | "algorand"
+    txid: Optional[str] = None    # client-signed txid (Stellar/Algorand flow)
 
 
 @router.post("/stake")
 async def stake_agent(data: StakeRequest, request: Request):
-    """Stake tokens for an agent on both Stellar and Solana."""
-    stellar = getattr(request.app.state, "stellar", None)
-    solana  = getattr(request.app.state, "solana", None)
+    """Stake tokens for an agent on Stellar, Solana, or Algorand."""
+    stellar  = getattr(request.app.state, "stellar", None)
+    solana   = getattr(request.app.state, "solana", None)
+    algorand = getattr(request.app.state, "algorand", None)
 
     stellar_tx: str | None = None
-    solana_tx: str | None = None
-    amount_stroops = int(data.amount * 1e7)
+    solana_tx:  str | None = None
+    algorand_tx: str | None = None
+
+    amount_stroops  = int(data.amount * 1e7)
     amount_lamports = int(data.amount * 1e9)
+    amount_microalgos = int(data.amount * 1e6)
 
-    if stellar and stellar.public_key:
-        try:
-            stellar_tx = await asyncio.to_thread(
-                stellar.vault_deposit,
-                data.address,
-                1,  # balanced pool for staking
-                amount_stroops,
-            )
-            logger.info("Stellar stake → agent=%s amount=%d tx=%s", data.agent_id, amount_stroops, stellar_tx)
-        except Exception as exc:
-            logger.warning("Stellar stake failed: %s", exc)
+    chain = (data.chain or "").lower()
 
-    if solana:
+    # ── Stellar ──────────────────────────────────────────────────────────────
+    if chain in ("stellar", "") and stellar and stellar.public_key:
+        if data.txid:
+            # Client already submitted via Freighter — just record the txid
+            stellar_tx = data.txid
+        else:
+            try:
+                stellar_tx = await asyncio.to_thread(
+                    stellar.vault_deposit,
+                    data.address,
+                    1,
+                    amount_stroops,
+                )
+                logger.info("Stellar stake → agent=%s amount=%d tx=%s", data.agent_id, amount_stroops, stellar_tx)
+            except Exception as exc:
+                logger.warning("Stellar stake failed: %s", exc)
+
+    # ── Solana ───────────────────────────────────────────────────────────────
+    if chain in ("solana", "") and solana:
         try:
             solana_tx = await asyncio.to_thread(
                 solana.vault_deposit,
@@ -438,6 +452,28 @@ async def stake_agent(data: StakeRequest, request: Request):
         except Exception as exc:
             logger.warning("Solana stake failed: %s", exc)
 
+    # ── Algorand ─────────────────────────────────────────────────────────────
+    if chain in ("algorand", "") and algorand:
+        if data.txid:
+            algorand_tx = data.txid
+        else:
+            try:
+                from core.settings import settings
+                pk = algorand.private_key_from_mnemonic(settings.algorand_cli_mnemonic) \
+                    if settings.algorand_cli_mnemonic else None
+                if pk:
+                    app_id = settings.algorand_capital_vault_app_id
+                    algorand_tx = await asyncio.to_thread(
+                        algorand.call_app,
+                        pk,
+                        app_id,
+                        [b"vault_deposit", data.address.encode(), amount_microalgos.to_bytes(8, "big")],
+                    )
+                    logger.info("Algorand stake → agent=%s amount=%d tx=%s",
+                                data.agent_id, amount_microalgos, algorand_tx)
+            except Exception as exc:
+                logger.warning("Algorand stake failed: %s", exc)
+
     # Update DB stake amount
     try:
         execute_statement(
@@ -448,12 +484,81 @@ async def stake_agent(data: StakeRequest, request: Request):
         pass
 
     return {
-        "agent_id":   data.agent_id,
-        "amount":     data.amount,
-        "stellar_tx": stellar_tx,
-        "solana_tx":  solana_tx,
-        "status":     "staked",
+        "agent_id":    data.agent_id,
+        "amount":      data.amount,
+        "chain":       chain or "all",
+        "stellar_tx":  stellar_tx,
+        "solana_tx":   solana_tx,
+        "algorand_tx": algorand_tx,
+        "status":      "staked",
     }
+
+
+# ── Algorand unsigned-txn builder (called by frontend before Pera signing) ───
+
+class AlgorandStakeReq(BaseModel):
+    from_address: str
+    app_id: int
+    amount: int       # microALGOs
+    agent_id: str
+
+
+class AlgorandSubmitReq(BaseModel):
+    signed_txn: str   # base64 encoded signed txn bytes
+
+
+@router.post("/stake/algorand/build")
+async def algorand_build_stake_txn(data: AlgorandStakeReq, request: Request):
+    """Return a base64-encoded unsigned ApplicationNoOp txn for Pera to sign."""
+    try:
+        import algosdk
+        from algosdk import transaction as algo_tx
+        algorand = getattr(request.app.state, "algorand", None)
+        if algorand is None:
+            raise HTTPException(status_code=503, detail="Algorand client not available")
+
+        params = await asyncio.to_thread(algorand.suggested_params)
+        txn = algo_tx.ApplicationNoOpTxn(
+            sender=data.from_address,
+            sp=params,
+            index=data.app_id,
+            app_args=[
+                b"vault_deposit",
+                data.from_address.encode(),
+                data.amount.to_bytes(8, "big"),
+                data.agent_id.encode(),
+            ],
+        )
+        import base64
+        txn_b64 = base64.b64encode(algosdk.encoding.msgpack_encode(txn)).decode()
+        return {"txn_b64": txn_b64}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/stake/algorand/submit")
+async def algorand_submit_stake_txn(data: AlgorandSubmitReq, request: Request):
+    """Accept a Pera-signed txn, submit it, and return the txid."""
+    try:
+        import base64
+        import algosdk
+        from algosdk import transaction as algo_tx
+
+        algorand = getattr(request.app.state, "algorand", None)
+        if algorand is None:
+            raise HTTPException(status_code=503, detail="Algorand client not available")
+
+        signed_bytes = base64.b64decode(data.signed_txn)
+        signed_txn = algosdk.encoding.msgpack_decode(signed_bytes)
+        txid = await asyncio.to_thread(algorand._algod.send_transaction, signed_txn)
+        logger.info("Algorand signed txn submitted: txid=%s", txid)
+        return {"txid": txid}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router.get("/chain/active")

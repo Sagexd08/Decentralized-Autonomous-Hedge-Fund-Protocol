@@ -105,6 +105,48 @@ function FreighterSection() {
   )
 }
 
+// ─── Algorand / Pera wallet section ──────────────────────────────────────────
+function AlgorandSection() {
+  const { connected, connecting, address, error, connect, disconnect } = useAlgorand()
+  const [copied, setCopied] = useState(false)
+
+  const copyAddress = async () => {
+    if (!address) return
+    await navigator.clipboard.writeText(address)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  if (!connected || !address) {
+    return (
+      <DropdownMenuItem onClick={connect} disabled={connecting} className="gap-2 cursor-pointer">
+        <CircleDot className="w-3.5 h-3.5 text-blue-400" />
+        <span>{connecting ? "Connecting…" : "Connect Pera Wallet"}</span>
+        <span className="ml-auto text-[10px] text-muted-foreground font-mono">ALGO</span>
+        {error && <span className="text-destructive text-[10px] truncate max-w-[120px]" title={error}>!</span>}
+      </DropdownMenuItem>
+    )
+  }
+
+  return (
+    <>
+      <div className="px-3 py-1.5 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+        <span className="text-[10px] font-mono text-blue-400 tracking-wider">ALGORAND</span>
+        <span className="font-mono text-[11px] text-foreground ml-1">{shortAddr(address)}</span>
+      </div>
+      <DropdownMenuItem onClick={copyAddress} className="gap-2 cursor-pointer text-muted-foreground hover:text-foreground pl-6 text-xs">
+        {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+        {copied ? "Copied!" : "Copy address"}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={() => disconnect()} className="gap-2 cursor-pointer text-destructive hover:text-destructive pl-6 text-xs">
+        <LogOut className="w-3 h-3" />
+        Disconnect Algorand
+      </DropdownMenuItem>
+    </>
+  )
+}
+
 // ─── Main wallet button ───────────────────────────────────────────────────────
 export function WalletButton() {
   if (!PRIVY_ENABLED) {
@@ -118,18 +160,14 @@ function PrivyWalletButton() {
   const { ready, authenticated } = usePrivy()
   const { wallets } = useWallets()
   const freighter = useFreighter()
+  const algorand = useAlgorand()
 
   const evmAddress = wallets[0]?.address ?? null
-  const anyConnected = (authenticated && !!evmAddress) || freighter.connected
+  const anyConnected = (authenticated && !!evmAddress) || freighter.connected || algorand.connected
 
-  if (!ready) {
-    return (
-      <Button variant="outline" size="sm" disabled className="font-mono text-xs border-amber-500/20 text-amber-500/40">
-        <Wallet className="w-3.5 h-3.5 mr-1.5" />
-        Loading…
-      </Button>
-    )
-  }
+  // Don't block rendering on `ready` — show connect button immediately
+  // (ready just means Privy has finished checking for an existing session)
+  const isConnecting = !ready && !anyConnected
 
   return (
     <DropdownMenu>
@@ -148,13 +186,15 @@ function PrivyWalletButton() {
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
               {freighter.connected && freighter.shortAddress
                 ? freighter.shortAddress
+                : algorand.connected && algorand.shortAddress
+                ? algorand.shortAddress
                 : evmAddress
                 ? shortAddr(evmAddress)
                 : "Wallet"}
             </>
           ) : (
             <>
-              <Wallet className="w-3.5 h-3.5" />
+              <Wallet className={`w-3.5 h-3.5 ${isConnecting ? "opacity-40" : ""}`} />
               Connect Wallet
             </>
           )}
