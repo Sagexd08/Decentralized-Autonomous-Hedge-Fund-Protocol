@@ -2,9 +2,19 @@
 
 import { PrivyProvider } from "@privy-io/react-auth"
 
-const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID!
+const PRIVY_APP_ID = (process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "").trim()
+
+function isLikelyPrivyAppId(value: string): boolean {
+  return /^[a-z0-9]{24,}$/.test(value)
+}
+
+export const PRIVY_ENABLED = isLikelyPrivyAppId(PRIVY_APP_ID)
 
 export function AppPrivyProvider({ children }: { children: React.ReactNode }) {
+  if (!PRIVY_ENABLED) {
+    return <>{children}</>
+  }
+
   return (
     <PrivyProvider
       appId={PRIVY_APP_ID}

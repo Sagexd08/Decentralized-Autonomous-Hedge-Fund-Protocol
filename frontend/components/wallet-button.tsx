@@ -2,8 +2,8 @@
 
 import { usePrivy, useWallets } from "@privy-io/react-auth"
 import { useFreighter } from "@/hooks/use-freighter"
-import { useAlgorand } from "@/hooks/use-algorand"
-import { Wallet, LogOut, ChevronDown, Copy, Check, Star, CircleDot } from "lucide-react"
+import { PRIVY_ENABLED } from "@/components/privy-provider"
+import { Wallet, LogOut, ChevronDown, Copy, Check, Star } from "lucide-react"
 import { useState } from "react"
 import {
   DropdownMenu,
@@ -149,6 +149,14 @@ function AlgorandSection() {
 
 // ─── Main wallet button ───────────────────────────────────────────────────────
 export function WalletButton() {
+  if (!PRIVY_ENABLED) {
+    return <FreighterOnlyWalletButton />
+  }
+
+  return <PrivyWalletButton />
+}
+
+function PrivyWalletButton() {
   const { ready, authenticated } = usePrivy()
   const { wallets } = useWallets()
   const freighter = useFreighter()
@@ -209,13 +217,53 @@ export function WalletButton() {
           Stellar / Soroban
         </DropdownMenuLabel>
         <FreighterSection />
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
-        <DropdownMenuSeparator className="bg-border/40 my-1" />
+function FreighterOnlyWalletButton() {
+  const { connected, connecting, shortAddress, connect, disconnect } = useFreighter()
 
+  if (!connected) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={connect}
+        disabled={connecting}
+        className="font-mono text-xs border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
+      >
+        <Star className="w-3.5 h-3.5 mr-1.5" />
+        {connecting ? "Connecting…" : "Connect Freighter"}
+      </Button>
+    )
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="font-mono text-xs transition-all gap-1.5 border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/15 hover:border-amber-500/80"
+        >
+          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+          {shortAddress ?? "Freighter"}
+          <ChevronDown className="w-3 h-3 opacity-60" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="end"
+        className="border-border/60 bg-card/95 backdrop-blur-xl min-w-[220px]"
+      >
         <DropdownMenuLabel className="text-[10px] text-muted-foreground tracking-widest uppercase font-normal">
-          Algorand
+          Stellar / Soroban
         </DropdownMenuLabel>
-        <AlgorandSection />
+        <DropdownMenuItem onClick={disconnect} className="gap-2 cursor-pointer text-destructive hover:text-destructive pl-3 text-xs">
+          <LogOut className="w-3 h-3" />
+          Disconnect Freighter
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )
