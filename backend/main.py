@@ -111,17 +111,28 @@ async def lifespan(app: FastAPI):
     from agents.trading_engine import AgentTradingEngine
 
     result = _init_web3_and_contracts()
+    ml_model  = app.state.ml_model
+    ml_scaler = app.state.ml_scaler
+    if ml_model is not None:
+        logger.info("CNN-LSTM model attached to trading engine.")
+    else:
+        logger.warning("No ML model available — trading engine will use momentum fallback.")
+
     if result is not None:
         w3, vault, price_feed, accounts = result
         app.state.vault_contract = vault
-        app.state.trading_engine = AgentTradingEngine(w3, vault, price_feed, accounts)
-
+        app.state.trading_engine = AgentTradingEngine(
+            w3, vault, price_feed, accounts,
+            ml_model=ml_model, ml_scaler=ml_scaler,
+        )
         listener_task = asyncio.create_task(ws_trading.event_listener(app))
         logger.info("Trading engine and WebSocket event listener started.")
     else:
-
         app.state.vault_contract = None
-        app.state.trading_engine = AgentTradingEngine(None, None, None, [])
+        app.state.trading_engine = AgentTradingEngine(
+            None, None, None, [],
+            ml_model=ml_model, ml_scaler=ml_scaler,
+        )
         listener_task = None
         logger.warning("Trading engine running in stub mode (no chain connection).")
 

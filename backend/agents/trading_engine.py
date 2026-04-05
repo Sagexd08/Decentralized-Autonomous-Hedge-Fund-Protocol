@@ -63,7 +63,10 @@ def _compute_decision(price_history: list[float]) -> str:
 class AgentTradingEngine:
     """
     Manages one asyncio Task per active agent.
-    Each task: fetch prices → compute momentum → execute trade → sleep 10s.
+    Each task: fetch prices → CNN-LSTM inference → execute trade → sleep 10s.
+
+    If ml_model / ml_scaler are None the engine falls back to the pure-math
+    momentum signal so the system degrades gracefully when the model is absent.
     """
 
     def __init__(
@@ -72,11 +75,15 @@ class AgentTradingEngine:
         vault_contract,
         price_feed_contract,
         accounts: list[LocalAccount],
+        ml_model=None,
+        ml_scaler=None,
     ):
         self.w3 = w3
         self.vault = vault_contract
         self.price_feed = price_feed_contract
         self.accounts = accounts
+        self.ml_model = ml_model
+        self.ml_scaler = ml_scaler
         self._tasks: dict[str, asyncio.Task] = {}
 
     async def start(self, agent_id: str) -> None:
@@ -118,7 +125,7 @@ class AgentTradingEngine:
             await self._send_tx(agent_id, self.price_feed.functions.updatePrices())
 
         try:
-            from agents.price_engine import price_engine, compute_agent_prediction
+            from agents.price_engine import price_engine
             current_prices = price_engine.get_current_prices()
         except Exception:
             current_prices = {}
@@ -142,12 +149,23 @@ class AgentTradingEngine:
             for sym, addr in TOKEN_ADDRESSES.items():
                 if not addr:
                     continue
+
+                # --- CNN-LSTM inference (falls back to momentum if unavailable) ---
                 try:
-                    from agents.price_engine import compute_agent_prediction
-                    price_hist = price_engine.get_history(sym, 20)
-                    pred = compute_agent_prediction(agent_id, sym, price_hist, current_prices.get(sym, 0))
-                    decision = pred.decision
-                except Exception:
+                    from agents.price_engine import price_engine
+                    from ml.live_inference import ml_decision
+                    price_hist = price_engine.get_history(sym, 100)
+                    live_pred = ml_decision(sym, price_hist, self.ml_model, self.ml_scaler)
+                    decision = live_pred.decision
+                    logger.debug(
+                        "Agent %s | %s | %s | pred=%.5f | conf=%.3f | src=%s",
+                        agent_id, sym, decision,
+                        live_pred.predicted_log_return,
+                        live_pred.confidence,
+                        live_pred.source,
+                    )
+                except Exception as e:
+                    logger.warning("ML inference error for %s/%s: %s — using momentum", agent_id, sym, e)
                     price_series = [tick.get(sym, 0) for tick in history]
                     decision = _compute_decision(price_series).upper()
 
