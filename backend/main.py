@@ -140,26 +140,6 @@ async def lifespan(app: FastAPI):
     )
     app.state.trading_engine = engine
 
-    # Auto-start trading for all active agents from the registry
-    _auto_start_agents = []
-    try:
-        from api.agents import AGENTS
-        _auto_start_agents = [a["id"] for a in AGENTS if a.get("status") == "active"]
-    except Exception:
-        pass
-    if stellar:
-        try:
-            stellar_agents = stellar.registry_get_active_agents()
-            _auto_start_agents = list(set(_auto_start_agents + stellar_agents))
-        except Exception:
-            pass
-    for aid in _auto_start_agents:
-        try:
-            await engine.start(aid)
-            logger.info("Auto-started trading for agent %s", aid)
-        except Exception as exc:
-            logger.debug("Auto-start skipped for %s: %s", aid, exc)
-
     # WebSocket event listener for on-chain events
     listener_task = None
     if stellar is not None or solana is not None:

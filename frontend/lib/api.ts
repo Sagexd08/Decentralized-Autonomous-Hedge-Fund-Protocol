@@ -46,6 +46,39 @@ export interface TradeEvent {
   type: string
 }
 
+// ─── News ────────────────────────────────────────────────────────────────────
+
+export interface NewsItem {
+  title: string
+  published: string
+  coins: string[]
+  votes: unknown[]
+  source: string
+  provider: string
+  sentiment_hint: "bullish" | "bearish" | "neutral"
+}
+
+export interface NewsSignal {
+  asset: string
+  sentiment: number   // -1 to 1
+  event: string
+  confidence: number  // 0 to 1
+  source: string
+  provider: string
+  title: string
+}
+
+export interface NewsResponse {
+  items: NewsItem[]
+  count: number
+  providers: Record<string, unknown>
+}
+
+export interface SignalsResponse {
+  signals: NewsSignal[]
+  count: number
+}
+
 export interface PortfolioResponse {
   token_balances: Record<string, string>
   pnl_wei: string
@@ -173,6 +206,6 @@ export const intelligenceApi = {
 // ─── News ─────────────────────────────────────────────────────────────────────
 
 export const newsApi = {
-  crypto: (limit = 20) => get(`/api/news/crypto?limit=${limit}`),
-  signals: (limit = 10) => get(`/api/news/signals?limit=${limit}`),
+  crypto: (limit = 20) => get<NewsResponse>(`/api/news/crypto?limit=${limit}`),
+  signals: (limit = 10) => get<SignalsResponse>(`/api/news/signals?limit=${limit}`),
 }

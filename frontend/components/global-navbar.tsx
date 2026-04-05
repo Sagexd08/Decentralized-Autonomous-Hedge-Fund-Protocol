@@ -17,6 +17,7 @@ const navItems = [
   { href: "/", label: "Home" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/agents", label: "Agents" },
+  { href: "/terminal", label: "Terminal" },
   { href: "/risk-pools", label: "Risk Pools" },
   { href: "/allocation-engine", label: "Allocation" },
   { href: "/intelligence", label: "Intelligence" },
@@ -56,17 +57,32 @@ export function GlobalNavbar() {
           {/* Desktop Navigation */}
           <nav className="hidden lg:flex items-center gap-1">
             {primaryNavItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
-                  isActive(item.href)
-                    ? "bg-secondary text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {item.label}
-              </Link>
+              item.href === "/terminal" ? (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`px-3 py-1.5 text-sm font-mono font-semibold transition-all rounded-md border ${
+                    isActive(item.href)
+                      ? "bg-amber-500/20 text-amber-400 border-amber-500/50"
+                      : "text-amber-500/70 border-amber-500/20 hover:text-amber-400 hover:border-amber-500/50 hover:bg-amber-500/10"
+                  }`}
+                  style={{ letterSpacing: "0.05em" }}
+                >
+                  {item.label}
+                </Link>
+              ) : (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`px-3 py-2 text-sm font-medium transition-colors rounded-md ${
+                    isActive(item.href)
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {item.label}
+                </Link>
+              )
             ))}
 
             <DropdownMenu>
