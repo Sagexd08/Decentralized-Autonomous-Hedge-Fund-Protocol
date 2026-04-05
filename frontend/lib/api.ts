@@ -100,3 +100,29 @@ export const governanceApi = {
 export const analyticsApi = {
   monteCarlo: (params: unknown) => post("/api/analytics/monte-carlo", params),
 }
+
+// ─── Contract addresses ───────────────────────────────────────────────────────
+
+export interface ContractAddresses {
+  stellar: {
+    agent_registry: string
+    allocation_engine: string
+    capital_vault: string
+    slashing_module: string
+    network: string
+    rpc_url: string
+  }
+  solana: {
+    agent_registry: string
+    allocation_engine: string
+    capital_vault: string
+    slashing_module: string
+    wallet: string
+    network: string
+    rpc_url: string
+  }
+}
+
+export const contractsApi = {
+  addresses: () => get<ContractAddresses>("/api/contracts/addresses"),
+}

@@ -1,11 +1,10 @@
 "use client"
 
-import Link from "next/link"
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { SectionHeader } from "@/components/dacap/section-header"
-import { StatusBadge } from "@/components/dacap/status-badge"
 import { ContractCard } from "@/components/dacap/contract-card"
 import {
   FileCode,
@@ -13,7 +12,6 @@ import {
   ExternalLink,
   Copy,
   CheckCircle,
-  AlertTriangle,
   Lock,
   Layers,
   Brain,
@@ -21,6 +19,67 @@ import {
   Wallet,
   Activity,
 } from "lucide-react"
+import { contractsApi, type ContractAddresses } from "@/lib/api"
+
+// Static metadata enriched with live addresses from the backend
+const STELLAR_META = [
+  {
+    key: "capital_vault" as const,
+    name: "CapitalVault",
+    description: "Core capital custody contract. Holds all deposited assets; only AllocationEngine can rebalance.",
+    category: "core",
+    icon: Lock,
+    functions: ["deposit(investor, pool, amount)", "withdraw(investor, pool, amount)", "update_weights(agents, weights)", "get_pool_tvl(pool)", "get_agent_weight(agent)"],
+    chain: "Stellar Soroban Testnet",
+  },
+  {
+    key: "allocation_engine" as const,
+    name: "AllocationEngine",
+    description: "Multiplicative Weights Update (MWU) algorithm. Dynamically redistributes capital toward outperforming agents.",
+    category: "core",
+    icon: Layers,
+    functions: ["submit_update(agent, return_bps)", "get_agent_score(agent)", "get_reputation_score(agent)", "set_eta(eta)", "alpha()"],
+    chain: "Stellar Soroban Testnet",
+  },
+  {
+    key: "agent_registry" as const,
+    name: "AgentRegistry",
+    description: "Manages agent registration, stake collateral, probation periods, activation, and slashing.",
+    category: "agents",
+    icon: Brain,
+    functions: ["register_agent(owner, agent, hash, pool, stake)", "activate_agent(agent)", "slash_agent(agent, bps)", "get_active_agents()", "get_agent(agent)"],
+    chain: "Stellar Soroban Testnet",
+  },
+  {
+    key: "slashing_module" as const,
+    name: "SlashingModule",
+    description: "Monitors drawdown limits and enforces economic penalties when agents breach risk thresholds.",
+    category: "risk",
+    icon: Shield,
+    functions: ["report_performance(agent, current_value)", "set_threshold(bps)", "get_slash_history(agent)", "get_current_value(agent)", "get_peak_value(agent)"],
+    chain: "Stellar Soroban Testnet",
+  },
+]
+
+const SOLANA_META = [
+  { key: "capital_vault" as const,     name: "CapitalVault",      icon: Lock,   chain: "Solana Testnet" },
+  { key: "allocation_engine" as const, name: "AllocationEngine",  icon: Layers, chain: "Solana Testnet" },
+  { key: "agent_registry" as const,    name: "AgentRegistry",     icon: Brain,  chain: "Solana Testnet" },
+  { key: "slashing_module" as const,   name: "SlashingModule",    icon: Shield, chain: "Solana Testnet" },
+]
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1500) }}
+      className="ml-2 text-muted-foreground hover:text-foreground transition-colors"
+      title="Copy address"
+    >
+      {copied ? <CheckCircle className="w-3.5 h-3.5 text-accent" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  )
+}
 
 const contracts = [
   {

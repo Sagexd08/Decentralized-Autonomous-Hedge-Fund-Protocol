@@ -39,6 +39,23 @@ class Settings:
     groq_requests_per_day: int
     groq_tokens_per_minute: int
     groq_tokens_per_day: int
+    # ── Stellar Soroban ───────────────────────────────────────────────────────
+    stellar_rpc_url: str
+    stellar_horizon_url: str
+    stellar_network_passphrase: str
+    stellar_public_key: str
+    stellar_secret_key: str
+    stellar_agent_registry: str
+    stellar_allocation_engine: str
+    stellar_capital_vault: str
+    stellar_slashing_module: str
+    # ── Solana ────────────────────────────────────────────────────────────────
+    solana_rpc_url: str
+    solana_wallet_address: str
+    solana_agent_registry: str
+    solana_allocation_engine: str
+    solana_capital_vault: str
+    solana_slashing_module: str
 
 def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
@@ -80,6 +97,23 @@ def get_settings() -> Settings:
         groq_requests_per_day=int(_env("GROQ_REQUESTS_PER_DAY", "14400") or "14400"),
         groq_tokens_per_minute=int(_env("GROQ_TOKENS_PER_MINUTE", "6000") or "6000"),
         groq_tokens_per_day=int(_env("GROQ_TOKENS_PER_DAY", "100000") or "100000"),
+        # Stellar
+        stellar_rpc_url=_env("STELLAR_RPC_URL", "https://soroban-testnet.stellar.org"),
+        stellar_horizon_url=_env("STELLAR_HORIZON_URL", "https://horizon-testnet.stellar.org"),
+        stellar_network_passphrase=_env("STELLAR_NETWORK_PASSPHRASE", "Test SDF Network ; September 2015"),
+        stellar_public_key=_env("STELLAR_PUBLIC_KEY"),
+        stellar_secret_key=_env("STELLAR_SECRET_KEY"),
+        stellar_agent_registry=_env("STELLAR_AGENT_REGISTRY"),
+        stellar_allocation_engine=_env("STELLAR_ALLOCATION_ENGINE"),
+        stellar_capital_vault=_env("STELLAR_CAPITAL_VAULT"),
+        stellar_slashing_module=_env("STELLAR_SLASHING_MODULE"),
+        # Solana
+        solana_rpc_url=_env("SOLANA_RPC_URL", "https://api.testnet.solana.com"),
+        solana_wallet_address=_env("SOLANA_WALLET_ADDRESS"),
+        solana_agent_registry=_env("SOLANA_AGENT_REGISTRY"),
+        solana_allocation_engine=_env("SOLANA_ALLOCATION_ENGINE"),
+        solana_capital_vault=_env("SOLANA_CAPITAL_VAULT"),
+        solana_slashing_module=_env("SOLANA_SLASHING_MODULE"),
     )
 
 settings = get_settings()

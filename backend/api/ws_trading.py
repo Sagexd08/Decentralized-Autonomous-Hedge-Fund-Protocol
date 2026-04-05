@@ -1,17 +1,21 @@
 """
 WebSocket trading feed.
-Broadcasts TradeExecuted events from CapitalVault to all connected clients.
+Broadcasts live trade events to all connected clients.
+
+The `stellar_event_listener` background task polls the Stellar Soroban
+CapitalVault for ledger events and forwards them to connected WebSocket clients.
+When no chain is connected the trading engine broadcasts simulated trades
+directly via `broadcaster.broadcast(...)`.
 """
 import asyncio
 import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from agents.trading_engine import TOKEN_SYMBOL
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
 
 class TradingBroadcaster:
     def __init__(self):
@@ -33,7 +37,9 @@ class TradingBroadcaster:
                 dead.add(ws)
         self._clients -= dead
 
+
 broadcaster = TradingBroadcaster()
+
 
 @router.websocket("/ws/trading")
 async def ws_trading(websocket: WebSocket):
@@ -46,38 +52,45 @@ async def ws_trading(websocket: WebSocket):
     except Exception:
         broadcaster.disconnect(websocket)
 
-async def event_listener(app) -> None:
-    """Background task: poll TradeExecuted events and broadcast to WebSocket clients."""
-    vault = getattr(app.state, "vault_contract", None)
-    if vault is None:
-        logger.warning("event_listener: no vault contract, exiting.")
+
+async def stellar_event_listener(app) -> None:
+    """
+    Background task: poll Stellar Soroban CapitalVault events and broadcast
+    to WebSocket clients every 5 seconds.
+
+    Stellar Soroban does not support push subscriptions; we poll the latest
+    ledger events via simulate calls and detect changes in TVL / agent weights.
+    """
+    stellar = getattr(app.state, "stellar", None)
+    if stellar is None:
+        logger.info("stellar_event_listener: no Stellar client, exiting.")
         return
+
+    last_tvl: int = -1
 
     while True:
         try:
-            event_filter = vault.events.TradeExecuted.create_filter(fromBlock="latest")
-            while True:
-                try:
-                    for event in event_filter.get_new_entries():
-                        args = event["args"]
-                        token_addr = args.get("tokenOut", "")
-                        token_sym = TOKEN_SYMBOL.get(token_addr, token_addr[:6] if token_addr else "?")
-                        await broadcaster.broadcast({
-                            "agent":     args.get("agent", ""),
-                            "token":     token_sym,
-                            "amountIn":  str(args.get("amountIn", 0)),
-                            "amountOut": str(args.get("amountOut", 0)),
-                            "timestamp": args.get("timestamp", 0),
-                            "type":      args.get("tradeType", "swap"),
-                        })
-                except asyncio.CancelledError:
-                    raise
-                except Exception as e:
-                    logger.error(f"event_listener poll error: {e}")
-                    break
-                await asyncio.sleep(1)
+            # Run blocking Stellar call in a thread
+            tvl = await asyncio.to_thread(stellar.vault_total_tvl)
+
+            if tvl != last_tvl and last_tvl != -1:
+                # TVL changed — broadcast a synthetic event
+                await broadcaster.broadcast({
+                    "type":      "tvl_change",
+                    "total_tvl": tvl,
+                    "delta":     tvl - last_tvl,
+                    "contracts": {
+                        "capital_vault":     stellar.capital_vault_id,
+                        "allocation_engine": stellar.allocation_engine_id,
+                    },
+                })
+                logger.info("Stellar TVL changed: %d -> %d", last_tvl, tvl)
+
+            last_tvl = tvl
+
         except asyncio.CancelledError:
             raise
-        except Exception as e:
-            logger.error(f"event_listener filter lost: {e}. Reconnecting in 5s...")
-            await asyncio.sleep(5)
+        except Exception as exc:
+            logger.debug("stellar_event_listener poll error: %s", exc)
+
+        await asyncio.sleep(5)

@@ -2,7 +2,6 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import asyncio
-import json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -11,7 +10,6 @@ from pathlib import Path
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
@@ -22,76 +20,27 @@ from api import ws_trading
 from api import ws_prices
 from api import ws_social
 
-_CONFIG_PATH = Path(__file__).parent / "contracts" / "config.json"
 _MODEL_BUCKET = "models"
 _MODEL_OBJECT_PATH = "model.pkl"
 _LOCAL_MODEL_PATH = Path(__file__).parent / "ml" / "model.pkl"
 
-def _init_web3_and_contracts():
-    """Initialize web3 connection and contract instances. Returns (w3, vault, price_feed, accounts) or None."""
-    try:
-        from web3 import Web3
-        from eth_account import Account
-
-        rpc_url = os.getenv("ETH_RPC_URL") or os.getenv("ALCHEMY_ETH_SEPOLIA_URL", "")
-        if not rpc_url:
-            logger.warning("ETH_RPC_URL not set. Trading engine disabled.")
-            return None
-        w3 = Web3(Web3.HTTPProvider(rpc_url))
-        if not w3.is_connected():
-            logger.warning(f"Cannot connect to Ethereum node at {rpc_url}. Trading engine disabled.")
-            return None
-
-        with open(_CONFIG_PATH) as f:
-            cfg = json.load(f)
-
-        artifacts_base = Path(__file__).parent.parent / "contracts" / "artifacts" / "src"
-
-        def load_abi(name: str):
-            p = artifacts_base / f"{name}.sol" / f"{name}.json"
-            with open(p) as f:
-                return json.load(f)["abi"]
-
-        vault_abi = load_abi("CapitalVault")
-        price_feed_abi = load_abi("MockPriceFeed")
-
-        vault = w3.eth.contract(address=cfg["capital_vault"], abi=vault_abi)
-        price_feed = w3.eth.contract(address=cfg["MockPriceFeed"], abi=price_feed_abi)
-
-        eth_keys = os.getenv("ETH_PRIVATE_KEYS", "")
-        if eth_keys:
-            accounts = [Account.from_key(k.strip()) for k in eth_keys.split(",") if k.strip()]
-        else:
-            logger.warning("ETH_PRIVATE_KEYS not set; trading engine will run in simulated mode.")
-            accounts = []
-
-        return w3, vault, price_feed, accounts
-    except Exception as e:
-        logger.warning(f"Web3 init failed: {e}. Trading engine disabled.")
-        return None
 
 def _sync_ml_model_from_supabase() -> bool:
     """Best-effort startup sync so the API boots with the latest deployed model."""
     try:
         from core.supabase import download_storage_file
-
         download_storage_file(_MODEL_BUCKET, _MODEL_OBJECT_PATH, _LOCAL_MODEL_PATH)
-        logger.info(
-            "ML model synced from Supabase storage: %s/%s -> %s",
-            _MODEL_BUCKET,
-            _MODEL_OBJECT_PATH,
-            _LOCAL_MODEL_PATH,
-        )
+        logger.info("ML model synced from Supabase storage: %s/%s", _MODEL_BUCKET, _MODEL_OBJECT_PATH)
         return True
     except Exception as exc:
         logger.warning("ML model sync from Supabase skipped: %s", exc)
         return False
 
+
 def _load_ml_artifacts():
     """Load the local model artifact into app state when available."""
     try:
         from ml.train_hybrid import load_model
-
         model, scaler = load_model(_LOCAL_MODEL_PATH)
         logger.info("ML model loaded from %s", _LOCAL_MODEL_PATH)
         return model, scaler
@@ -99,47 +48,75 @@ def _load_ml_artifacts():
         logger.warning("ML model load skipped: %s", exc)
         return None, None
 
+
+def _init_stellar():
+    """
+    Build the Stellar Soroban client from environment variables.
+    Returns a StellarContracts instance or None if not configured.
+    """
+    try:
+        from core.stellar_client import build_stellar_client
+        return build_stellar_client()
+    except Exception as exc:
+        logger.warning("Stellar client init failed: %s", exc)
+        return None
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ML model
     app.state.ml_model_synced = _sync_ml_model_from_supabase()
     app.state.ml_model, app.state.ml_scaler = _load_ml_artifacts()
 
+    # Price engine + market stream
     from agents.price_engine import price_engine
     from agents.market_stream import market_stream
     price_engine.start()
     market_stream.start()
     logger.info("Price engine started.")
 
-    from agents.trading_engine import AgentTradingEngine
+    # Stellar Soroban contracts
+    stellar = _init_stellar()
+    app.state.stellar = stellar
+    if stellar:
+        mode = "read-write" if stellar.secret_key else "read-only"
+        logger.info("Stellar Soroban client initialized (%s mode).", mode)
+        logger.info(
+            "  capital_vault=%s  allocation_engine=%s",
+            stellar.capital_vault_id,
+            stellar.allocation_engine_id,
+        )
+    else:
+        logger.warning(
+            "Stellar Soroban client not available. "
+            "Set STELLAR_AGENT_REGISTRY, STELLAR_ALLOCATION_ENGINE, "
+            "STELLAR_CAPITAL_VAULT, STELLAR_SLASHING_MODULE in .env"
+        )
 
-    result = _init_web3_and_contracts()
-    ml_model  = app.state.ml_model
+    # Trading engine
+    from agents.trading_engine import AgentTradingEngine
+    ml_model = app.state.ml_model
     ml_scaler = app.state.ml_scaler
     if ml_model is not None:
         logger.info("CNN-LSTM model attached to trading engine.")
     else:
         logger.warning("No ML model available — trading engine will use momentum fallback.")
 
-    if result is not None:
-        w3, vault, price_feed, accounts = result
-        app.state.vault_contract = vault
-        app.state.trading_engine = AgentTradingEngine(
-            w3, vault, price_feed, accounts,
-            ml_model=ml_model, ml_scaler=ml_scaler,
-        )
-        listener_task = asyncio.create_task(ws_trading.event_listener(app))
-        logger.info("Trading engine and WebSocket event listener started.")
-    else:
-        app.state.vault_contract = None
-        app.state.trading_engine = AgentTradingEngine(
-            None, None, None, [],
-            ml_model=ml_model, ml_scaler=ml_scaler,
-        )
-        listener_task = None
-        logger.warning("Trading engine running in stub mode (no chain connection).")
+    app.state.trading_engine = AgentTradingEngine(
+        stellar=stellar,
+        ml_model=ml_model,
+        ml_scaler=ml_scaler,
+    )
+
+    # WebSocket event listener for on-chain events (only if Stellar available)
+    listener_task = None
+    if stellar is not None:
+        listener_task = asyncio.create_task(ws_trading.stellar_event_listener(app))
+        logger.info("Stellar event listener task started.")
 
     yield
 
+    # Shutdown
     market_stream.stop()
     price_engine.stop()
     if listener_task is not None:
@@ -149,7 +126,8 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
 
-app = FastAPI(title="DACAP API", version="2.1.0", lifespan=lifespan)
+
+app = FastAPI(title="DACAP API", version="2.2.0", lifespan=lifespan)
 
 allowed_origins = [
     "http://localhost:3000",
@@ -182,6 +160,7 @@ app.include_router(ws_trading.router, tags=["websocket"])
 app.include_router(ws_prices.router, tags=["prices"])
 app.include_router(ws_social.router, tags=["social"])
 
+
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
@@ -193,9 +172,10 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         },
     )
 
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception(f"Unhandled error on {request.method} {request.url}: {exc}")
+    logger.exception("Unhandled error on %s %s: %s", request.method, request.url, exc)
     return JSONResponse(
         status_code=500,
         content={"detail": str(exc)},
@@ -205,6 +185,31 @@ async def global_exception_handler(request: Request, exc: Exception):
         },
     )
 
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "2.1.0"}
+    return {"status": "ok", "version": "2.2.0"}
+
+
+@app.get("/api/contracts/addresses")
+def contract_addresses():
+    """Return all deployed contract addresses for the frontend."""
+    return {
+        "stellar": {
+            "agent_registry":    os.getenv("STELLAR_AGENT_REGISTRY", ""),
+            "allocation_engine": os.getenv("STELLAR_ALLOCATION_ENGINE", ""),
+            "capital_vault":     os.getenv("STELLAR_CAPITAL_VAULT", ""),
+            "slashing_module":   os.getenv("STELLAR_SLASHING_MODULE", ""),
+            "network":           "testnet",
+            "rpc_url":           os.getenv("STELLAR_RPC_URL", ""),
+        },
+        "solana": {
+            "agent_registry":    os.getenv("SOLANA_AGENT_REGISTRY", ""),
+            "allocation_engine": os.getenv("SOLANA_ALLOCATION_ENGINE", ""),
+            "capital_vault":     os.getenv("SOLANA_CAPITAL_VAULT", ""),
+            "slashing_module":   os.getenv("SOLANA_SLASHING_MODULE", ""),
+            "wallet":            os.getenv("SOLANA_WALLET_ADDRESS", ""),
+            "network":           "testnet",
+            "rpc_url":           os.getenv("SOLANA_RPC_URL", ""),
+        },
+    }
