@@ -88,7 +88,7 @@ export function PhilosophySection() {
                 }}
               >
                 <Image
-                  src="/images/dacap-onchain.jpg"
+                  src="/images/iris-onchain.jpg"
                   alt="On-chain custody and enforcement"
                   fill
                   className="object-cover"
@@ -115,7 +115,7 @@ export function PhilosophySection() {
                 }}
               >
                 <Image
-                  src="/images/dacap-offchain.jpg"
+                  src="/images/iris-offchain.jpg"
                   alt="Off-chain adaptive intelligence"
                   fill
                   className="object-cover"
@@ -142,7 +142,7 @@ export function PhilosophySection() {
             Protocol Thesis
           </p>
           <p className="mt-8 leading-relaxed text-muted-foreground text-2xl md:text-3xl text-center max-w-4xl mx-auto text-balance">
-            DACAP is a decentralized capital allocation system where investor funds remain under protocol control, 
+            IRIS Protocol is a decentralized capital allocation system where investor funds remain under protocol control, 
             autonomous agents compete through measurable performance, and governance steers the rules of adaptation 
             without breaking custody assumptions.
           </p>

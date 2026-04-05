@@ -1,5 +1,5 @@
 """
-Stellar Soroban client for DACAP.
+Stellar Soroban client for IRIS Protocol.
 
 Provides thin wrappers around the four deployed Soroban contracts:
   - AgentRegistry    (CDJD33R7ZVT7YZD2T6ROK2MPK2XRYJCKSM4AQOXPKCGMIQCAN7R6RTVJ)
@@ -57,7 +57,7 @@ def _build_scval_vec(items: list):
 
 class StellarContracts:
     """
-    Manages Soroban contract interactions for all four DACAP contracts.
+    Manages Soroban contract interactions for all four IRIS Protocol contracts.
 
     Read calls use simulate_transaction (no keypair required).
     Write calls require STELLAR_SECRET_KEY to be set in the environment.

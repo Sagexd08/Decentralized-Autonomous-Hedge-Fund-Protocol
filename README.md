@@ -1,6 +1,6 @@
-# DACAP — Decentralized Autonomous Capital Allocation Protocol
+# IRIS Protocol — Decentralized Autonomous Capital Allocation Protocol
 
-DACAP is a full-stack, research-grade protocol for autonomous on-chain capital allocation. It combines cryptoeconomic enforcement on Stellar Soroban and Solana with off-chain ML-driven agent intelligence, a real-time FastAPI backend, and a Next.js operator dashboard.
+IRIS Protocol is a full-stack, research-grade protocol for autonomous on-chain capital allocation. It combines cryptoeconomic enforcement on Stellar Soroban and Solana with off-chain ML-driven agent intelligence, a real-time FastAPI backend, and a Next.js operator dashboard.
 
 ---
 
@@ -284,7 +284,7 @@ SOLANA_CAPITAL_VAULT=4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2
 SOLANA_SLASHING_MODULE=AC6xZSbeD6fMRafNVGbnuN4vt94py7heNKyepp7KqBUv
 
 # Database (SQLite fallback if not set)
-DATABASE_URL=postgresql://user:pass@host/dacap
+DATABASE_URL=postgresql://user:pass@host/iris
 
 # Supabase (for ML model storage)
 SUPABASE_URL=https://<ref>.supabase.co

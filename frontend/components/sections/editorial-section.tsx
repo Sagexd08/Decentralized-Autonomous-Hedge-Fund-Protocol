@@ -32,8 +32,8 @@ export function EditorialSection() {
       {/* Full-width Visual */}
       <div className="relative aspect-[16/9] w-full md:aspect-[21/9]">
         <Image
-          src="/images/dacap-organism.jpg"
-          alt="DACAP Protocol Visualization"
+          src="/images/iris-organism.jpg"
+          alt="IRIS Protocol Visualization"
           fill
           className="object-cover"
         />

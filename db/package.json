@@ -1,5 +1,5 @@
 {
-  "name": "dacap-db-tools",
+  "name": "iris-db-tools",
   "private": true,
   "type": "module",
   "scripts": {

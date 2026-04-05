@@ -44,7 +44,7 @@ _BUILTIN = [
         "tvl": 25300000,
         "source_file": "src/CapitalVault.sol",
         "explanation": (
-            "The CapitalVault is the core custody layer of DACAP. It holds all investor funds across three risk pools "
+            "The CapitalVault is the core custody layer of IRIS Protocol. It holds all investor funds across three risk pools "
             "(Conservative 8% vol cap, Balanced 18%, Aggressive 35%). Agents never directly control capital — they only "
             "receive normalized weight allocations. The vault enforces a 20% max drawdown ceiling per agent and a 10% "
             "performance fee. Deposits and withdrawals are protected by OpenZeppelin's ReentrancyGuard. Weight updates "
@@ -153,7 +153,7 @@ _BUILTIN = [
         "tvl": 0,
         "source_file": "src/MockAavePool.sol",
         "explanation": (
-            "A simulation-only Aave lending pool used in the DACAP testnet environment. Supports supply (5% APY) "
+            "A simulation-only Aave lending pool used in the IRIS Protocol testnet environment. Supports supply (5% APY) "
             "and borrow (8% APR) positions per token per user. Interest accrues on every 10-second trading cycle "
             "via accrueInterest(). Supply positions earn yield by incrementing the stored balance; debt positions "
             "grow with borrow interest. This contract lets agents simulate DeFi yield strategies without real "
@@ -200,7 +200,7 @@ _BUILTIN = [
         "tvl": 0,
         "source_file": "src/MockPriceFeed.sol",
         "explanation": (
-            "An on-chain price oracle for the DACAP simulation environment. Stores prices for WBTC, WETH, USDC, "
+            "An on-chain price oracle for the IRIS Protocol simulation environment. Stores prices for WBTC, WETH, USDC, "
             "LINK, and UNI scaled to 1e8 (Chainlink-compatible format). Prices update via a ±1% pseudo-random walk "
             "per 10-second cycle, derived from block.timestamp and block.prevrandao for entropy. Prices are bounded "
             "between 50% and 200% of their initial values to prevent runaway simulation drift. Used by "
@@ -225,7 +225,7 @@ _BUILTIN = [
         "source_file": "src/MockERC20.sol",
         "explanation": (
             "A mintable ERC20 token with configurable decimals, used to simulate WBTC (8 decimals), USDC (6 decimals), "
-            "LINK (18 decimals), and UNI (18 decimals) in the DACAP testnet. Extends OpenZeppelin's ERC20 and Ownable. "
+            "LINK (18 decimals), and UNI (18 decimals) in the IRIS Protocol testnet. Extends OpenZeppelin's ERC20 and Ownable. "
             "Only the owner (deployer/MockUniswapRouter) can mint tokens, preventing unauthorized supply inflation. "
             "The configurable decimals constructor parameter makes this a single reusable contract for all simulated "
             "assets rather than requiring separate implementations per token."
@@ -247,7 +247,7 @@ _BUILTIN = [
         "tvl": 0,
         "source_file": "src/MockStakeToken.sol",
         "explanation": (
-            "A minimal ERC20 token (symbol: DST — DACAP Stake Token) used as the staking currency for AgentRegistry "
+            "A minimal ERC20 token (symbol: DST — IRIS Protocol Stake Token) used as the staking currency for AgentRegistry "
             "in local development and testing. Mints 1,000,000 DST to the deployer on construction, providing "
             "sufficient supply for testing agent registration flows that require a minimum 10,000 token stake. "
             "No mint function beyond the constructor — fixed supply for predictable test environments."

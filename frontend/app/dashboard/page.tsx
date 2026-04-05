@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { MetricCard } from "@/components/dacap/metric-card"
-import { AgentCard, type AgentData } from "@/components/dacap/agent-card"
+import { MetricCard } from "@/components/iris/metric-card"
+import { AgentCard, type AgentData } from "@/components/iris/agent-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {

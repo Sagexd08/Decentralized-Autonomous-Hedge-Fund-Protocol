@@ -12,14 +12,14 @@ export function GallerySection() {
   const lastScrollRef = useRef(0);
 
   const images = [
-    { src: "/images/dacap-hero.jpg", alt: "World intelligence network", label: "Network Topology" },
-    { src: "/images/dacap-vault.jpg", alt: "Capital vault chamber", label: "Vault Architecture" },
-    { src: "/images/dacap-agents.jpg", alt: "Agent swarm interface", label: "Agent Swarm" },
-    { src: "/images/dacap-organism.jpg", alt: "Financial organism", label: "Autonomous Loop" },
-    { src: "/images/dacap-analytics.jpg", alt: "Quantitative analytics", label: "Analytics Engine" },
-    { src: "/images/dacap-governance.jpg", alt: "Governance control", label: "DAO Control" },
-    { src: "/images/dacap-slashing.jpg", alt: "Risk enforcement", label: "Slashing Engine" },
-    { src: "/images/dacap-world-intel.jpg", alt: "World intelligence", label: "Macro Intelligence" },
+    { src: "/images/iris-hero.jpg", alt: "World intelligence network", label: "Network Topology" },
+    { src: "/images/iris-vault.jpg", alt: "Capital vault chamber", label: "Vault Architecture" },
+    { src: "/images/iris-agents.jpg", alt: "Agent swarm interface", label: "Agent Swarm" },
+    { src: "/images/iris-organism.jpg", alt: "Financial organism", label: "Autonomous Loop" },
+    { src: "/images/iris-analytics.jpg", alt: "Quantitative analytics", label: "Analytics Engine" },
+    { src: "/images/iris-governance.jpg", alt: "Governance control", label: "DAO Control" },
+    { src: "/images/iris-slashing.jpg", alt: "Risk enforcement", label: "Slashing Engine" },
+    { src: "/images/iris-world-intel.jpg", alt: "World intelligence", label: "Macro Intelligence" },
   ];
 
   // Calculate section height based on content width

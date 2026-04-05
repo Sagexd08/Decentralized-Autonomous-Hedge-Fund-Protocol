@@ -60,25 +60,25 @@ function ScrollRevealText({ text }: { text: string }) {
 
 const sideImages = [
   {
-    src: "/images/dacap-analytics.jpg",
+    src: "/images/iris-analytics.jpg",
     alt: "Quantitative analytics",
     position: "left",
     span: 1,
   },
   {
-    src: "/images/dacap-capital-flow.jpg",
+    src: "/images/iris-capital-flow.jpg",
     alt: "Capital flow dynamics",
     position: "left",
     span: 1,
   },
   {
-    src: "/images/dacap-agents.jpg",
+    src: "/images/iris-agents.jpg",
     alt: "AI agent swarm",
     position: "right",
     span: 1,
   },
   {
-    src: "/images/dacap-vault.jpg",
+    src: "/images/iris-vault.jpg",
     alt: "Capital vault chamber",
     position: "right",
     span: 1,
@@ -91,7 +91,7 @@ export function TechnologySection() {
   const [scrollProgress, setScrollProgress] = useState(0);
   const [textProgress, setTextProgress] = useState(0);
   
-  const descriptionText = "Experience capital allocation reimagined through autonomous intelligence. DACAP combines on-chain custody with AI-driven strategy selection, dynamic risk management, and governance-controlled adaptation to navigate every market regime. From volatile conditions to stable growth, your capital flows toward performance.";
+  const descriptionText = "Experience capital allocation reimagined through autonomous intelligence. IRIS Protocol combines on-chain custody with AI-driven strategy selection, dynamic risk management, and governance-controlled adaptation to navigate every market regime. From volatile conditions to stable growth, your capital flows toward performance.";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -198,7 +198,7 @@ export function TechnologySection() {
               }}
             >
               <Image
-                src="/images/dacap-organism.jpg"
+                src="/images/iris-organism.jpg"
                 alt="Autonomous financial organism in motion"
                 fill
                 className="object-cover"

@@ -3,29 +3,29 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-const word = "DACAP";
+const word = "IRIS";
 
 const sideImages = [
   {
-    src: "/images/dacap-hero-side-1.jpg",
+    src: "/images/iris-hero-side-1.jpg",
     alt: "Protocol telemetry visualization",
     position: "left",
     span: 1,
   },
   {
-    src: "/images/dacap-hero-side-2.jpg",
+    src: "/images/iris-hero-side-2.jpg",
     alt: "Agent node cluster",
     position: "left",
     span: 1,
   },
   {
-    src: "/images/dacap-hero-side-3.jpg",
+    src: "/images/iris-hero-side-3.jpg",
     alt: "Capital vault security",
     position: "right",
     span: 1,
   },
   {
-    src: "/images/dacap-hero-side-4.jpg",
+    src: "/images/iris-hero-side-4.jpg",
     alt: "Risk gauge visualization",
     position: "right",
     span: 1,
@@ -127,7 +127,7 @@ export function HeroSection() {
               }}
             >
               <Image
-                src="/images/dacap-hero.jpg"
+                src="/images/iris-hero.jpg"
                 alt="World-scale financial intelligence network"
                 fill
                 className="object-cover"

@@ -7,37 +7,37 @@ const features = [
     title: "Risk Pools",
     description: "Capital Tiers",
     body: "Conservative, Balanced, and Aggressive pools with enforced volatility budgets and visible capacity.",
-    image: "/images/dacap-risk-pools.jpg",
+    image: "/images/iris-risk-pools.jpg",
   },
   {
     title: "Agent Marketplace",
     description: "Strategy Competition",
     body: "Autonomous strategies compete for stake, trust, and delegated capital allocation.",
-    image: "/images/dacap-marketplace.jpg",
+    image: "/images/iris-marketplace.jpg",
   },
   {
     title: "Allocation Engine",
     description: "Capital Rotation",
     body: "Capital rotates toward the strongest agents using measurable, regret-aware reweighting logic.",
-    image: "/images/dacap-allocation.jpg",
+    image: "/images/iris-allocation.jpg",
   },
   {
     title: "Governance DAO",
     description: "Collective Control",
     body: "Parameter changes, slashing thresholds, and learning behavior evolve through collective control.",
-    image: "/images/dacap-governance.jpg",
+    image: "/images/iris-governance.jpg",
   },
   {
     title: "Risk Enforcement",
     description: "Slashing Engine",
     body: "Underperforming or rogue agents are penalized through automated drawdown limits and stake slashing.",
-    image: "/images/dacap-slashing.jpg",
+    image: "/images/iris-slashing.jpg",
   },
   {
     title: "World Intelligence",
     description: "Macro Signals",
     body: "Global market regimes, geopolitical events, and liquidity conditions feed into agent decision models.",
-    image: "/images/dacap-world-intel.jpg",
+    image: "/images/iris-world-intel.jpg",
   },
 ];
 

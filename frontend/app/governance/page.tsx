@@ -4,10 +4,10 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { SectionHeader } from "@/components/dacap/section-header"
-import { StatusBadge } from "@/components/dacap/status-badge"
-import { MetricCard } from "@/components/dacap/metric-card"
-import { ProposalCard } from "@/components/dacap/proposal-card"
+import { SectionHeader } from "@/components/iris/section-header"
+import { StatusBadge } from "@/components/iris/status-badge"
+import { MetricCard } from "@/components/iris/metric-card"
+import { ProposalCard } from "@/components/iris/proposal-card"
 import {
   Vote,
   Users,

@@ -4,8 +4,8 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { SectionHeader } from "@/components/dacap/section-header"
-import { ContractCard } from "@/components/dacap/contract-card"
+import { SectionHeader } from "@/components/iris/section-header"
+import { ContractCard } from "@/components/iris/contract-card"
 import {
   FileCode,
   Shield,
@@ -197,7 +197,7 @@ export default function ContractsPage() {
           <SectionHeader
             eyebrow="Smart Contracts"
             title="Protocol Infrastructure"
-            description="On-chain smart contract architecture powering DACAP protocol."
+            description="On-chain smart contract architecture powering IRIS Protocol."
             className="mb-0"
           />
           <div className="flex items-center gap-3">

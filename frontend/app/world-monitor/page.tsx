@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { SectionHeader } from "@/components/dacap/section-header"
+import { SectionHeader } from "@/components/iris/section-header"
 import { AnimatedGlobe } from "@/components/visuals/animated-globe"
 import {
   Globe,

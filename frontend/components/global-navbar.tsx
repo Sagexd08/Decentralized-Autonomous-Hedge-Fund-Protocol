@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { WalletButton } from "@/components/wallet-button"
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -47,7 +48,7 @@ export function GlobalNavbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2">
             <span className="text-xl font-bold tracking-tight text-foreground">
-              DACAP
+              IRIS
             </span>
             <span className="text-[10px] font-mono tracking-[0.2em] text-muted-foreground uppercase">
               Protocol
@@ -113,6 +114,12 @@ export function GlobalNavbar() {
             </DropdownMenu>
           </nav>
 
+          {/* Wallet + Mobile */}
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:block">
+              <WalletButton />
+            </div>
+
           {/* Mobile Menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
@@ -123,6 +130,9 @@ export function GlobalNavbar() {
             </SheetTrigger>
             <SheetContent side="right" className="border-border/60 bg-card/98 backdrop-blur-xl w-[300px]">
               <div className="flex flex-col gap-4 mt-8">
+                <div className="px-2">
+                  <WalletButton />
+                </div>
                 <nav className="flex flex-col gap-2">
                   {navItems.map((item) => (
                     <Link
@@ -142,6 +152,7 @@ export function GlobalNavbar() {
               </div>
             </SheetContent>
           </Sheet>
+          </div>
         </div>
       </div>
     </header>

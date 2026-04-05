@@ -159,7 +159,7 @@ async def lifespan(app: FastAPI):
             pass
 
 
-app = FastAPI(title="DACAP API", version="2.2.0", lifespan=lifespan)
+app = FastAPI(title="IRIS Protocol API", version="2.2.0", lifespan=lifespan)
 
 allowed_origins = [
     "http://localhost:3000",

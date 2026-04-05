@@ -17,7 +17,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - DATABASE_URL=postgresql://dacap:dacap@postgres:5432/dacap
+      - DATABASE_URL=postgresql://iris:iris@postgres:5432/iris
       - REDIS_URL=redis://redis:6379
     depends_on:
       postgres:
@@ -33,9 +33,9 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: dacap
-      POSTGRES_USER: dacap
-      POSTGRES_PASSWORD: dacap
+      POSTGRES_DB: iris
+      POSTGRES_USER: iris
+      POSTGRES_PASSWORD: iris
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
@@ -43,7 +43,7 @@ services:
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dacap"]
+      test: ["CMD-SHELL", "pg_isready -U iris"]
       interval: 5s
       timeout: 5s
       retries: 10

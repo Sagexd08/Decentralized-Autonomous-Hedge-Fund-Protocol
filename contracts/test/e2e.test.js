@@ -25,7 +25,7 @@ describe("CapitalVault E2E — depositETH with EIP-712 delegation", function () 
     const vaultAddress = await vault.getAddress();
 
     const domain = {
-      name: "DACAP",
+      name: "IRIS Protocol",
       version: "1",
       chainId: chainId,
       verifyingContract: vaultAddress,

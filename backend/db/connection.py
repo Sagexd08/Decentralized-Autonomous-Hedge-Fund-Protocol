@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 def _get_database_url() -> str:
     try:
         from core.settings import settings
-        return settings.database_url or os.getenv("DATABASE_URL", "sqlite:///./dacap.db")
+        return settings.database_url or os.getenv("DATABASE_URL", "sqlite:///./iris.db")
     except Exception:
-        return os.getenv("DATABASE_URL", "sqlite:///./dacap.db")
+        return os.getenv("DATABASE_URL", "sqlite:///./iris.db")
 
 
 DATABASE_URL = _get_database_url()

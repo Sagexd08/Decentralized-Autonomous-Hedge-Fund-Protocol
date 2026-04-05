@@ -49,9 +49,9 @@ frontend/node_modules/
 frontend/dist/
 frontend/.vite/
 frontend/coverage/
-dacap/frontend/node_modules/
-dacap/frontend/dist/
-dacap/frontend/.vite/
+iris/frontend/node_modules/
+iris/frontend/dist/
+iris/frontend/.vite/
 
 # -----------------------------
 # Solidity / Hardhat
@@ -59,9 +59,9 @@ dacap/frontend/.vite/
 contracts/node_modules/
 contracts/artifacts/
 contracts/cache/
-dacap/contracts/node_modules/
-dacap/contracts/artifacts/
-dacap/contracts/cache/
+iris/contracts/node_modules/
+iris/contracts/artifacts/
+iris/contracts/cache/
 
 # -----------------------------
 # Build outputs

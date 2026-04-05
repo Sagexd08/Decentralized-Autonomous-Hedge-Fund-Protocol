@@ -1,8 +1,8 @@
 "use client"
 
-import { PoolCard, type PoolData } from "@/components/dacap/pool-card"
-import { SectionHeader } from "@/components/dacap/section-header"
-import { MetricCard } from "@/components/dacap/metric-card"
+import { PoolCard, type PoolData } from "@/components/iris/pool-card"
+import { SectionHeader } from "@/components/iris/section-header"
+import { MetricCard } from "@/components/iris/metric-card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"

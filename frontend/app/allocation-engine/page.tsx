@@ -1,8 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { SectionHeader } from "@/components/dacap/section-header"
-import { MetricCard } from "@/components/dacap/metric-card"
+import { SectionHeader } from "@/components/iris/section-header"
+import { MetricCard } from "@/components/iris/metric-card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"

@@ -122,7 +122,7 @@ contract CapitalVault is Ownable, ReentrancyGuard {
         DOMAIN_SEPARATOR = keccak256(
             abi.encode(
                 domainTypeHash,
-                keccak256(bytes("DACAP")),
+                keccak256(bytes("IRIS Protocol")),
                 keccak256(bytes("1")),
                 block.chainid,
                 address(this)

@@ -8,7 +8,7 @@ export function TestimonialsSection() {
       {/* Large Text Statement */}
       <div className="px-6 py-24 md:px-12 md:py-32 lg:px-20 lg:py-40">
         <p className="mx-auto max-w-5xl text-2xl leading-relaxed text-foreground md:text-3xl lg:text-[2.5rem] lg:leading-snug text-balance">
-          DACAP represents a paradigm shift in capital management: a decentralized system where 
+          IRIS Protocol represents a paradigm shift in capital management: a decentralized system where 
           AI agents compete for allocation under transparent performance metrics, capital custody 
           remains under protocol control, and governance evolves the system through collective intelligence.
         </p>
@@ -17,8 +17,8 @@ export function TestimonialsSection() {
       {/* About Image */}
       <div className="relative aspect-[16/9] w-full">
         <Image
-          src="/images/dacap-hero.jpg"
-          alt="DACAP Protocol Infrastructure"
+          src="/images/iris-hero.jpg"
+          alt="IRIS Protocol Infrastructure"
           fill
           className="object-cover"
         />

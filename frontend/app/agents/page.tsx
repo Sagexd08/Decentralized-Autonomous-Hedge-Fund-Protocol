@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { AgentCard, type AgentData } from "@/components/dacap/agent-card"
+import { AgentCard, type AgentData } from "@/components/iris/agent-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"

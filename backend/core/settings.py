@@ -66,7 +66,7 @@ def _bool_env(name: str, default: str = "false") -> bool:
 def get_settings() -> Settings:
     alchemy_api_key = _env("ALCHEMY_API_KEY")
     return Settings(
-        database_url=_env("DATABASE_URL", "sqlite:///./dacap.db"),
+        database_url=_env("DATABASE_URL", "sqlite:///./iris.db"),
         redis_url=_env("REDIS_URL", "redis://localhost:6379"),
         graph_api_key=_env("GRAPH_API_KEY"),
         news_api_key=_env("NEWS_API_KEY"),

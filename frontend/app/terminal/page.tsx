@@ -1,7 +1,7 @@
 "use client"
 
 /**
- * DACAP TERMINAL
+ * IRIS Protocol TERMINAL
  * Design: "Quantitative Noir" — Bloomberg DNA elevated with amber data-glow.
  * Differentiation: information-dense monospaced panels separated by amber
  * hairlines, live candles + news in a fixed-chrome split layout that feels
@@ -9,8 +9,8 @@
  */
 
 import { useState, useEffect, useRef } from "react"
-import { CandleChart } from "@/components/dacap/candle-chart"
-import { NewsFeed } from "@/components/dacap/news-feed"
+import { CandleChart } from "@/components/iris/candle-chart"
+import { NewsFeed } from "@/components/iris/news-feed"
 import { useLivePrices } from "@/hooks/use-live-prices"
 import { useTradingFeed } from "@/hooks/use-trading-feed"
 import { useNews } from "@/hooks/use-news"
@@ -88,8 +88,8 @@ function PriceTicker() {
         ) : (
           <WifiOff size={10} color="#6b7280" />
         )}
-        <span style={{ fontSize: 9, fontFamily: "monospace", color: "#f59e0b", letterSpacing: "0.15em" }}>
-          DACAP
+          <span style={{ fontSize: 9, fontFamily: "monospace", color: "#f59e0b", letterSpacing: "0.15em" }}>
+          IRIS
         </span>
       </div>
 
@@ -405,7 +405,7 @@ export default function TerminalPage() {
       >
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#f59e0b", letterSpacing: "0.12em" }}>
-            DACAP TERMINAL
+            IRIS Protocol TERMINAL
           </span>
           <span
             style={{
@@ -567,7 +567,7 @@ export default function TerminalPage() {
           color: "#374151",
         }}
       >
-        <span>DACAP PROTOCOL v2.2.0</span>
+        <span>IRIS Protocol v2.2.0</span>
         <span>|</span>
         <span>TESTNET</span>
         <span>|</span>

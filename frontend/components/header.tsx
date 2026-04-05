@@ -25,7 +25,7 @@ export function Header() {
         {/* Logo */}
         <Link href="#" className="flex items-center gap-2">
           <span className={`text-lg font-semibold tracking-tight transition-colors duration-300 ${isScrolled ? "text-foreground" : "text-white"}`}>
-            DACAP
+            IRIS
           </span>
           <span className={`text-[10px] font-mono uppercase tracking-widest transition-colors duration-300 hidden sm:inline ${isScrolled ? "text-primary" : "text-primary"}`}>
             Protocol
