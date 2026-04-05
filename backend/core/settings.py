@@ -12,6 +12,7 @@ class Settings:
     redis_url: str
     graph_api_key: str
     news_api_key: str
+    gemini_api_key: str
     apify_api_token: str
     apify_cryptopanic_actor_id: str
     gdelt_api_url: str
@@ -56,6 +57,16 @@ class Settings:
     solana_allocation_engine: str
     solana_capital_vault: str
     solana_slashing_module: str
+    # ── Algorand ─────────────────────────────────────────────────────────────
+    algorand_algod_url: str
+    algorand_indexer_url: str
+    algorand_api_token: str
+    algorand_data_dir: str
+    algorand_cli_mnemonic: str
+    algorand_capital_vault_app_id: int
+    algorand_agent_registry_app_id: int
+    algorand_allocation_engine_app_id: int
+    algorand_slashing_module_app_id: int
 
 def _env(name: str, default: str = "") -> str:
     return os.getenv(name, default).strip()
@@ -70,6 +81,7 @@ def get_settings() -> Settings:
         redis_url=_env("REDIS_URL", "redis://localhost:6379"),
         graph_api_key=_env("GRAPH_API_KEY"),
         news_api_key=_env("NEWS_API_KEY"),
+        gemini_api_key=_env("GEMINI_API_KEY"),
         apify_api_token=_env("APIFY_API_TOKEN"),
         apify_cryptopanic_actor_id=_env("APIFY_CRYPTOPANIC_ACTOR_ID", "zZGeHO6iOODDq5MMd"),
         gdelt_api_url=_env("GDELT_API_URL", "https://api.gdeltproject.org/api/v2/doc/doc?query=bitcoin&mode=ArtList&maxrecords=10&format=json"),
@@ -114,6 +126,16 @@ def get_settings() -> Settings:
         solana_allocation_engine=_env("SOLANA_ALLOCATION_ENGINE"),
         solana_capital_vault=_env("SOLANA_CAPITAL_VAULT"),
         solana_slashing_module=_env("SOLANA_SLASHING_MODULE"),
+        # Algorand
+        algorand_algod_url=_env("ALGORAND_ALGOD_URL", "https://testnet-api.4160.nodely.dev"),
+        algorand_indexer_url=_env("ALGORAND_INDEXER_URL", "https://testnet-idx.algonode.cloud"),
+        algorand_api_token=_env("ALGORAND_API_TOKEN", ""),
+        algorand_data_dir=_env("ALGORAND_DATA_DIR", ""),
+        algorand_cli_mnemonic=_env("ALGORAND_CLI_MNEMONIC", ""),
+        algorand_capital_vault_app_id=int(_env("ALGORAND_CAPITAL_VAULT_APP_ID", "758312952") or "758312952"),
+        algorand_agent_registry_app_id=int(_env("ALGORAND_AGENT_REGISTRY_APP_ID", "758312940") or "758312940"),
+        algorand_allocation_engine_app_id=int(_env("ALGORAND_ALLOCATION_ENGINE_APP_ID", "758312942") or "758312942"),
+        algorand_slashing_module_app_id=int(_env("ALGORAND_SLASHING_MODULE_APP_ID", "758312953") or "758312953"),
     )
 
 settings = get_settings()

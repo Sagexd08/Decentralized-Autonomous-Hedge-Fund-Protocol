@@ -6,13 +6,13 @@ import asyncio
 import importlib
 import json
 import logging
-import os
 import random
 import time
 import urllib.request
 from dataclasses import asdict, dataclass
 from typing import Optional
 from core.settings import settings
+
 logger = logging.getLogger(__name__)
 AGENT_PERSONAS = {
     "AlphaWave": {
@@ -184,7 +184,7 @@ class GeminiSocialEngine:
         self._subscribers: list[asyncio.Queue] = []
         self._client = None
         self._provider: str = "none"
-        self._gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        self._gemini_api_key = settings.gemini_api_key
         self._groq_api_key = settings.groq_api_key
         self._groq_model = settings.groq_model
         self._init_client()

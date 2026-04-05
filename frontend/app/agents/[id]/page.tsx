@@ -27,11 +27,29 @@ import {
   DollarSign,
   Target,
   Loader2,
+  CheckCircle2,
 } from "lucide-react"
 import { useAgent } from "@/hooks/use-agents"
 import { useTradingFeed } from "@/hooks/use-trading-feed"
 import { agentsApi } from "@/lib/api"
 import { CandleChart } from "@/components/iris/candle-chart"
+import { usePrivy, useWallets } from "@privy-io/react-auth"
+import { useFreighter } from "@/hooks/use-freighter"
+import { useAlgorand } from "@/hooks/use-algorand"
+
+type Chain = "stellar" | "solana" | "algorand"
+
+const CHAIN_LABELS: Record<Chain, string> = {
+  stellar: "Stellar / Soroban",
+  solana: "Solana",
+  algorand: "Algorand",
+}
+
+const CHAIN_COLORS: Record<Chain, string> = {
+  stellar: "border-amber-500/60 bg-amber-500/10 text-amber-400",
+  solana: "border-violet-500/60 bg-violet-500/10 text-violet-400",
+  algorand: "border-blue-500/60 bg-blue-500/10 text-blue-400",
+}
 
 const riskColors: Record<string, string> = {
   Conservative: "bg-chart-3/20 text-chart-3 border-chart-3/30",
@@ -39,16 +57,113 @@ const riskColors: Record<string, string> = {
   Aggressive: "bg-destructive/20 text-destructive border-destructive/30",
 }
 
+/** Submit a Stellar payment to CAPITAL_VAULT_ADDRESS (XLM micro-payment as proof of intent) */
+async function submitStellarStake(amount: number, memo: string): Promise<string> {
+  const { requestTransaction, getAddress } = await import("@stellar/freighter-api")
+  const addrResult = await getAddress()
+  if (addrResult.error) throw new Error(addrResult.error)
+
+  const CAPITAL_VAULT = process.env.NEXT_PUBLIC_STELLAR_CAPITAL_VAULT
+    ?? "CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6"
+
+  // Build XDR on a small backend helper (or build here with minimal stellar-base)
+  // We call our own API to build + submit; Freighter just signs
+  const res = await fetch("/api/stake/stellar", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from: addrResult.address, to: CAPITAL_VAULT, amount, memo }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.detail ?? "Stellar stake API failed")
+  }
+  const { xdr } = await res.json()
+
+  const signedResult = await requestTransaction({ xdr, network: "TESTNET" })
+  if (signedResult.error) throw new Error(signedResult.error)
+
+  // Submit signed XDR
+  const submitRes = await fetch("/api/stake/stellar/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ xdr: signedResult.signedTxXdr }),
+  })
+  if (!submitRes.ok) throw new Error("Transaction submission failed")
+  const { txid } = await submitRes.json()
+  return txid
+}
+
+/** Submit an Algorand payment to the Capital Vault app (Pera signs) */
+async function submitAlgorandStake(
+  address: string,
+  amount: number,
+  agentId: string,
+  peraConnect: () => Promise<void>
+): Promise<string> {
+  const { PeraWalletConnect } = await import("@perawallet/connect")
+  const pera = new PeraWalletConnect()
+  // reconnect if session exists
+  try { await pera.reconnectSession() } catch {}
+
+  const APP_ID = parseInt(process.env.NEXT_PUBLIC_ALGORAND_CAPITAL_VAULT_APP_ID ?? "758312952")
+  const microAlgos = Math.round(amount * 1_000_000)
+
+  // Build unsigned txn via our backend
+  const res = await fetch("/api/agents/stake/algorand/build", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from_address: address, app_id: APP_ID, amount: microAlgos, agent_id: agentId }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err?.detail ?? "Algorand stake API failed")
+  }
+  const { txn_b64 } = await res.json()
+
+  // Pera signs the base64 encoded unsigned txn
+  const signedTxns = await pera.signTransaction([[{ txn: txn_b64 }]])
+
+  // Submit
+  const submitRes = await fetch("/api/agents/stake/algorand/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ signed_txn: Buffer.from(signedTxns[0]).toString("base64") }),
+  })
+  if (!submitRes.ok) throw new Error("Algorand transaction submission failed")
+  const { txid } = await submitRes.json()
+  return txid
+}
+
 export default function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const { agent, loading, refetch } = useAgent(id)
   const { events } = useTradingFeed()
   const [actionLoading, setActionLoading] = useState(false)
+
+  // Stake dialog state
   const [stakeOpen, setStakeOpen] = useState(false)
+  const [stakeChain, setStakeChain] = useState<Chain>("stellar")
   const [stakeAmount, setStakeAmount] = useState("")
-  const [stakeAddress, setStakeAddress] = useState("")
   const [stakeLoading, setStakeLoading] = useState(false)
   const [stakeError, setStakeError] = useState<string | null>(null)
+  const [stakeTxId, setStakeTxId] = useState<string | null>(null)
+
+  // Wallets
+  const { authenticated, login } = usePrivy()
+  const { wallets } = useWallets()
+  const freighter = useFreighter()
+  const algorand = useAlgorand()
+
+  const evmAddress = wallets[0]?.address ?? null
+  const isAnyConnected = authenticated || freighter.connected || algorand.connected
+
+  // Derive the address for the selected chain
+  const selectedAddress = (): string => {
+    if (stakeChain === "stellar") return freighter.address ?? ""
+    if (stakeChain === "solana") return evmAddress ?? ""
+    if (stakeChain === "algorand") return algorand.address ?? ""
+    return ""
+  }
 
   // Filter trade events for this agent
   const agentTrades = events
@@ -73,26 +188,61 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const handleStake = async () => {
-    if (!agent || !stakeAmount || !stakeAddress) return
+    if (!agent || !stakeAmount) return
+    const addr = selectedAddress()
+    if (!addr) {
+      setStakeError("No wallet connected for the selected chain.")
+      return
+    }
+
     setStakeLoading(true)
     setStakeError(null)
+    setStakeTxId(null)
+
     try {
+      let txid: string | null = null
+
+      if (stakeChain === "stellar") {
+        txid = await submitStellarStake(parseFloat(stakeAmount), agent.id)
+      } else if (stakeChain === "algorand") {
+        txid = await submitAlgorandStake(addr, parseFloat(stakeAmount), agent.id, algorand.connect)
+      }
+      // Solana: record off-chain for now (Privy embedded wallet doesn't expose raw signing)
+
+      // Record stake in our backend
       await agentsApi.stake({
         agent_id: agent.id,
         amount: parseFloat(stakeAmount),
-        address: stakeAddress,
+        address: addr,
+        chain: stakeChain,
+        txid: txid ?? undefined,
       })
-      // Start trading engine once staked
+
+      // Kick off the trading engine
       await agentsApi.startTrading(agent.id)
-      setStakeOpen(false)
-      setStakeAmount("")
-      setStakeAddress("")
+
+      setStakeTxId(txid ?? "off-chain")
       refetch()
     } catch (e: unknown) {
       setStakeError(e instanceof Error ? e.message : "Stake failed")
     } finally {
       setStakeLoading(false)
     }
+  }
+
+  const openStakeDialog = () => {
+    if (!isAnyConnected) {
+      login()
+      return
+    }
+    // Pre-select chain based on which wallet is connected
+    if (freighter.connected) setStakeChain("stellar")
+    else if (algorand.connected) setStakeChain("algorand")
+    else setStakeChain("solana")
+    setStakeAmount("")
+    setStakeError(null)
+    setStakeTxId(null)
+    setStakeOpen(true)
   }
 
   if (loading) {
@@ -119,46 +269,122 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-screen bg-transparent">
-      {/* Stake Dialog */}
-      <Dialog open={stakeOpen} onOpenChange={setStakeOpen}>
-        <DialogContent>
+      {/* ── Stake Dialog ───────────────────────────────────────────────────── */}
+      <Dialog open={stakeOpen} onOpenChange={(v) => { if (!stakeLoading) setStakeOpen(v) }}>
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Delegate Capital to {agent?.name}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">Your Wallet Address</label>
-              <Input
-                placeholder="0x... or G..."
-                value={stakeAddress}
-                onChange={(e) => setStakeAddress(e.target.value)}
-              />
+
+          {stakeTxId ? (
+            // ── Success state ──
+            <div className="py-6 flex flex-col items-center gap-4 text-center">
+              <CheckCircle2 className="w-12 h-12 text-green-400" />
+              <p className="font-semibold text-foreground">Stake submitted successfully!</p>
+              {stakeTxId !== "off-chain" && (
+                <p className="text-xs font-mono text-muted-foreground break-all">{stakeTxId}</p>
+              )}
+              <Button className="glow-cyan w-full" onClick={() => setStakeOpen(false)}>Done</Button>
             </div>
-            <div>
-              <label className="text-sm text-muted-foreground mb-1 block">Amount (USD)</label>
-              <Input
-                type="number"
-                min="0"
-                placeholder="e.g. 1000"
-                value={stakeAmount}
-                onChange={(e) => setStakeAmount(e.target.value)}
-              />
+          ) : (
+            <div className="space-y-5 py-2">
+              {/* Chain selector */}
+              <div>
+                <label className="text-sm text-muted-foreground mb-2 block">Select Chain</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["stellar", "solana", "algorand"] as Chain[]).map((chain) => {
+                    const addr =
+                      chain === "stellar" ? freighter.address
+                      : chain === "solana" ? evmAddress
+                      : algorand.address
+                    const isConnectedForChain = !!addr
+                    return (
+                      <button
+                        key={chain}
+                        onClick={() => setStakeChain(chain)}
+                        className={`rounded-lg px-2 py-2.5 border text-xs font-mono transition-all text-center ${
+                          stakeChain === chain
+                            ? CHAIN_COLORS[chain]
+                            : "border-border/40 text-muted-foreground hover:border-border/80"
+                        } ${!isConnectedForChain ? "opacity-50" : ""}`}
+                      >
+                        <div className="font-semibold mb-0.5">{CHAIN_LABELS[chain].split(" / ")[0]}</div>
+                        {isConnectedForChain ? (
+                          <div className="text-[9px] text-muted-foreground truncate">
+                            {addr!.slice(0, 6)}…
+                          </div>
+                        ) : (
+                          <div className="text-[9px] text-muted-foreground">not connected</div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Wallet address (read-only) */}
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">
+                  Wallet Address
+                  <span className="ml-1 text-[10px] font-mono opacity-60">
+                    ({CHAIN_LABELS[stakeChain]})
+                  </span>
+                </label>
+                <Input
+                  readOnly
+                  value={selectedAddress()}
+                  placeholder="Connect wallet above"
+                  className="font-mono text-xs text-muted-foreground bg-muted/20"
+                />
+              </div>
+
+              {/* Amount */}
+              <div>
+                <label className="text-sm text-muted-foreground mb-1 block">Amount (USD equivalent)</label>
+                <Input
+                  type="number"
+                  min="1"
+                  placeholder="e.g. 1000"
+                  value={stakeAmount}
+                  onChange={(e) => setStakeAmount(e.target.value)}
+                />
+              </div>
+
+              {stakeError && (
+                <p className="text-sm text-destructive flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  {stakeError}
+                </p>
+              )}
+
+              {stakeChain === "stellar" && !freighter.connected && (
+                <p className="text-xs text-amber-400">
+                  Install Freighter browser extension and connect it above to stake via Stellar.
+                </p>
+              )}
+              {stakeChain === "algorand" && !algorand.connected && (
+                <p className="text-xs text-blue-400">
+                  Connect Pera Wallet above to stake via Algorand.
+                </p>
+              )}
+
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setStakeOpen(false)}>Cancel</Button>
+                <Button
+                  className="glow-cyan"
+                  disabled={stakeLoading || !stakeAmount || !selectedAddress()}
+                  onClick={handleStake}
+                >
+                  {stakeLoading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <DollarSign className="w-4 h-4 mr-2" />
+                  )}
+                  {stakeLoading ? "Signing…" : "Stake & Start Agent"}
+                </Button>
+              </DialogFooter>
             </div>
-            {stakeError && (
-              <p className="text-sm text-destructive">{stakeError}</p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setStakeOpen(false)}>Cancel</Button>
-            <Button
-              className="glow-cyan"
-              disabled={stakeLoading || !stakeAmount || !stakeAddress}
-              onClick={handleStake}
-            >
-              {stakeLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <DollarSign className="w-4 h-4 mr-2" />}
-              Stake & Start Agent
-            </Button>
-          </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -198,7 +424,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
             </div>
 
             <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStakeOpen(true)}>
+              <Button variant="outline" onClick={openStakeDialog}>
                 <DollarSign className="w-4 h-4 mr-2" />
                 Delegate Capital
               </Button>
@@ -419,6 +645,25 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
               <span className="text-xs text-muted-foreground">Status</span>
               <p className="font-mono text-foreground capitalize">{agent.status}</p>
             </div>
+          </div>
+
+          {/* Connected wallets summary */}
+          <div className="mt-4 pt-4 border-t border-border/30 flex flex-wrap gap-3">
+            {freighter.connected && freighter.address && (
+              <span className="text-[11px] font-mono px-2 py-1 rounded border border-amber-500/30 bg-amber-500/5 text-amber-400">
+                Stellar {freighter.address.slice(0, 6)}…
+              </span>
+            )}
+            {authenticated && evmAddress && (
+              <span className="text-[11px] font-mono px-2 py-1 rounded border border-violet-500/30 bg-violet-500/5 text-violet-400">
+                EVM {evmAddress.slice(0, 6)}…
+              </span>
+            )}
+            {algorand.connected && algorand.address && (
+              <span className="text-[11px] font-mono px-2 py-1 rounded border border-blue-500/30 bg-blue-500/5 text-blue-400">
+                Algorand {algorand.address.slice(0, 6)}…
+              </span>
+            )}
           </div>
         </div>
       </div>
