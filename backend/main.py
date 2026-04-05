@@ -312,26 +312,4 @@ async def health_chains(request: Request):
     return {"stellar": stellar_status, "solana": solana_status}
 
 
-@app.get("/api/contracts/addresses")
-def contract_addresses():
-    """Return all deployed contract addresses for the frontend."""
-    return {
-        "stellar": {
-            "agent_registry":    os.getenv("STELLAR_AGENT_REGISTRY", "CDJD33R7ZVT7YZD2T6ROK2MPK2XRYJCKSM4AQOXPKCGMIQCAN7R6RTVJ"),
-            "allocation_engine": os.getenv("STELLAR_ALLOCATION_ENGINE", "CBBXJBG5Y74XBO7NSWUXNOZVEBWTBCEL6ZAPEXULASBIM3FSEZBRPPUV"),
-            "capital_vault":     os.getenv("STELLAR_CAPITAL_VAULT", "CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6"),
-            "slashing_module":   os.getenv("STELLAR_SLASHING_MODULE", "CAHJFZI7IZSPAZK35LZLYNG564F3LPQZFDRRFXFUENVWGY7Q6OHE3U5I"),
-            "network":           "testnet",
-            "rpc_url":           os.getenv("STELLAR_RPC_URL", "https://soroban-testnet.stellar.org"),
-            "horizon_url":       os.getenv("STELLAR_HORIZON_URL", "https://horizon-testnet.stellar.org"),
-        },
-        "solana": {
-            "agent_registry":    os.getenv("SOLANA_AGENT_REGISTRY", "F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN"),
-            "allocation_engine": os.getenv("SOLANA_ALLOCATION_ENGINE", "2MKzNfzPkEvsj6BKSrEEc9d4hdXmZnkyYQgTEtFZqbvR"),
-            "capital_vault":     os.getenv("SOLANA_CAPITAL_VAULT", "4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2"),
-            "slashing_module":   os.getenv("SOLANA_SLASHING_MODULE", "AC6xZSbeD6fMRafNVGbnuN4vt94py7heNKyepp7KqBUv"),
-            "wallet":            os.getenv("SOLANA_WALLET_ADDRESS", "9cNCsgFCoutgvftQTdV9YigxSrFXWqd5v7Zjnmw8beqB"),
-            "network":           "testnet",
-            "rpc_url":           os.getenv("SOLANA_RPC_URL", "https://api.testnet.solana.com"),
-        },
-    }
+

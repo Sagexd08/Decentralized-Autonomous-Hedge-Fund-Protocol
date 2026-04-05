@@ -22,10 +22,10 @@ INITIAL_PRICES: dict[str, float] = {
 }
 
 PARAMS: dict[str, dict] = {
-    "WBTC": {"theta": 0.05, "sigma": 0.018, "mu": 30000.0},
-    "USDC": {"theta": 0.8,  "sigma": 0.001, "mu": 1.0},
-    "LINK": {"theta": 0.08, "sigma": 0.025, "mu": 15.0},
-    "UNI":  {"theta": 0.07, "sigma": 0.022, "mu": 8.0},
+    "WBTC": {"theta": 0.01, "sigma": 0.06, "mu": 30000.0},
+    "USDC": {"theta": 0.5,  "sigma": 0.002, "mu": 1.0},
+    "LINK": {"theta": 0.01, "sigma": 0.08, "mu": 15.0},
+    "UNI":  {"theta": 0.01, "sigma": 0.07, "mu": 8.0},
 }
 
 PRICE_BOUNDS = {sym: (p * 0.5, p * 2.0) for sym, p in INITIAL_PRICES.items()}
@@ -108,7 +108,9 @@ class PriceEngine:
     def _tick(self) -> list[dict]:
         """Advance prices one step using Ornstein-Uhlenbeck process."""
         results = []
-        dt = self.tick_interval / (365 * 24 * 3600)
+        # Use daily time units (1 tick = tick_interval seconds out of 86400s/day)
+        # This gives realistic intraday volatility instead of near-zero moves
+        dt = self.tick_interval / 86400.0
 
         for sym, price in self._prices.items():
             p = PARAMS[sym]

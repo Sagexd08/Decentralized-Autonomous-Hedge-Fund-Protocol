@@ -25,9 +25,9 @@ def _compute_decision(price_history: list[float]) -> str:
     if price_old == 0:
         return "HOLD"
     momentum = (price_now - price_old) / price_old
-    if momentum > 0.005:
+    if momentum > 0.0005:
         return "BUY"
-    elif momentum < -0.005:
+    elif momentum < -0.0005:
         return "SELL"
     return "HOLD"
 

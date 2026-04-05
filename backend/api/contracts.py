@@ -323,6 +323,33 @@ def list_solana_contracts():
         if "solana_program_id" in c
     ]
 
+
+@router.get("/addresses")
+def get_contract_addresses():
+    """Return all deployed contract addresses for both chains."""
+    import os
+    return {
+        "stellar": {
+            "agent_registry":    os.getenv("STELLAR_AGENT_REGISTRY",    _STELLAR_ADDRESSES["agent-registry"]),
+            "allocation_engine": os.getenv("STELLAR_ALLOCATION_ENGINE", _STELLAR_ADDRESSES["allocation-engine"]),
+            "capital_vault":     os.getenv("STELLAR_CAPITAL_VAULT",     _STELLAR_ADDRESSES["capital-vault"]),
+            "slashing_module":   os.getenv("STELLAR_SLASHING_MODULE",   _STELLAR_ADDRESSES["slashing-module"]),
+            "network":           "testnet",
+            "rpc_url":           os.getenv("STELLAR_RPC_URL", "https://soroban-testnet.stellar.org"),
+            "horizon_url":       os.getenv("STELLAR_HORIZON_URL", "https://horizon-testnet.stellar.org"),
+        },
+        "solana": {
+            "agent_registry":    os.getenv("SOLANA_AGENT_REGISTRY",    _SOLANA_PROGRAM_IDS["agent-registry"]),
+            "allocation_engine": os.getenv("SOLANA_ALLOCATION_ENGINE", _SOLANA_PROGRAM_IDS["allocation-engine"]),
+            "capital_vault":     os.getenv("SOLANA_CAPITAL_VAULT",     _SOLANA_PROGRAM_IDS["capital-vault"]),
+            "slashing_module":   os.getenv("SOLANA_SLASHING_MODULE",   _SOLANA_PROGRAM_IDS["slashing-module"]),
+            "wallet":            os.getenv("SOLANA_WALLET_ADDRESS",    "9cNCsgFCoutgvftQTdV9YigxSrFXWqd5v7Zjnmw8beqB"),
+            "network":           "testnet",
+            "rpc_url":           os.getenv("SOLANA_RPC_URL", "https://api.testnet.solana.com"),
+        },
+    }
+
+
 @router.get("/{contract_id}")
 def get_contract(contract_id: str):
     for c in _BUILTIN:
