@@ -123,6 +123,19 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("Solana client not available — check .env SOLANA_* vars.")
 
+    # Algorand
+    try:
+        from core.algorand import AlgorandClient
+        algorand = AlgorandClient.from_settings()
+        app.state.algorand = algorand
+        if algorand.is_connected():
+            logger.info("Algorand algod connected.")
+        else:
+            logger.warning("Algorand algod not reachable — staking will record txid only.")
+    except Exception as exc:
+        app.state.algorand = None
+        logger.warning("Algorand client init failed: %s", exc)
+
     # Trading engine
     from agents.trading_engine import AgentTradingEngine
     ml_model = app.state.ml_model

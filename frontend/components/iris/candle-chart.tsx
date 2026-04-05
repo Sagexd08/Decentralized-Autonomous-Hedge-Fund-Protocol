@@ -1,116 +1,308 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import {
-  ComposedChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ReferenceLine,
-} from "recharts"
+import { useMemo, useState, useRef, useEffect } from "react"
 import { useCandleData, type Candle } from "@/hooks/use-candle-data"
 import type { TradeEvent } from "@/lib/api"
 
-// ─── Symbols available in the price engine ───────────────────────────────────
+// ─── Symbols ─────────────────────────────────────────────────────────────────
 const SYMBOLS = ["WBTC", "ETH", "SOL", "LINK", "AAVE"] as const
 type Symbol = (typeof SYMBOLS)[number]
 
-// ─── Custom candle shape (wick + body in one) ─────────────────────────────────
-// Props from Recharts Bar when stacked:
-//   y      = screen Y of the top of this bar segment (= high price)
-//   height = screen pixel span (= high - low in price space)
-//   payload = full data row → has .open, .close, .high, .low
-interface CandleProps {
-  x?: number
-  y?: number
-  width?: number
-  height?: number
-  payload?: Candle
-}
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
+interface TooltipData { candle: Candle; x: number; y: number }
 
-function CandleShape({ x = 0, y = 0, width = 0, height = 0, payload }: CandleProps) {
-  if (!payload || height <= 0 || width <= 0) return null
-  const { open, close, high, low } = payload
-  const range = high - low
-  if (range === 0) return null
-
-  const isGreen  = close >= open
-  const color    = isGreen ? "#22c55e" : "#ef4444"
-  const cx       = x + width / 2
-
-  // Body bounds in screen coordinates
-  const bodyTopPx    = y + ((high - Math.max(open, close)) / range) * height
-  const bodyBottomPx = y + ((high - Math.min(open, close)) / range) * height
-  const bodyH        = Math.max(bodyBottomPx - bodyTopPx, 1)
-  const bodyW        = Math.max(width - 2, 2)
-
-  return (
-    <g>
-      {/* Upper wick */}
-      <line x1={cx} y1={y} x2={cx} y2={bodyTopPx} stroke={color} strokeWidth={1} opacity={0.85} />
-      {/* Candle body */}
-      <rect
-        x={x + 1}
-        y={bodyTopPx}
-        width={bodyW}
-        height={bodyH}
-        fill={isGreen ? color : color}
-        fillOpacity={isGreen ? 0.85 : 0.75}
-        stroke={color}
-        strokeWidth={0.5}
-      />
-      {/* Lower wick */}
-      <line x1={cx} y1={bodyBottomPx} x2={cx} y2={y + height} stroke={color} strokeWidth={1} opacity={0.85} />
-    </g>
-  )
-}
-
-// ─── Invisible baseline bar shape ────────────────────────────────────────────
-function NullShape() {
-  return null
-}
-
-// ─── Custom tooltip ───────────────────────────────────────────────────────────
-function CandleTooltip({ active, payload }: { active?: boolean; payload?: Array<{ payload: Candle }> }) {
-  if (!active || !payload?.length) return null
-  const c = payload[0]?.payload
-  if (!c) return null
+function CandleTooltip({ data }: { data: TooltipData }) {
+  const { candle: c, x, y } = data
   const isGreen = c.close >= c.open
   return (
     <div
       style={{
-        background: "#0d0d0d",
+        position: "absolute",
+        left: x + 8,
+        top: Math.max(4, y - 60),
+        background: "#0a0a0a",
         border: "1px solid #f59e0b44",
         borderRadius: 4,
-        padding: "8px 12px",
+        padding: "7px 10px",
         fontFamily: "monospace",
         fontSize: 11,
         color: "#e5e5e5",
-        minWidth: 130,
+        minWidth: 120,
+        pointerEvents: "none",
+        zIndex: 10,
+        whiteSpace: "nowrap",
       }}
     >
-      <div style={{ color: "#f59e0b", marginBottom: 4, fontSize: 10 }}>{c.timeLabel}</div>
+      <div style={{ color: "#f59e0b", marginBottom: 3, fontSize: 10 }}>{c.timeLabel}</div>
       <div>O <span style={{ color: isGreen ? "#22c55e" : "#ef4444" }}>{c.open.toFixed(2)}</span></div>
       <div>H <span style={{ color: "#22c55e" }}>{c.high.toFixed(2)}</span></div>
       <div>L <span style={{ color: "#ef4444" }}>{c.low.toFixed(2)}</span></div>
-      <div>C <span style={{ color: isGreen ? "#22c55e" : "#ef4444", fontWeight: 600 }}>{c.close.toFixed(2)}</span></div>
+      <div>C <span style={{ color: isGreen ? "#22c55e" : "#ef4444", fontWeight: 700 }}>{c.close.toFixed(2)}</span></div>
       <div style={{ color: "#6b7280", marginTop: 2 }}>Vol {c.volume.toFixed(0)}</div>
     </div>
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Pure SVG candle renderer ─────────────────────────────────────────────────
+interface SvgCandlesProps {
+  candles: Candle[]
+  tradeLabels: { label: string; type: string }[]
+  height: number
+}
+
+function SvgCandles({ candles, tradeLabels, height }: SvgCandlesProps) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(800)
+  const [tooltip, setTooltip] = useState<TooltipData | null>(null)
+
+  // Measure container width
+  useEffect(() => {
+    if (!containerRef.current) return
+    const ro = new ResizeObserver((entries) => {
+      setWidth(entries[0].contentRect.width)
+    })
+    ro.observe(containerRef.current)
+    setWidth(containerRef.current.clientWidth)
+    return () => ro.disconnect()
+  }, [])
+
+  const PADDING = { top: 8, right: 56, bottom: 24, left: 6 }
+  const chartW = Math.max(width - PADDING.left - PADDING.right, 100)
+  const chartH = height - PADDING.top - PADDING.bottom
+
+  const { yMin, yMax, xLabels, candleData, maxVol } = useMemo(() => {
+    if (!candles.length) return { yMin: 0, yMax: 1, xLabels: [], candleData: [], maxVol: 1 }
+
+    const allLows  = candles.map((c) => c.low)
+    const allHighs = candles.map((c) => c.high)
+    const lo = Math.min(...allLows)
+    const hi = Math.max(...allHighs)
+    const pad = (hi - lo) * 0.06 || lo * 0.02
+    const yMin = lo - pad
+    const yMax = hi + pad
+    const maxVol = Math.max(...candles.map((c) => c.volume), 1)
+
+    const n = candles.length
+    const candleW = Math.max(Math.floor(chartW / n) - 1, 2)
+    const halfW = Math.max(Math.floor(candleW / 2), 1)
+
+    const toY = (price: number) =>
+      PADDING.top + ((yMax - price) / (yMax - yMin)) * chartH
+
+    const candleData = candles.map((c, i) => {
+      const cx = PADDING.left + (i + 0.5) * (chartW / n)
+      const isGreen = c.close >= c.open
+      const color = isGreen ? "#22c55e" : "#ef4444"
+
+      const openY  = toY(c.open)
+      const closeY = toY(c.close)
+      const highY  = toY(c.high)
+      const lowY   = toY(c.low)
+
+      const bodyTop    = Math.min(openY, closeY)
+      const bodyBottom = Math.max(openY, closeY)
+      const bodyH      = Math.max(bodyBottom - bodyTop, 1)
+
+      // Volume bar: bottom 18% of chart
+      const volH = (c.volume / maxVol) * chartH * 0.18
+      const volY = PADDING.top + chartH - volH
+
+      return { c, cx, isGreen, color, highY, lowY, bodyTop, bodyH, halfW, candleW, volH, volY, i }
+    })
+
+    // X-axis labels — show ~6 evenly spaced
+    const step = Math.max(Math.floor(n / 6), 1)
+    const xLabels = candles
+      .map((c, i) => ({ label: c.timeLabel, i }))
+      .filter((_, i) => i % step === 0)
+      .map(({ label, i }) => ({
+        label,
+        x: PADDING.left + (i + 0.5) * (chartW / n),
+      }))
+
+    // Y-axis ticks
+    const tickCount = 5
+    const yRange = yMax - yMin
+    const yTicks = Array.from({ length: tickCount }, (_, i) => {
+      const price = yMin + (yRange * i) / (tickCount - 1)
+      return { price, y: toY(price) }
+    })
+
+    return { yMin, yMax, xLabels, candleData, maxVol, yTicks }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candles, chartW, chartH])
+
+  const { yTicks } = useMemo(() => {
+    if (!candles.length) return { yTicks: [] }
+    const allLows  = candles.map((c) => c.low)
+    const allHighs = candles.map((c) => c.high)
+    const lo = Math.min(...allLows)
+    const hi = Math.max(...allHighs)
+    const pad = (hi - lo) * 0.06 || lo * 0.02
+    const yMinV = lo - pad
+    const yMaxV = hi + pad
+    const toY = (price: number) => PADDING.top + ((yMaxV - price) / (yMaxV - yMinV)) * chartH
+    const tickCount = 5
+    const yRange = yMaxV - yMinV
+    return {
+      yTicks: Array.from({ length: tickCount }, (_, i) => {
+        const price = yMinV + (yRange * i) / (tickCount - 1)
+        return { price, y: toY(price) }
+      }),
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candles, chartW, chartH])
+
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!candleData.length) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left - PADDING.left
+    const n = candleData.length
+    const idx = Math.max(0, Math.min(n - 1, Math.floor((mouseX / chartW) * n)))
+    const d = candleData[idx]
+    if (!d) return
+    setTooltip({ candle: d.c, x: d.cx, y: d.bodyTop })
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: "relative", width: "100%" }}>
+      <svg
+        width={width}
+        height={height}
+        style={{ display: "block", overflow: "visible" }}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setTooltip(null)}
+      >
+        {/* Grid lines */}
+        {yTicks?.map((t, i) => (
+          <line
+            key={i}
+            x1={PADDING.left}
+            y1={t.y}
+            x2={PADDING.left + chartW}
+            y2={t.y}
+            stroke="#ffffff08"
+            strokeDasharray="3 3"
+          />
+        ))}
+
+        {/* Volume bars */}
+        {candleData.map((d) => (
+          <rect
+            key={`vol-${d.i}`}
+            x={d.cx - d.halfW}
+            y={d.volY}
+            width={d.candleW}
+            height={d.volH}
+            fill="#ffffff06"
+          />
+        ))}
+
+        {/* Candles */}
+        {candleData.map((d) => (
+          <g key={`c-${d.i}`}>
+            {/* Full wick */}
+            <line
+              x1={d.cx}
+              y1={d.highY}
+              x2={d.cx}
+              y2={d.lowY}
+              stroke={d.color}
+              strokeWidth={1}
+              opacity={0.7}
+            />
+            {/* Body */}
+            <rect
+              x={d.cx - d.halfW}
+              y={d.bodyTop}
+              width={d.candleW}
+              height={d.bodyH}
+              fill={d.isGreen ? d.color : d.color}
+              fillOpacity={d.isGreen ? 0.85 : 0.75}
+              stroke={d.color}
+              strokeWidth={0.5}
+            />
+          </g>
+        ))}
+
+        {/* Trade reference lines */}
+        {tradeLabels.map((r, i) => {
+          const match = candleData.find((d) => d.c.timeLabel === r.label)
+          if (!match) return null
+          return (
+            <line
+              key={`trade-${i}`}
+              x1={match.cx}
+              y1={PADDING.top}
+              x2={match.cx}
+              y2={PADDING.top + chartH}
+              stroke={r.type === "swap" ? "#22c55e88" : "#ef444488"}
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+          )
+        })}
+
+        {/* X axis */}
+        <line
+          x1={PADDING.left}
+          y1={PADDING.top + chartH}
+          x2={PADDING.left + chartW}
+          y2={PADDING.top + chartH}
+          stroke="#ffffff10"
+        />
+        {xLabels.map((l, i) => (
+          <text
+            key={i}
+            x={l.x}
+            y={height - 6}
+            textAnchor="middle"
+            fontSize={9}
+            fill="#374151"
+            fontFamily="monospace"
+          >
+            {l.label}
+          </text>
+        ))}
+
+        {/* Y axis ticks */}
+        {yTicks?.map((t, i) => (
+          <text
+            key={i}
+            x={PADDING.left + chartW + 4}
+            y={t.y + 3}
+            fontSize={10}
+            fill="#4b5563"
+            fontFamily="monospace"
+          >
+            {t.price >= 1000 ? `${(t.price / 1000).toFixed(1)}k` : t.price.toFixed(2)}
+          </text>
+        ))}
+
+        {/* Crosshair on hover */}
+        {tooltip && (
+          <line
+            x1={tooltip.x}
+            y1={PADDING.top}
+            x2={tooltip.x}
+            y2={PADDING.top + chartH}
+            stroke="#f59e0b33"
+            strokeWidth={1}
+            strokeDasharray="2 2"
+          />
+        )}
+      </svg>
+
+      {tooltip && <CandleTooltip data={tooltip} />}
+    </div>
+  )
+}
+
+// ─── Main exported component ──────────────────────────────────────────────────
 interface CandleChartProps {
-  /** Pre-filter trade events to show as vertical markers */
   tradeEvents?: TradeEvent[]
-  /** Override which symbol to chart */
   defaultSymbol?: Symbol
-  /** Height in px */
   height?: number
-  /** Show symbol selector tabs */
   showSymbolTabs?: boolean
 }
 
@@ -123,38 +315,7 @@ export function CandleChart({
   const [symbol, setSymbol] = useState<Symbol>(defaultSymbol)
   const { candles, currentPrice } = useCandleData(symbol)
 
-  // Slice last N candles for display
   const displayCandles = useMemo(() => candles.slice(-60), [candles])
-
-  // Y domain: pad 0.5% above/below
-  const { yMin, yMax } = useMemo(() => {
-    if (!displayCandles.length) return { yMin: 0, yMax: 1 }
-    const allLows  = displayCandles.map((c) => c.low)
-    const allHighs = displayCandles.map((c) => c.high)
-    const lo = Math.min(...allLows)
-    const hi = Math.max(...allHighs)
-    const pad = (hi - lo) * 0.05
-    return { yMin: lo - pad, yMax: hi + pad }
-  }, [displayCandles])
-
-  // Max volume for secondary axis scaling
-  const maxVol = useMemo(
-    () => Math.max(...displayCandles.map((c) => c.volume), 1),
-    [displayCandles]
-  )
-
-  // Trade event X-positions: match timeLabel to candle index
-  const tradeRefLines = useMemo(() => {
-    return tradeEvents
-      .map((evt) => {
-        const evtLabel = (() => {
-          const d = new Date(evt.timestamp * 1000)
-          return `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`
-        })()
-        return { label: evtLabel, type: evt.type }
-      })
-      .slice(0, 10)
-  }, [tradeEvents])
 
   const change = useMemo(() => {
     if (displayCandles.length < 2) return 0
@@ -163,11 +324,19 @@ export function CandleChart({
     return ((last - first) / first) * 100
   }, [displayCandles])
 
+  const tradeLabels = useMemo(() =>
+    tradeEvents.slice(0, 10).map((evt) => {
+      const d = new Date(evt.timestamp * 1000)
+      const label = `${d.getHours().toString().padStart(2, "0")}:${d.getMinutes().toString().padStart(2, "0")}`
+      return { label, type: evt.type }
+    }),
+  [tradeEvents])
+
   const isUp = change >= 0
 
   return (
     <div style={{ background: "transparent" }}>
-      {/* Header bar */}
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -178,7 +347,6 @@ export function CandleChart({
           marginBottom: 4,
         }}
       >
-        {/* Symbol tabs */}
         {showSymbolTabs && (
           <div style={{ display: "flex", gap: 2 }}>
             {SYMBOLS.map((s) => (
@@ -203,9 +371,8 @@ export function CandleChart({
           </div>
         )}
 
-        {/* Live price badge */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: "monospace" }}>
-          {currentPrice && (
+          {currentPrice != null && (
             <>
               <span style={{ fontSize: 15, fontWeight: 700, color: isUp ? "#22c55e" : "#ef4444" }}>
                 {currentPrice.toFixed(symbol === "WBTC" ? 0 : 2)}
@@ -227,91 +394,7 @@ export function CandleChart({
         </div>
       </div>
 
-      {/* Chart */}
-      <ResponsiveContainer width="100%" height={height}>
-        <ComposedChart
-          data={displayCandles}
-          margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
-          barCategoryGap="10%"
-        >
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="#ffffff08"
-            vertical={false}
-          />
-
-          {/* Primary Y axis — price */}
-          <YAxis
-            domain={[yMin, yMax]}
-            orientation="right"
-            tick={{ fontSize: 10, fill: "#4b5563", fontFamily: "monospace" }}
-            tickLine={false}
-            axisLine={false}
-            tickFormatter={(v: number) =>
-              v >= 1000 ? `${(v / 1000).toFixed(1)}k` : v.toFixed(2)
-            }
-            width={52}
-          />
-
-          {/* Secondary Y axis — volume (hidden, scaled so vol ≈ bottom 20%) */}
-          <YAxis
-            yAxisId="vol"
-            domain={[0, maxVol * 6]}
-            hide
-          />
-
-          {/* X axis — time labels */}
-          <XAxis
-            dataKey="timeLabel"
-            tick={{ fontSize: 9, fill: "#374151", fontFamily: "monospace" }}
-            tickLine={false}
-            axisLine={{ stroke: "#ffffff10" }}
-            interval={Math.floor(displayCandles.length / 6)}
-          />
-
-          <Tooltip content={<CandleTooltip />} cursor={{ stroke: "#f59e0b33", strokeWidth: 1 }} />
-
-          {/* Trade event reference lines */}
-          {tradeRefLines.map((r, i) => (
-            <ReferenceLine
-              key={i}
-              x={r.label}
-              stroke={r.type === "swap" ? "#22c55e88" : "#ef444488"}
-              strokeDasharray="3 3"
-              strokeWidth={1}
-            />
-          ))}
-
-          {/* Volume bars (background, secondary axis) */}
-          <Bar
-            yAxisId="vol"
-            dataKey="volume"
-            fill="#ffffff07"
-            stroke="none"
-            isAnimationActive={false}
-            barSize={8}
-          />
-
-          {/* ── Stacked candle bars ── */}
-          {/* Bar 1: invisible baseline from 0 to low */}
-          <Bar
-            dataKey="candleBase"
-            stackId="candle"
-            fill="transparent"
-            stroke="none"
-            isAnimationActive={false}
-            shape={<NullShape />}
-          />
-
-          {/* Bar 2: visible span from low to high, custom candle shape */}
-          <Bar
-            dataKey="wickSize"
-            stackId="candle"
-            isAnimationActive={false}
-            shape={<CandleShape />}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
+      <SvgCandles candles={displayCandles} tradeLabels={tradeLabels} height={height} />
     </div>
   )
 }
