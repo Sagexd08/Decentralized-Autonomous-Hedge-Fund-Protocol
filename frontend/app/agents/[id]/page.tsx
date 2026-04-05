@@ -112,6 +112,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const [stakeLoading, setStakeLoading] = useState(false)
   const [stakeError, setStakeError] = useState<string | null>(null)
   const [stakeTxId, setStakeTxId] = useState<string | null>(null)
+  const [tradingError, setTradingError] = useState<string | null>(null)
 
   // Wallets
   const { authenticated, login } = usePrivy()
@@ -136,6 +137,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const handleToggleTrading = async () => {
     if (!agent) return
     setActionLoading(true)
+    setTradingError(null)
     try {
       if (agent.status === "active") {
         await agentsApi.stopTrading(agent.id)
@@ -144,6 +146,15 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
       }
       refetch()
     } catch (e) {
+      const error = e instanceof Error ? e.message : String(e)
+      // Handle 409 conflict: state mismatch between UI and backend
+      if (error.includes("409")) {
+        setTradingError("Agent state changed. Refreshing...")
+        // Auto-refresh after a short delay
+        setTimeout(() => refetch(), 1000)
+      } else {
+        setTradingError(error)
+      }
       console.error("Trading toggle failed", e)
     } finally {
       setActionLoading(false)
@@ -306,6 +317,9 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
                   value={stakeAmount}
                   onChange={(e) => setStakeAmount(e.target.value)}
                 />
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Stellar delegation is routed to the protocol treasury, then the agent is started automatically.
+                </p>
               </div>
 
               {stakeError && (
@@ -395,6 +409,12 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
                 {isActive ? "Stop AI" : "Start AI"}
               </Button>
             </div>
+            {tradingError && (
+              <div className="mt-3 p-3 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-sm flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                {tradingError}
+              </div>
+            )}
           </div>
         </div>
       </div>

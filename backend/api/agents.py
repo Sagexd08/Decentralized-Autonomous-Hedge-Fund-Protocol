@@ -603,14 +603,29 @@ class StellarSubmitReq(BaseModel):
     signed_xdr: str
 
 
+def _resolve_stellar_stake_destination() -> str:
+    """Pick a valid Stellar account for stake delegation."""
+    from stellar_sdk import StrKey
+
+    candidates = [
+        os.environ.get("STELLAR_TREASURY_ACCOUNT", "").strip(),
+        os.environ.get("STELLAR_PUBLIC_KEY", "").strip(),
+    ]
+    for candidate in candidates:
+        if candidate and StrKey.is_valid_ed25519_public_key(candidate):
+            return candidate
+
+    raise HTTPException(
+        status_code=503,
+        detail="No valid Stellar treasury account configured. Set STELLAR_TREASURY_ACCOUNT or a valid STELLAR_PUBLIC_KEY.",
+    )
+
+
 @router.post("/stake/stellar/build")
 async def stellar_build_stake_xdr(data: StellarStakeReq):
     """Build an unsigned Payment XDR from user address to capital vault, for Freighter to sign."""
     try:
-        from stellar_sdk import (
-            Network, TransactionBuilder, Server, Asset, Keypair
-        )
-        import base64
+        from stellar_sdk import TransactionBuilder, Server, Asset
 
         horizon_url = os.environ.get("STELLAR_HORIZON_URL", "https://horizon-testnet.stellar.org")
         network_passphrase = os.environ.get(
@@ -619,6 +634,7 @@ async def stellar_build_stake_xdr(data: StellarStakeReq):
 
         server = Server(horizon_url)
         account = await asyncio.to_thread(server.load_account, data.from_address)
+        destination = _resolve_stellar_stake_destination()
 
         builder = TransactionBuilder(
             source_account=account,
@@ -626,7 +642,7 @@ async def stellar_build_stake_xdr(data: StellarStakeReq):
             base_fee=100,
         )
         builder.append_payment_op(
-            destination=data.to_address,
+            destination=destination,
             asset=Asset.native(),
             amount=str(round(data.amount_xlm, 7)),
             source=data.from_address,
@@ -637,7 +653,11 @@ async def stellar_build_stake_xdr(data: StellarStakeReq):
         builder.set_timeout(60)
         txn = builder.build()
         xdr = txn.to_xdr()
-        return {"xdr": xdr}
+        return {
+            "xdr": xdr,
+            "destination": destination,
+            "destination_label": "protocol treasury",
+        }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

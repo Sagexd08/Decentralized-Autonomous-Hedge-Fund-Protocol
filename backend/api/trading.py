@@ -21,21 +21,29 @@ router = APIRouter()
 @router.post("/{agent_id}/start-trading")
 async def start_trading(agent_id: str, request: Request):
     engine: AgentTradingEngine = request.app.state.trading_engine
+    # Idempotent: don't error if already trading
+    if engine.is_trading(agent_id):
+        return {"status": "already_trading", "agent_id": agent_id}
     try:
         await engine.start(agent_id)
         return {"status": "started", "agent_id": agent_id}
-    except ValueError:
-        raise HTTPException(status_code=409, detail="Agent is already trading")
+    except ValueError as e:
+        logger.warning("Start trading failed for %s: %s", agent_id, e)
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.post("/{agent_id}/stop-trading")
 async def stop_trading(agent_id: str, request: Request):
     engine: AgentTradingEngine = request.app.state.trading_engine
+    # Idempotent: don't error if already stopped
+    if not engine.is_trading(agent_id):
+        return {"status": "already_stopped", "agent_id": agent_id}
     try:
         await engine.stop(agent_id)
         return {"status": "stopped", "agent_id": agent_id}
-    except ValueError:
-        raise HTTPException(status_code=409, detail="Agent is not trading")
+    except ValueError as e:
+        logger.warning("Stop trading failed for %s: %s", agent_id, e)
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{agent_id}/portfolio")
