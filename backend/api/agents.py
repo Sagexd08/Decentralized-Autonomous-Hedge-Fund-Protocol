@@ -1,9 +1,12 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 from typing import Optional
+import asyncio
+import logging
 
 from db.connection import execute_statement, fetch_all_dicts, fetch_one_dict
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 _MODEL_FAMILY = {

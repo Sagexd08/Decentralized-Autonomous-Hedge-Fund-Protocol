@@ -50,15 +50,22 @@ def _load_ml_artifacts():
 
 
 def _init_stellar():
-    """
-    Build the Stellar Soroban client from environment variables.
-    Returns a StellarContracts instance or None if not configured.
-    """
+    """Build the Stellar Soroban client from environment variables."""
     try:
         from core.stellar_client import build_stellar_client
         return build_stellar_client()
     except Exception as exc:
         logger.warning("Stellar client init failed: %s", exc)
+        return None
+
+
+def _init_solana():
+    """Build the Solana programs client from environment variables."""
+    try:
+        from core.solana_client import build_solana_client
+        return build_solana_client()
+    except Exception as exc:
+        logger.warning("Solana client init failed: %s", exc)
         return None
 
 
@@ -87,11 +94,19 @@ async def lifespan(app: FastAPI):
             stellar.allocation_engine_id,
         )
     else:
-        logger.warning(
-            "Stellar Soroban client not available. "
-            "Set STELLAR_AGENT_REGISTRY, STELLAR_ALLOCATION_ENGINE, "
-            "STELLAR_CAPITAL_VAULT, STELLAR_SLASHING_MODULE in .env"
+        logger.warning("Stellar Soroban client not available — check .env STELLAR_* vars.")
+
+    # Solana programs
+    solana = _init_solana()
+    app.state.solana = solana
+    if solana:
+        logger.info(
+            "Solana client initialized → wallet=%s vault=%s",
+            solana.wallet_address[:12],
+            solana.capital_vault_id[:12],
         )
+    else:
+        logger.warning("Solana client not available — check .env SOLANA_* vars.")
 
     # Trading engine
     from agents.trading_engine import AgentTradingEngine
@@ -102,13 +117,35 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("No ML model available — trading engine will use momentum fallback.")
 
-    app.state.trading_engine = AgentTradingEngine(
+    engine = AgentTradingEngine(
         stellar=stellar,
+        solana=solana,
         ml_model=ml_model,
         ml_scaler=ml_scaler,
     )
+    app.state.trading_engine = engine
 
-    # WebSocket event listener for on-chain events (only if Stellar available)
+    # Auto-start trading for all active agents from the registry
+    _auto_start_agents = []
+    try:
+        from api.agents import AGENTS
+        _auto_start_agents = [a["id"] for a in AGENTS if a.get("status") == "active"]
+    except Exception:
+        pass
+    if stellar:
+        try:
+            stellar_agents = stellar.registry_get_active_agents()
+            _auto_start_agents = list(set(_auto_start_agents + stellar_agents))
+        except Exception:
+            pass
+    for aid in _auto_start_agents:
+        try:
+            await engine.start(aid)
+            logger.info("Auto-started trading for agent %s", aid)
+        except Exception as exc:
+            logger.debug("Auto-start skipped for %s: %s", aid, exc)
+
+    # WebSocket event listener for on-chain events
     listener_task = None
     if stellar is not None:
         listener_task = asyncio.create_task(ws_trading.stellar_event_listener(app))
