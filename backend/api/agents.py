@@ -350,7 +350,7 @@ async def register_agent(data: AgentRegister, request: Request):
             solana_tx = await asyncio.to_thread(
                 solana.allocation_submit_update,
                 data.address,
-                0,
+                0,  # initial score = 0
             )
             logger.info("Solana AgentRegistry registration logged → %s", solana_tx)
         except Exception as exc:

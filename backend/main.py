@@ -1,11 +1,16 @@
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+
+# Load from project root .env (works regardless of working directory)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(_PROJECT_ROOT / ".env", override=False)
+# Also try local .env as fallback
+load_dotenv(override=False)
 
 import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
-from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request

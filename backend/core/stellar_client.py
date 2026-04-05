@@ -49,6 +49,12 @@ def _build_scval_u32(value: int):
     return scval.to_uint32(value)
 
 
+def _build_scval_vec(items: list):
+    """Wrap a Python list of SCVal objects into a Soroban Vec SCVal."""
+    from stellar_sdk import scval
+    return scval.to_vec(items)
+
+
 class StellarContracts:
     """
     Manages Soroban contract interactions for all four DACAP contracts.
@@ -304,16 +310,39 @@ class StellarContracts:
         except Exception:
             return 0
 
-    def allocation_submit_update(self, agent_address: str, return_bps: int) -> Optional[str]:
+    def allocation_submit_update(
+        self,
+        agent_addresses: list[str],
+        scores: list[int],
+        weights: list[int],
+    ) -> Optional[str]:
         """
-        Submit an epoch performance update for agent.
-        return_bps: signed return in basis points (e.g. 150 = +1.5%, -200 = -2%)
+        Submit a batch epoch performance update.
+
+        Matches the Soroban contract signature:
+          submit_update(agents: Vec<Address>, scores: Vec<i128>, weights: Vec<i128>)
+
+        agent_addresses: list of Stellar account addresses
+        scores:   signed performance scores in basis points per agent
+        weights:  allocation weights (fixed-point i128) per agent
         """
+        if not (len(agent_addresses) == len(scores) == len(weights)):
+            raise ValueError("agent_addresses, scores, and weights must have equal length")
+
         args = [
-            _build_scval_address(agent_address),
-            _build_scval_i128(return_bps),
+            _build_scval_vec([_build_scval_address(a) for a in agent_addresses]),
+            _build_scval_vec([_build_scval_i128(s) for s in scores]),
+            _build_scval_vec([_build_scval_i128(w) for w in weights]),
         ]
         return self._invoke(self.allocation_engine_id, "submit_update", args)
+
+    def allocation_submit_single_update(
+        self, agent_address: str, return_bps: int, weight: int = 0
+    ) -> Optional[str]:
+        """Convenience wrapper for a single-agent epoch update."""
+        return self.allocation_submit_update(
+            [agent_address], [return_bps], [weight]
+        )
 
     def allocation_get_reputation_score(self, agent_address: str) -> int:
         args = [_build_scval_address(agent_address)]

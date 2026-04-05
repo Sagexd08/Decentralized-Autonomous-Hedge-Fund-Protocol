@@ -154,7 +154,7 @@ class AgentTradingEngine:
         # Stellar
         if self.stellar and stellar_addr:
             try:
-                await asyncio.to_thread(self.stellar.allocation_submit_update, stellar_addr, return_bps)
+                await asyncio.to_thread(self.stellar.allocation_submit_single_update, stellar_addr, return_bps)
             except Exception as exc:
                 logger.debug("Stellar submit_update skipped: %s", exc)
             try:
@@ -274,7 +274,7 @@ class AgentTradingEngine:
                 bps = int(raw_returns[i] * 10_000)
                 if self.stellar and stellar_addr:
                     try:
-                        await asyncio.to_thread(self.stellar.allocation_submit_update, stellar_addr, bps)
+                        await asyncio.to_thread(self.stellar.allocation_submit_single_update, stellar_addr, bps)
                     except Exception:
                         pass
                 if self.solana and solana_addr:
