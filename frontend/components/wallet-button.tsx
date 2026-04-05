@@ -1,28 +1,29 @@
 "use client"
 
 import { usePrivy, useWallets } from "@privy-io/react-auth"
-import { Wallet, LogOut, ChevronDown, Copy, Check } from "lucide-react"
+import { useFreighter } from "@/hooks/use-freighter"
+import { Wallet, LogOut, ChevronDown, Copy, Check, Star } from "lucide-react"
 import { useState } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 
-function shortAddr(addr: string) {
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`
+function shortAddr(addr: string, len = 4) {
+  return `${addr.slice(0, len)}…${addr.slice(-len)}`
 }
 
-export function WalletButton() {
-  const { ready, authenticated, login, logout } = usePrivy()
+// ─── EVM wallet button (Privy) ────────────────────────────────────────────────
+function EvmWalletSection() {
+  const { authenticated, login, logout } = usePrivy()
   const { wallets } = useWallets()
   const [copied, setCopied] = useState(false)
-
-  const wallet = wallets[0]
-  const address = wallet?.address ?? null
+  const address = wallets[0]?.address ?? null
 
   const copyAddress = async () => {
     if (!address) return
@@ -30,6 +31,87 @@ export function WalletButton() {
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }
+
+  if (!authenticated || !address) {
+    return (
+      <DropdownMenuItem onClick={login} className="gap-2 cursor-pointer">
+        <Wallet className="w-3.5 h-3.5 text-violet-400" />
+        <span>Connect EVM Wallet</span>
+        <span className="ml-auto text-[10px] text-muted-foreground font-mono">ETH · SOL</span>
+      </DropdownMenuItem>
+    )
+  }
+
+  return (
+    <>
+      <div className="px-3 py-1.5 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
+        <span className="text-[10px] font-mono text-violet-400 tracking-wider">EVM</span>
+        <span className="font-mono text-[11px] text-foreground ml-1">{shortAddr(address)}</span>
+      </div>
+      <DropdownMenuItem onClick={copyAddress} className="gap-2 cursor-pointer text-muted-foreground hover:text-foreground pl-6 text-xs">
+        {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+        {copied ? "Copied!" : "Copy address"}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={logout} className="gap-2 cursor-pointer text-destructive hover:text-destructive pl-6 text-xs">
+        <LogOut className="w-3 h-3" />
+        Disconnect EVM
+      </DropdownMenuItem>
+    </>
+  )
+}
+
+// ─── Freighter wallet section ─────────────────────────────────────────────────
+function FreighterSection() {
+  const { connected, connecting, address, network, error, connect, disconnect } = useFreighter()
+  const [copied, setCopied] = useState(false)
+
+  const copyAddress = async () => {
+    if (!address) return
+    await navigator.clipboard.writeText(address)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
+  if (!connected || !address) {
+    return (
+      <DropdownMenuItem onClick={connect} disabled={connecting} className="gap-2 cursor-pointer">
+        <Star className="w-3.5 h-3.5 text-amber-400" />
+        <span>{connecting ? "Connecting…" : "Connect Freighter"}</span>
+        <span className="ml-auto text-[10px] text-muted-foreground font-mono">XLM</span>
+        {error && <span className="text-destructive text-[10px] truncate max-w-[120px]" title={error}>!</span>}
+      </DropdownMenuItem>
+    )
+  }
+
+  return (
+    <>
+      <div className="px-3 py-1.5 flex items-center gap-2">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+        <span className="text-[10px] font-mono text-amber-400 tracking-wider">STELLAR</span>
+        <span className="font-mono text-[11px] text-foreground ml-1">{shortAddr(address)}</span>
+        {network && <span className="text-[9px] text-muted-foreground ml-auto">{network}</span>}
+      </div>
+      <DropdownMenuItem onClick={copyAddress} className="gap-2 cursor-pointer text-muted-foreground hover:text-foreground pl-6 text-xs">
+        {copied ? <Check className="w-3 h-3 text-green-400" /> : <Copy className="w-3 h-3" />}
+        {copied ? "Copied!" : "Copy address"}
+      </DropdownMenuItem>
+      <DropdownMenuItem onClick={disconnect} className="gap-2 cursor-pointer text-destructive hover:text-destructive pl-6 text-xs">
+        <LogOut className="w-3 h-3" />
+        Disconnect Freighter
+      </DropdownMenuItem>
+    </>
+  )
+}
+
+// ─── Main wallet button ───────────────────────────────────────────────────────
+export function WalletButton() {
+  const { ready, authenticated } = usePrivy()
+  const { wallets } = useWallets()
+  const freighter = useFreighter()
+
+  const evmAddress = wallets[0]?.address ?? null
+  const anyConnected = (authenticated && !!evmAddress) || freighter.connected
 
   if (!ready) {
     return (
@@ -40,58 +122,52 @@ export function WalletButton() {
     )
   }
 
-  if (!authenticated || !address) {
-    return (
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={login}
-        className="font-mono text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/70 hover:text-amber-300 transition-all"
-      >
-        <Wallet className="w-3.5 h-3.5 mr-1.5" />
-        Connect Wallet
-      </Button>
-    )
-  }
-
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
           variant="outline"
           size="sm"
-          className="font-mono text-xs border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/15 hover:border-amber-500/80 transition-all gap-1.5"
+          className={`font-mono text-xs transition-all gap-1.5 ${
+            anyConnected
+              ? "border-amber-500/50 bg-amber-500/10 text-amber-400 hover:bg-amber-500/15 hover:border-amber-500/80"
+              : "border-border/60 text-muted-foreground hover:text-foreground hover:border-border"
+          }`}
         >
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-          {shortAddr(address)}
+          {anyConnected ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+              {freighter.connected && freighter.shortAddress
+                ? freighter.shortAddress
+                : evmAddress
+                ? shortAddr(evmAddress)
+                : "Wallet"}
+            </>
+          ) : (
+            <>
+              <Wallet className="w-3.5 h-3.5" />
+              Connect Wallet
+            </>
+          )}
           <ChevronDown className="w-3 h-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
+
       <DropdownMenuContent
         align="end"
-        className="border-border/60 bg-card/95 backdrop-blur-xl font-mono text-xs min-w-[200px]"
+        className="border-border/60 bg-card/95 backdrop-blur-xl min-w-[220px]"
       >
-        <div className="px-3 py-2 text-[10px] text-muted-foreground tracking-widest uppercase">
-          Connected Wallet
-        </div>
-        <div className="px-3 pb-2 text-amber-400 text-[11px] break-all">
-          {address}
-        </div>
-        <DropdownMenuSeparator className="bg-border/40" />
-        <DropdownMenuItem
-          onClick={copyAddress}
-          className="gap-2 cursor-pointer text-muted-foreground hover:text-foreground"
-        >
-          {copied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
-          {copied ? "Copied!" : "Copy address"}
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={logout}
-          className="gap-2 cursor-pointer text-destructive hover:text-destructive focus:text-destructive"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          Disconnect
-        </DropdownMenuItem>
+        <DropdownMenuLabel className="text-[10px] text-muted-foreground tracking-widest uppercase font-normal">
+          EVM / Solana
+        </DropdownMenuLabel>
+        <EvmWalletSection />
+
+        <DropdownMenuSeparator className="bg-border/40 my-1" />
+
+        <DropdownMenuLabel className="text-[10px] text-muted-foreground tracking-widest uppercase font-normal">
+          Stellar / Soroban
+        </DropdownMenuLabel>
+        <FreighterSection />
       </DropdownMenuContent>
     </DropdownMenu>
   )

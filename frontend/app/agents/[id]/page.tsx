@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
-import { MetricCard } from "@/components/dacap/metric-card"
+import { MetricCard } from "@/components/iris/metric-card"
 import {
   Dialog,
   DialogContent,
@@ -31,8 +31,7 @@ import {
 import { useAgent } from "@/hooks/use-agents"
 import { useTradingFeed } from "@/hooks/use-trading-feed"
 import { agentsApi } from "@/lib/api"
-import { usePrivy, useWallets } from "@privy-io/react-auth"
-import { CandleChart } from "@/components/dacap/candle-chart"
+import { CandleChart } from "@/components/iris/candle-chart"
 
 const riskColors: Record<string, string> = {
   Conservative: "bg-chart-3/20 text-chart-3 border-chart-3/30",
@@ -44,9 +43,6 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const { id } = use(params)
   const { agent, loading, refetch } = useAgent(id)
   const { events } = useTradingFeed()
-  const { authenticated, login } = usePrivy()
-  const { wallets } = useWallets()
-  const connectedAddress = wallets[0]?.address ?? ""
   const [actionLoading, setActionLoading] = useState(false)
   const [stakeOpen, setStakeOpen] = useState(false)
   const [stakeAmount, setStakeAmount] = useState("")
@@ -136,12 +132,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
                 placeholder="0x... or G..."
                 value={stakeAddress}
                 onChange={(e) => setStakeAddress(e.target.value)}
-                readOnly={!!connectedAddress}
-                className={connectedAddress ? "font-mono text-xs opacity-80" : ""}
               />
-              {connectedAddress && (
-                <p className="text-[11px] text-accent mt-1">Auto-filled from connected wallet</p>
-              )}
             </div>
             <div>
               <label className="text-sm text-muted-foreground mb-1 block">Amount (USD)</label>
@@ -207,14 +198,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
             </div>
 
             <div className="flex gap-3">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  if (!authenticated) { login(); return }
-                  setStakeAddress(connectedAddress)
-                  setStakeOpen(true)
-                }}
-              >
+              <Button variant="outline" onClick={() => setStakeOpen(true)}>
                 <DollarSign className="w-4 h-4 mr-2" />
                 Delegate Capital
               </Button>
