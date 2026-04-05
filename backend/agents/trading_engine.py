@@ -33,6 +33,14 @@ def _compute_decision(price_history: list[float]) -> str:
 
 
 class AgentTradingEngine:
+    # Agent-specific strategy configurations
+    AGENT_CONFIGS = {
+        "AGT-001": {"strategy": "momentum", "risk": "aggressive", "threshold": 0.0005, "lookback": 20, "confidence_boost": 1.2},
+        "AGT-002": {"strategy": "mean_reversion", "risk": "balanced", "threshold": 0.001, "lookback": 50, "confidence_boost": 1.0},
+        "AGT-003": {"strategy": "breakout", "risk": "conservative", "threshold": 0.002, "lookback": 100, "confidence_boost": 0.8},
+        "default": {"strategy": "momentum", "risk": "balanced", "threshold": 0.001, "lookback": 50, "confidence_boost": 1.0},
+    }
+
     def __init__(
         self,
         stellar: Optional["StellarContracts"] = None,
@@ -47,6 +55,14 @@ class AgentTradingEngine:
         self._tasks: dict[str, asyncio.Task] = {}
         self._peak_values: dict[str, float] = {}
         self._agent_returns: dict[str, list[int]] = {}
+        self._agent_configs: dict[str, dict] = {}
+
+    def _get_agent_config(self, agent_id: str) -> dict:
+        """Get agent-specific configuration or default."""
+        if agent_id not in self._agent_configs:
+            base_config = self.AGENT_CONFIGS.get(agent_id, self.AGENT_CONFIGS["default"]).copy()
+            self._agent_configs[agent_id] = base_config
+        return self._agent_configs[agent_id]
 
     async def start(self, agent_id: str) -> None:
         if self.is_trading(agent_id):
@@ -85,6 +101,18 @@ class AgentTradingEngine:
             await asyncio.sleep(10)
 
     async def _cycle(self, agent_id: str, history: deque) -> None:
+        """
+        Execute one trading cycle for an agent using agent-specific strategy.
+        Different agents use different risk profiles and decision logic.
+        """
+        # Get agent-specific configuration
+        config = self._get_agent_config(agent_id)
+        strategy = config["strategy"]
+        risk = config["risk"]
+        threshold = config["threshold"]
+        lookback = config["lookback"]
+        confidence_boost = config.get("confidence_boost", 1.0)
+        
         try:
             from agents.price_engine import price_engine
             current_prices: dict[str, float] = price_engine.get_current_prices()
@@ -101,34 +129,64 @@ class AgentTradingEngine:
         total_return_bps = 0
         for sym in TOKEN_SYMBOLS:
             price_series = [tick.get(sym, 0.0) for tick in history]
+            decision_source = "unknown"
+            
             try:
                 from agents.price_engine import price_engine as pe
-                from ml.live_inference import ml_decision
-                # Use longer history from price engine for better signal
-                hist100 = pe.get_history(sym, 100)
-                pred = ml_decision(sym, hist100, self.ml_model, self.ml_scaler)
-                decision = pred.decision.upper()
-                return_bps = int(pred.predicted_log_return * 10_000)
+                # Get agent-specific lookback period
+                agent_hist = pe.get_history(sym, lookback)
+                
+                # Apply agent-specific strategy
+                if strategy == "momentum":
+                    # AGT-001: Fast momentum, aggressive thresholds
+                    decision, return_bps = self._momentum_strategy(
+                        agent_hist, threshold, risk, confidence_boost
+                    )
+                    decision_source = f"momentum_{risk}"
+                    
+                elif strategy == "mean_reversion":
+                    # AGT-002: Mean reversion - buy dips, sell rallies
+                    decision, return_bps = self._mean_reversion_strategy(
+                        agent_hist, threshold, risk
+                    )
+                    decision_source = f"mean_reversion_{risk}"
+                    
+                elif strategy == "breakout":
+                    # AGT-003: Breakout detection with higher thresholds
+                    decision, return_bps = self._breakout_strategy(
+                        agent_hist, threshold, risk
+                    )
+                    decision_source = f"breakout_{risk}"
+                    
+                else:
+                    # Default to momentum
+                    decision, return_bps = self._momentum_strategy(
+                        agent_hist, threshold, risk, 1.0
+                    )
+                    decision_source = "momentum_default"
+                
+                logger.info(
+                    f"[{agent_id}] {strategy} decision for {sym}: {decision} "
+                    f"(threshold={threshold}, risk={risk}, bps={return_bps})"
+                )
+                
             except Exception as exc:
-                logger.debug("ML inference skipped for %s/%s: %s", agent_id, sym, exc)
-                # Use price engine history for momentum (more data = better signal)
-                try:
-                    from agents.price_engine import price_engine as pe
-                    long_hist = pe.get_history(sym, 20)
-                    decision = _compute_decision(long_hist[-4:] if len(long_hist) >= 4 else long_hist)
-                    price_now = long_hist[-1] if long_hist else price_series[-1]
-                    price_old = long_hist[0]  if long_hist else price_series[0]
-                    return_bps = int(((price_now - price_old) / max(price_old, 1e-9)) * 10_000)
-                except Exception:
-                    decision = _compute_decision(price_series)
-                    price_now = price_series[-1]
-                    price_old = price_series[0]
-                    return_bps = int(((price_now - price_old) / max(price_old, 1e-9)) * 10_000)
+                logger.debug(f"Agent-specific strategy failed for {agent_id}/{sym}: {exc}")
+                # Fallback to basic momentum
+                decision = _compute_decision(price_series)
+                price_now = price_series[-1]
+                price_old = price_series[0]
+                return_bps = int(((price_now - price_old) / max(price_old, 1e-9)) * 10_000)
+                decision_source = "momentum_fallback"
+                logger.info(f"[{agent_id}] Fallback decision for {sym}: {decision}")
 
             total_return_bps += return_bps
-            logger.debug("Agent %s | %s | decision=%s bps=%d", agent_id, sym, decision, return_bps)
+            logger.info(f"[{agent_id}] {sym} | decision={decision} bps={return_bps} source={decision_source}")
             if decision in ("BUY", "SELL"):
+                logger.info(f"[{agent_id}] EXECUTING TRADE: {decision} {sym}")
                 await self._execute_trade(agent_id, sym, decision, return_bps, current_prices)
+            else:
+                logger.info(f"[{agent_id}] HOLD - no trade executed for {sym}")
 
         if agent_id not in self._agent_returns:
             self._agent_returns[agent_id] = []
@@ -138,6 +196,82 @@ class AgentTradingEngine:
 
         if len(self._agent_returns[agent_id]) % 6 == 0:
             await self._push_mwu_weights()
+
+    # Strategy implementations
+    def _momentum_strategy(self, prices: list[float], threshold: float, risk: str, confidence_boost: float) -> tuple[str, int]:
+        """Fast momentum strategy - buys on upward momentum, sells on downward."""
+        if len(prices) < 4:
+            return "HOLD", 0
+        
+        # Calculate momentum with lookback
+        price_now = prices[-1]
+        price_old = prices[-4] if len(prices) >= 4 else prices[0]
+        momentum = (price_now - price_old) / max(price_old, 1e-9)
+        
+        # Apply confidence boost for aggressive agents
+        adjusted_threshold = threshold / confidence_boost
+        
+        # Aggressive agents trade more frequently
+        if risk == "aggressive":
+            if momentum > adjusted_threshold:
+                return "BUY", int(momentum * 10_000)
+            elif momentum < -adjusted_threshold:
+                return "SELL", int(momentum * 10_000)
+        else:
+            if momentum > threshold:
+                return "BUY", int(momentum * 10_000)
+            elif momentum < -threshold:
+                return "SELL", int(momentum * 10_000)
+        
+        return "HOLD", int(momentum * 10_000)
+
+    def _mean_reversion_strategy(self, prices: list[float], threshold: float, risk: str) -> tuple[str, int]:
+        """Mean reversion strategy - buys dips, sells rallies."""
+        if len(prices) < 20:
+            return "HOLD", 0
+        
+        # Calculate rolling mean and std
+        recent = prices[-20:]
+        mean_price = sum(recent) / len(recent)
+        std_price = (sum((p - mean_price) ** 2 for p in recent) / len(recent)) ** 0.5
+        
+        price_now = prices[-1]
+        z_score = (price_now - mean_price) / max(std_price, 1e-9)
+        
+        # Mean reversion: buy when below mean (negative z), sell when above (positive z)
+        # Higher threshold for conservative approach
+        if z_score < -threshold * 100:  # Oversold - buy the dip
+            return "BUY", int(-z_score * 100)
+        elif z_score > threshold * 100:  # Overbought - sell the rally
+            return "SELL", int(-z_score * 100)
+        
+        return "HOLD", int(z_score * 100)
+
+    def _breakout_strategy(self, prices: list[float], threshold: float, risk: str) -> tuple[str, int]:
+        """Breakout strategy - trades on price breaking support/resistance."""
+        if len(prices) < 20:
+            return "HOLD", 0
+        
+        # Calculate support and resistance levels
+        recent = prices[-20:]
+        support = min(recent)
+        resistance = max(recent)
+        mid_range = (support + resistance) / 2
+        
+        price_now = prices[-1]
+        
+        # Higher thresholds for conservative breakout detection
+        breakout_threshold = threshold * 2
+        
+        # Check for breakout above resistance (BUY)
+        if price_now > resistance * (1 - breakout_threshold * 0.1):
+            return "BUY", int(((price_now - mid_range) / mid_range) * 10_000)
+        
+        # Check for breakdown below support (SELL)
+        if price_now < support * (1 + breakout_threshold * 0.1):
+            return "SELL", int(((price_now - mid_range) / mid_range) * 10_000)
+        
+        return "HOLD", int(((price_now - mid_range) / mid_range) * 10_000)
 
     async def _execute_trade(
         self,
