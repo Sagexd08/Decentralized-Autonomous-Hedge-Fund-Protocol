@@ -15,7 +15,14 @@ export function useTradingFeed(): { events: TradeEvent[]; connected: boolean } {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const connect = useCallback(() => {
-    const ws = new WebSocket(`${WS_URL}/ws/trading`)
+    const wsEndpoint =
+      WS_URL !== "same-origin"
+        ? `${WS_URL}/ws/trading`
+        : typeof window !== "undefined"
+          ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/trading`
+          : "ws://localhost:3000/ws/trading"
+
+    const ws = new WebSocket(wsEndpoint)
     wsRef.current = ws
 
     ws.onopen = () => setConnected(true)

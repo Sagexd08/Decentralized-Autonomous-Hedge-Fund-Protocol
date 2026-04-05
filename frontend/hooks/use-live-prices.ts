@@ -22,7 +22,14 @@ export function useLivePrices(): { prices: PricesMap; connected: boolean } {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const connect = useCallback(() => {
-    const ws = new WebSocket(`${WS_URL}/ws/prices`)
+    const wsEndpoint =
+      WS_URL !== "same-origin"
+        ? `${WS_URL}/ws/prices`
+        : typeof window !== "undefined"
+          ? `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/prices`
+          : "ws://localhost:3000/ws/prices"
+
+    const ws = new WebSocket(wsEndpoint)
     wsRef.current = ws
 
     ws.onopen = () => setConnected(true)
