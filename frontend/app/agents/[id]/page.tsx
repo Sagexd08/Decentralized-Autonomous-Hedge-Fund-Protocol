@@ -56,7 +56,7 @@ const riskColors: Record<string, string> = {
 
 /** Submit a Stellar XLM payment to the Capital Vault (Freighter signs) */
 async function submitStellarStake(amount: number, memo: string): Promise<string> {
-  const { requestTransaction, getAddress } = await import("@stellar/freighter-api")
+  const { signTransaction, getAddress } = await import("@stellar/freighter-api")
   const addrResult = await getAddress()
   if (addrResult.error) throw new Error(addrResult.error)
 
@@ -64,7 +64,6 @@ async function submitStellarStake(amount: number, memo: string): Promise<string>
     process.env.NEXT_PUBLIC_STELLAR_CAPITAL_VAULT ??
     "CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6"
 
-  // 1. Ask backend to build unsigned Payment XDR
   const res = await fetch("/api/agents/stake/stellar/build", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -82,7 +81,10 @@ async function submitStellarStake(amount: number, memo: string): Promise<string>
   const { xdr } = await res.json()
 
   // 2. Freighter signs
-  const signedResult = await requestTransaction({ xdr, network: "TESTNET" })
+  const signedResult = await signTransaction(xdr, {
+    networkPassphrase: "Test SDF Network ; September 2015",
+    address: addrResult.address,
+  })
   if (signedResult.error) throw new Error(signedResult.error)
 
   // 3. Submit signed XDR to Horizon via backend
