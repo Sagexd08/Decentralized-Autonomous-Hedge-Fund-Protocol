@@ -177,6 +177,13 @@ class AgentTradingEngine:
         account = self._account_for(agent_id)
         allocation = self._remaining_allocation(agent_id)
         slice_wei = allocation // 10
+        if account is None:
+            # No accounts configured — broadcast simulated trades only
+            if decision in ("buy", "BUY") and slice_wei > 0:
+                await self._broadcast_simulated_trade(agent_id, sym, slice_wei, "swap")
+            elif decision in ("sell", "SELL"):
+                await self._broadcast_simulated_trade(agent_id, sym, int(0.05e18), "swap")
+            return
 
         if decision in ("buy", "BUY") and slice_wei > 0:
 
@@ -195,6 +202,8 @@ class AgentTradingEngine:
         if self.vault is None:
             return False
         account = self._account_for(agent_id)
+        if account is None:
+            return False
         try:
             tx = self.vault.functions.executeSwap(token_addr, amount_wei, 0).build_transaction({
                 "from": account.address,
@@ -222,20 +231,24 @@ class AgentTradingEngine:
 
             amount_out = int(amount_wei * price / 1e18 * 1e8)
             import time
+            account = self._account_for(agent_id)
+            agent_addr = account.address if account else agent_id
             await broadcaster.broadcast({
-                "agent":     self._account_for(agent_id).address,
+                "agent":     agent_addr,
                 "token":     sym,
                 "amountIn":  str(amount_wei),
                 "amountOut": str(amount_out),
                 "timestamp": int(time.time()),
                 "type":      trade_type,
             })
-            logger.info(f"Agent {agent_id} simulated {trade_type}: {amount_wei/1e18:.4f} ETH → {sym}")
+            logger.info(f"Agent {agent_id} simulated {trade_type}: {amount_wei/1e18:.4f} ETH -> {sym}")
         except Exception as e:
             logger.warning(f"Failed to broadcast simulated trade: {e}")
 
     async def _send_tx(self, agent_id: str, fn, value: int = 0) -> None:
         account = self._account_for(agent_id)
+        if account is None or self.w3 is None:
+            return
         try:
             tx = fn.build_transaction({
                 "from": account.address,
@@ -249,16 +262,17 @@ class AgentTradingEngine:
             logger.warning(f"Agent {agent_id} tx reverted or failed: {e}")
 
     def _account_for(self, agent_id: str) -> LocalAccount:
-        """Derive account slot from agent_id hex string."""
-        try:
-            slot = int(agent_id, 16) % len(self.accounts)
-        except (ValueError, TypeError):
-            slot = hash(agent_id) % len(self.accounts)
+        """Derive account slot from agent_id. Returns None when no accounts are configured."""
+        if not self.accounts:
+            return None
+        slot = hash(agent_id) % len(self.accounts)
         return self.accounts[slot]
 
     def _remaining_allocation(self, agent_id: str) -> int:
         """Read remaining allocation from chain using delegation params."""
         account = self._account_for(agent_id)
+        if account is None or self.vault is None:
+            return int(1e18)
         try:
             deployed = self.vault.functions.agentDeployedWei(account.address).call()
 

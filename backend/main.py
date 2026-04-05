@@ -33,10 +33,13 @@ def _init_web3_and_contracts():
         from web3 import Web3
         from eth_account import Account
 
-        rpc_url = os.getenv("STELLAR_RPC_URL", "https://horizon-testnet.stellar.org")
+        rpc_url = os.getenv("ETH_RPC_URL") or os.getenv("ALCHEMY_ETH_SEPOLIA_URL", "")
+        if not rpc_url:
+            logger.warning("ETH_RPC_URL not set. Trading engine disabled.")
+            return None
         w3 = Web3(Web3.HTTPProvider(rpc_url))
         if not w3.is_connected():
-            logger.warning(f"Cannot connect to Stellar node at {rpc_url}. Trading engine disabled.")
+            logger.warning(f"Cannot connect to Ethereum node at {rpc_url}. Trading engine disabled.")
             return None
 
         with open(_CONFIG_PATH) as f:
@@ -55,13 +58,12 @@ def _init_web3_and_contracts():
         vault = w3.eth.contract(address=cfg["capital_vault"], abi=vault_abi)
         price_feed = w3.eth.contract(address=cfg["MockPriceFeed"], abi=price_feed_abi)
 
-        stellar_keys = os.getenv("STELLAR_PRIVATE_KEYS", "")
-        if stellar_keys:
-            accounts = [Account.from_key(k.strip()) for k in stellar_keys.split(",") if k.strip()]
+        eth_keys = os.getenv("ETH_PRIVATE_KEYS", "")
+        if eth_keys:
+            accounts = [Account.from_key(k.strip()) for k in eth_keys.split(",") if k.strip()]
         else:
-            # Use the provided Stellar key as default
-            default_key = "GCLZ64XJEQJO6JXYVXULSRUDHSBM3WWGKO2AILWJSED5G4FSBIJEZMBL"
-            accounts = [Account.from_key(default_key)]
+            logger.warning("ETH_PRIVATE_KEYS not set; trading engine will run in simulated mode.")
+            accounts = []
 
         return w3, vault, price_feed, accounts
     except Exception as e:
