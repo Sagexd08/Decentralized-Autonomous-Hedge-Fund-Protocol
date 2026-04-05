@@ -42,10 +42,7 @@ DEVICE        = torch.device("cpu")
 DECISION_LABELS = ("SELL", "HOLD", "BUY")
 
 def load_bitcoin_data() -> pd.DataFrame:
-    """
-    Download Bitcoin historical OHLCV data from Kaggle via kagglehub.
-    Falls back gracefully if the dataset is unavailable.
-    """
+
     log.info("Fetching Bitcoin dataset from Kaggle…")
     try:
         import kagglehub  # pyright: ignore[reportMissingImports]

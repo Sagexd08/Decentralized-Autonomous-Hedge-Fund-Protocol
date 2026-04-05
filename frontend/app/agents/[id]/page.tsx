@@ -35,20 +35,17 @@ import { agentsApi } from "@/lib/api"
 import { CandleChart } from "@/components/iris/candle-chart"
 import { usePrivy, useWallets } from "@privy-io/react-auth"
 import { useFreighter } from "@/hooks/use-freighter"
-import { useAlgorand } from "@/hooks/use-algorand"
 
-type Chain = "stellar" | "solana" | "algorand"
+type Chain = "stellar" | "solana"
 
 const CHAIN_LABELS: Record<Chain, string> = {
   stellar: "Stellar / Soroban",
-  solana: "Solana",
-  algorand: "Algorand",
+  solana: "Solana / EVM",
 }
 
 const CHAIN_COLORS: Record<Chain, string> = {
   stellar: "border-amber-500/60 bg-amber-500/10 text-amber-400",
   solana: "border-violet-500/60 bg-violet-500/10 text-violet-400",
-  algorand: "border-blue-500/60 bg-blue-500/10 text-blue-400",
 }
 
 const riskColors: Record<string, string> = {
@@ -57,82 +54,50 @@ const riskColors: Record<string, string> = {
   Aggressive: "bg-destructive/20 text-destructive border-destructive/30",
 }
 
-/** Submit a Stellar payment to CAPITAL_VAULT_ADDRESS (XLM micro-payment as proof of intent) */
+/** Submit a Stellar XLM payment to the Capital Vault (Freighter signs) */
 async function submitStellarStake(amount: number, memo: string): Promise<string> {
-  const { requestTransaction, getAddress } = await import("@stellar/freighter-api")
+  const { signTransaction, getAddress } = await import("@stellar/freighter-api")
   const addrResult = await getAddress()
   if (addrResult.error) throw new Error(addrResult.error)
 
-  const CAPITAL_VAULT = process.env.NEXT_PUBLIC_STELLAR_CAPITAL_VAULT
-    ?? "CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6"
+  const CAPITAL_VAULT =
+    process.env.NEXT_PUBLIC_STELLAR_CAPITAL_VAULT ??
+    "CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6"
 
-  // Build XDR on a small backend helper (or build here with minimal stellar-base)
-  // We call our own API to build + submit; Freighter just signs
-  const res = await fetch("/api/stake/stellar", {
+  const res = await fetch("/api/agents/stake/stellar/build", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ from: addrResult.address, to: CAPITAL_VAULT, amount, memo }),
+    body: JSON.stringify({
+      from_address: addrResult.address,
+      to_address: CAPITAL_VAULT,
+      amount_xlm: amount,
+      memo,
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err?.detail ?? "Stellar stake API failed")
+    throw new Error(err?.detail ?? "Stellar stake build failed")
   }
   const { xdr } = await res.json()
 
-  const signedResult = await requestTransaction({ xdr, network: "TESTNET" })
+  // 2. Freighter signs
+  const signedResult = await signTransaction(xdr, {
+    networkPassphrase: "Test SDF Network ; September 2015",
+    address: addrResult.address,
+  })
   if (signedResult.error) throw new Error(signedResult.error)
 
-  // Submit signed XDR
-  const submitRes = await fetch("/api/stake/stellar/submit", {
+  // 3. Submit signed XDR to Horizon via backend
+  const submitRes = await fetch("/api/agents/stake/stellar/submit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ xdr: signedResult.signedTxXdr }),
+    body: JSON.stringify({ signed_xdr: signedResult.signedTxXdr }),
   })
-  if (!submitRes.ok) throw new Error("Transaction submission failed")
+  if (!submitRes.ok) throw new Error("Stellar transaction submission failed")
   const { txid } = await submitRes.json()
   return txid
 }
 
-/** Submit an Algorand payment to the Capital Vault app (Pera signs) */
-async function submitAlgorandStake(
-  address: string,
-  amount: number,
-  agentId: string,
-  peraConnect: () => Promise<void>
-): Promise<string> {
-  const { PeraWalletConnect } = await import("@perawallet/connect")
-  const pera = new PeraWalletConnect()
-  // reconnect if session exists
-  try { await pera.reconnectSession() } catch {}
-
-  const APP_ID = parseInt(process.env.NEXT_PUBLIC_ALGORAND_CAPITAL_VAULT_APP_ID ?? "758312952")
-  const microAlgos = Math.round(amount * 1_000_000)
-
-  // Build unsigned txn via our backend
-  const res = await fetch("/api/agents/stake/algorand/build", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ from_address: address, app_id: APP_ID, amount: microAlgos, agent_id: agentId }),
-  })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err?.detail ?? "Algorand stake API failed")
-  }
-  const { txn_b64 } = await res.json()
-
-  // Pera signs the base64 encoded unsigned txn
-  const signedTxns = await pera.signTransaction([[{ txn: txn_b64 }]])
-
-  // Submit
-  const submitRes = await fetch("/api/agents/stake/algorand/submit", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ signed_txn: Buffer.from(signedTxns[0]).toString("base64") }),
-  })
-  if (!submitRes.ok) throw new Error("Algorand transaction submission failed")
-  const { txid } = await submitRes.json()
-  return txid
-}
 
 export default function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -152,16 +117,14 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
   const { authenticated, login } = usePrivy()
   const { wallets } = useWallets()
   const freighter = useFreighter()
-  const algorand = useAlgorand()
 
   const evmAddress = wallets[0]?.address ?? null
-  const isAnyConnected = authenticated || freighter.connected || algorand.connected
+  const isAnyConnected = authenticated || freighter.connected
 
   // Derive the address for the selected chain
   const selectedAddress = (): string => {
     if (stakeChain === "stellar") return freighter.address ?? ""
     if (stakeChain === "solana") return evmAddress ?? ""
-    if (stakeChain === "algorand") return algorand.address ?? ""
     return ""
   }
 
@@ -204,10 +167,8 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
 
       if (stakeChain === "stellar") {
         txid = await submitStellarStake(parseFloat(stakeAmount), agent.id)
-      } else if (stakeChain === "algorand") {
-        txid = await submitAlgorandStake(addr, parseFloat(stakeAmount), agent.id, algorand.connect)
       }
-      // Solana: record off-chain for now (Privy embedded wallet doesn't expose raw signing)
+      // Solana: record off-chain — Privy embedded wallet doesn't expose raw signing
 
       // Record stake in our backend
       await agentsApi.stake({
@@ -237,7 +198,6 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
     }
     // Pre-select chain based on which wallet is connected
     if (freighter.connected) setStakeChain("stellar")
-    else if (algorand.connected) setStakeChain("algorand")
     else setStakeChain("solana")
     setStakeAmount("")
     setStakeError(null)
@@ -291,12 +251,10 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
               {/* Chain selector */}
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block">Select Chain</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {(["stellar", "solana", "algorand"] as Chain[]).map((chain) => {
+                <div className="grid grid-cols-2 gap-2">
+                  {(["stellar", "solana"] as Chain[]).map((chain) => {
                     const addr =
-                      chain === "stellar" ? freighter.address
-                      : chain === "solana" ? evmAddress
-                      : algorand.address
+                      chain === "stellar" ? freighter.address : evmAddress
                     const isConnectedForChain = !!addr
                     return (
                       <button
@@ -362,12 +320,6 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
                   Install Freighter browser extension and connect it above to stake via Stellar.
                 </p>
               )}
-              {stakeChain === "algorand" && !algorand.connected && (
-                <p className="text-xs text-blue-400">
-                  Connect Pera Wallet above to stake via Algorand.
-                </p>
-              )}
-
               <DialogFooter>
                 <Button variant="outline" onClick={() => setStakeOpen(false)}>Cancel</Button>
                 <Button
@@ -657,11 +609,6 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
             {authenticated && evmAddress && (
               <span className="text-[11px] font-mono px-2 py-1 rounded border border-violet-500/30 bg-violet-500/5 text-violet-400">
                 EVM {evmAddress.slice(0, 6)}…
-              </span>
-            )}
-            {algorand.connected && algorand.address && (
-              <span className="text-[11px] font-mono px-2 py-1 rounded border border-blue-500/30 bg-blue-500/5 text-blue-400">
-                Algorand {algorand.address.slice(0, 6)}…
               </span>
             )}
           </div>
