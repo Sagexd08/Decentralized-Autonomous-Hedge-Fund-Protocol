@@ -35,6 +35,30 @@ Core contracts live under [contracts/src](/mnt/c/Users/sohom/OneDrive/Desktop/ha
 - [AgentRegistry.sol](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/contracts/src/AgentRegistry.sol)
 - [SlashingModule.sol](/mnt/c/Users/sohom/OneDrive/Desktop/hacktropica/contracts/src/SlashingModule.sol)
 
+## Deployed Contract Addresses
+
+### Stellar (Soroban) — Testnet
+
+| Contract | Address |
+|---|---|
+| AgentRegistry | `CDJD33R7ZVT7YZD2T6ROK2MPK2XRYJCKSM4AQOXPKCGMIQCAN7R6RTVJ` |
+| AllocationEngine | `CBBXJBG5Y74XBO7NSWUXNOZVEBWTBCEL6ZAPEXULASBIM3FSEZBRPPUV` |
+| CapitalVault | `CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6` |
+| SlashingModule | `CAHJFZI7IZSPAZK35LZLYNG564F3LPQZFDRRFXFUENVWGY7Q6OHE3U5I` |
+
+Deployer key address: `GCLZ64XJEQJO6JXYVXULSRUDHSBM3WWGKO2AILWJSED5G4FSBIJEZMBL`
+
+### Solana — Testnet
+
+| Contract | Program ID |
+|---|---|
+| AgentRegistry | `F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN` |
+| AllocationEngine | `2MKzNfzPkEvsj6BKSrEEc9d4hdXmZnkyYQgTEtFZqbvR` |
+| CapitalVault | `4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2` |
+| SlashingModule | `AC6xZSbeD6fMRafNVGbnuN4vt94py7heNKyepp7KqBUv` |
+
+Deployer wallet address: `9cNCsgFCoutgvftQTdV9YigxSrFXWqd5v7Zjnmw8beqB`
+
 ### 2. Backend intelligence layer
 
 The backend coordinates:

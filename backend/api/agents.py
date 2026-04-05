@@ -437,7 +437,6 @@ def list_agents(risk: Optional[str] = None):
     except Exception:
         pass
 
-=======
 def _augment_agent(agent: dict):
     trust_score = max(1, min(100, int(round(agent["score"] * 0.55 + agent["sharpe"] * 12 - abs(agent["drawdown"]) * 0.8))))
     confidence_score = round(max(0.35, min(0.97, 0.55 + agent["sharpe"] * 0.08 - abs(agent["drawdown"]) * 0.006)), 2)

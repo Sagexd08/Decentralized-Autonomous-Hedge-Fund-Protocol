@@ -1,9 +1,5 @@
 import os
-<<<<<<< HEAD
-from sqlalchemy import create_engine, text
-=======
 from sqlalchemy import create_engine
->>>>>>> D!
 from sqlalchemy.orm import sessionmaker
 from core.settings import settings
 
@@ -18,7 +14,6 @@ def get_db():
         yield db
     finally:
         db.close()
-<<<<<<< HEAD
 
 def fetch_all_dicts(query: str, params: dict | None = None) -> list[dict]:
     with engine.connect() as connection:
@@ -34,5 +29,3 @@ def fetch_one_dict(query: str, params: dict | None = None) -> dict | None:
 def execute_statement(query: str, params: dict | None = None) -> None:
     with engine.begin() as connection:
         connection.execute(text(query), params or {})
-=======
->>>>>>> D!

@@ -1,20 +1,12 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS investors (
-=======
-CREATE TABLE investors (
->>>>>>> D!
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     address VARCHAR(42) UNIQUE NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS pools (
-=======
-CREATE TABLE pools (
->>>>>>> D!
     id VARCHAR(20) PRIMARY KEY,
     name VARCHAR(50) NOT NULL,
     volatility_cap_bps INTEGER NOT NULL,
@@ -23,7 +15,6 @@ CREATE TABLE pools (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-<<<<<<< HEAD
 INSERT INTO pools (id, name, volatility_cap_bps, tvl, apy, created_at) VALUES
     ('conservative', 'Conservative', 800, 4200000, 12.4, NOW()),
     ('balanced', 'Balanced', 1800, 8700000, 24.7, NOW()),
@@ -31,14 +22,6 @@ INSERT INTO pools (id, name, volatility_cap_bps, tvl, apy, created_at) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS deposits (
-=======
-INSERT INTO pools VALUES
-    ('conservative', 'Conservative', 800, 4200000, 12.4, NOW()),
-    ('balanced', 'Balanced', 1800, 8700000, 24.7, NOW()),
-    ('aggressive', 'Aggressive', 3500, 12400000, 47.2, NOW());
-
-CREATE TABLE deposits (
->>>>>>> D!
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     investor_id UUID REFERENCES investors(id),
     pool_id VARCHAR(20) REFERENCES pools(id),
@@ -47,11 +30,7 @@ CREATE TABLE deposits (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS agents (
-=======
-CREATE TABLE agents (
->>>>>>> D!
     id VARCHAR(20) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     owner_address VARCHAR(42) NOT NULL,
@@ -63,11 +42,7 @@ CREATE TABLE agents (
     registered_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS agent_performance (
-=======
-CREATE TABLE agent_performance (
->>>>>>> D!
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     agent_id VARCHAR(20) REFERENCES agents(id),
     timestamp TIMESTAMPTZ DEFAULT NOW(),
@@ -79,11 +54,7 @@ CREATE TABLE agent_performance (
     reputation_score NUMERIC(8, 4)
 );
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS allocation_history (
-=======
-CREATE TABLE allocation_history (
->>>>>>> D!
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     agent_id VARCHAR(20) REFERENCES agents(id),
     weight NUMERIC(10, 8) NOT NULL,
@@ -92,11 +63,7 @@ CREATE TABLE allocation_history (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS slash_events (
-=======
-CREATE TABLE slash_events (
->>>>>>> D!
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     agent_id VARCHAR(20) REFERENCES agents(id),
     drawdown_bps INTEGER NOT NULL,
@@ -105,11 +72,7 @@ CREATE TABLE slash_events (
     timestamp TIMESTAMPTZ DEFAULT NOW()
 );
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS proposals (
-=======
-CREATE TABLE proposals (
->>>>>>> D!
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     param_name VARCHAR(50),
@@ -122,11 +85,7 @@ CREATE TABLE proposals (
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS votes (
-=======
-CREATE TABLE votes (
->>>>>>> D!
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     proposal_id INTEGER REFERENCES proposals(id),
     voter_address VARCHAR(42) NOT NULL,
@@ -136,11 +95,7 @@ CREATE TABLE votes (
     UNIQUE(proposal_id, voter_address)
 );
 
-<<<<<<< HEAD
 CREATE TABLE IF NOT EXISTS contracts (
-=======
-CREATE TABLE contracts (
->>>>>>> D!
     id VARCHAR(20) PRIMARY KEY,
     name VARCHAR(100) NOT NULL,
     address VARCHAR(42) UNIQUE NOT NULL,
@@ -150,14 +105,7 @@ CREATE TABLE contracts (
     version VARCHAR(20)
 );
 
-<<<<<<< HEAD
 CREATE INDEX IF NOT EXISTS idx_agent_perf_agent ON agent_performance(agent_id);
 CREATE INDEX IF NOT EXISTS idx_agent_perf_time ON agent_performance(timestamp);
 CREATE INDEX IF NOT EXISTS idx_alloc_agent ON allocation_history(agent_id);
 CREATE INDEX IF NOT EXISTS idx_deposits_investor ON deposits(investor_id);
-=======
-CREATE INDEX idx_agent_perf_agent ON agent_performance(agent_id);
-CREATE INDEX idx_agent_perf_time ON agent_performance(timestamp);
-CREATE INDEX idx_alloc_agent ON allocation_history(agent_id);
-CREATE INDEX idx_deposits_investor ON deposits(investor_id);
->>>>>>> D!
