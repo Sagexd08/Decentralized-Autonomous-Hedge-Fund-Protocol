@@ -57,36 +57,60 @@ async def stellar_event_listener(app) -> None:
     """
     Background task: poll Stellar Soroban CapitalVault events and broadcast
     to WebSocket clients every 5 seconds.
-
-    Stellar Soroban does not support push subscriptions; we poll the latest
-    ledger events via simulate calls and detect changes in TVL / agent weights.
+    Also polls Solana CapitalVault TVL for cross-chain comparison.
     """
     stellar = getattr(app.state, "stellar", None)
-    if stellar is None:
-        logger.info("stellar_event_listener: no Stellar client, exiting.")
+    solana  = getattr(app.state, "solana", None)
+
+    if stellar is None and solana is None:
+        logger.info("stellar_event_listener: no chain clients, exiting.")
         return
 
-    last_tvl: int = -1
+    last_stellar_tvl: int = -1
+    last_solana_tvl: int  = -1
 
     while True:
         try:
-            # Run blocking Stellar call in a thread
-            tvl = await asyncio.to_thread(stellar.vault_total_tvl)
+            stellar_tvl = 0
+            solana_tvl  = 0
 
-            if tvl != last_tvl and last_tvl != -1:
-                # TVL changed — broadcast a synthetic event
+            if stellar:
+                try:
+                    stellar_tvl = await asyncio.to_thread(stellar.vault_total_tvl)
+                except Exception:
+                    pass
+
+            if solana:
+                try:
+                    solana_tvl = await asyncio.to_thread(solana.vault_total_tvl)
+                except Exception:
+                    pass
+
+            stellar_changed = stellar_tvl != last_stellar_tvl and last_stellar_tvl != -1
+            solana_changed  = solana_tvl  != last_solana_tvl  and last_solana_tvl  != -1
+
+            if stellar_changed or solana_changed:
                 await broadcaster.broadcast({
-                    "type":      "tvl_change",
-                    "total_tvl": tvl,
-                    "delta":     tvl - last_tvl,
+                    "type":         "tvl_change",
+                    "stellar_tvl":  stellar_tvl,
+                    "solana_tvl":   solana_tvl,
+                    "total_tvl":    stellar_tvl + solana_tvl,
+                    "stellar_delta": stellar_tvl - last_stellar_tvl if last_stellar_tvl != -1 else 0,
+                    "solana_delta":  solana_tvl  - last_solana_tvl  if last_solana_tvl  != -1 else 0,
                     "contracts": {
-                        "capital_vault":     stellar.capital_vault_id,
-                        "allocation_engine": stellar.allocation_engine_id,
+                        "stellar_capital_vault":     stellar.capital_vault_id if stellar else None,
+                        "stellar_allocation_engine": stellar.allocation_engine_id if stellar else None,
+                        "solana_capital_vault":      solana.capital_vault_id if solana else None,
+                        "solana_allocation_engine":  solana.allocation_engine_id if solana else None,
                     },
                 })
-                logger.info("Stellar TVL changed: %d -> %d", last_tvl, tvl)
+                logger.info(
+                    "TVL change → stellar: %d→%d  solana: %d→%d",
+                    last_stellar_tvl, stellar_tvl, last_solana_tvl, solana_tvl,
+                )
 
-            last_tvl = tvl
+            last_stellar_tvl = stellar_tvl
+            last_solana_tvl  = solana_tvl
 
         except asyncio.CancelledError:
             raise

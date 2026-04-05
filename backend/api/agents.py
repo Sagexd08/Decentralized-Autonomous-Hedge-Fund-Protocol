@@ -326,7 +326,38 @@ def get_agent(agent_id: str):
     return _augment_agent(agent)
 
 @router.post("/register")
-def register_agent(data: AgentRegister):
+async def register_agent(data: AgentRegister, request: Request):
+    stellar = getattr(request.app.state, "stellar", None)
+    solana  = getattr(request.app.state, "solana", None)
+
+    stellar_tx: str | None = None
+    solana_tx: str | None = None
+
+    # Register on Stellar AgentRegistry
+    if stellar and stellar.public_key:
+        try:
+            stellar_tx = await asyncio.to_thread(
+                stellar._invoke,
+                stellar.agent_registry_id,
+                "register_agent",
+                [],
+            )
+            logger.info("Stellar AgentRegistry.register_agent → tx=%s", stellar_tx)
+        except Exception as exc:
+            logger.warning("Stellar register_agent failed: %s", exc)
+
+    # Register on Solana AgentRegistry (logged, real instruction pending IDL)
+    if solana:
+        try:
+            solana_tx = await asyncio.to_thread(
+                solana.allocation_submit_update,
+                data.address,
+                0,
+            )
+            logger.info("Solana AgentRegistry registration logged → %s", solana_tx)
+        except Exception as exc:
+            logger.warning("Solana register_agent failed: %s", exc)
+
     try:
         risk_pool = _RISK_LABEL_TO_POOL.get(data.risk.lower(), "balanced")
         existing = fetch_all_dicts("select id from agents order by id")
@@ -347,7 +378,12 @@ def register_agent(data: AgentRegister):
                 "status": "probation",
             },
         )
-        return {"id": new_id, "message": "Agent registered. Entering simulation arena."}
+        return {
+            "id": new_id,
+            "message": "Agent registered. Entering simulation arena.",
+            "stellar_tx": stellar_tx,
+            "solana_tx": solana_tx,
+        }
     except Exception:
         pass
 
@@ -355,4 +391,96 @@ def register_agent(data: AgentRegister):
     agent = {"id": new_id, "score": 50, "status": "probation", "allocation": 0,
              "pnl": 0, "drawdown": 0, "sharpe": 0, "volatility": 0, **data.model_dump()}
     AGENTS.append(agent)
-    return {"id": new_id, "message": "Agent registered. Entering simulation arena."}
+    return {
+        "id": new_id,
+        "message": "Agent registered. Entering simulation arena.",
+        "stellar_tx": stellar_tx,
+        "solana_tx": solana_tx,
+    }
+
+
+class StakeRequest(BaseModel):
+    agent_id: str
+    amount: float
+    address: str
+
+
+@router.post("/stake")
+async def stake_agent(data: StakeRequest, request: Request):
+    """Stake tokens for an agent on both Stellar and Solana."""
+    stellar = getattr(request.app.state, "stellar", None)
+    solana  = getattr(request.app.state, "solana", None)
+
+    stellar_tx: str | None = None
+    solana_tx: str | None = None
+    amount_stroops = int(data.amount * 1e7)
+    amount_lamports = int(data.amount * 1e9)
+
+    if stellar and stellar.public_key:
+        try:
+            stellar_tx = await asyncio.to_thread(
+                stellar.vault_deposit,
+                data.address,
+                1,  # balanced pool for staking
+                amount_stroops,
+            )
+            logger.info("Stellar stake → agent=%s amount=%d tx=%s", data.agent_id, amount_stroops, stellar_tx)
+        except Exception as exc:
+            logger.warning("Stellar stake failed: %s", exc)
+
+    if solana:
+        try:
+            solana_tx = await asyncio.to_thread(
+                solana.vault_deposit,
+                data.address,
+                1,
+                amount_lamports,
+            )
+            logger.info("Solana stake → agent=%s amount=%d tx=%s", data.agent_id, amount_lamports, solana_tx)
+        except Exception as exc:
+            logger.warning("Solana stake failed: %s", exc)
+
+    # Update DB stake amount
+    try:
+        execute_statement(
+            "update agents set stake_amount = coalesce(stake_amount, 0) + :amount where id = :id",
+            {"amount": data.amount, "id": data.agent_id},
+        )
+    except Exception:
+        pass
+
+    return {
+        "agent_id":   data.agent_id,
+        "amount":     data.amount,
+        "stellar_tx": stellar_tx,
+        "solana_tx":  solana_tx,
+        "status":     "staked",
+    }
+
+
+@router.get("/chain/active")
+async def get_chain_active_agents(request: Request):
+    """Return active agents from both Stellar and Solana registries."""
+    stellar = getattr(request.app.state, "stellar", None)
+    solana  = getattr(request.app.state, "solana", None)
+
+    stellar_agents: list[str] = []
+    solana_agents: list[str] = []
+
+    if stellar:
+        try:
+            stellar_agents = await asyncio.to_thread(stellar.registry_get_active_agents)
+        except Exception as exc:
+            logger.warning("Stellar get_active_agents failed: %s", exc)
+
+    if solana:
+        try:
+            solana_agents = await asyncio.to_thread(solana.registry_get_active_agents)
+        except Exception as exc:
+            logger.warning("Solana get_active_agents failed: %s", exc)
+
+    return {
+        "stellar": stellar_agents,
+        "solana":  solana_agents,
+        "combined": list(set(stellar_agents + solana_agents)),
+    }

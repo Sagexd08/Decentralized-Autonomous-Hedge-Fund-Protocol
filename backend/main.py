@@ -147,9 +147,9 @@ async def lifespan(app: FastAPI):
 
     # WebSocket event listener for on-chain events
     listener_task = None
-    if stellar is not None:
+    if stellar is not None or solana is not None:
         listener_task = asyncio.create_task(ws_trading.stellar_event_listener(app))
-        logger.info("Stellar event listener task started.")
+        logger.info("Chain event listener task started (stellar=%s, solana=%s).", stellar is not None, solana is not None)
 
     yield
 
@@ -228,25 +228,61 @@ def health():
     return {"status": "ok", "version": "2.2.0"}
 
 
+@app.get("/health/chains")
+async def health_chains(request: Request):
+    """Return live health status for both Stellar and Solana chains."""
+    stellar = getattr(request.app.state, "stellar", None)
+    solana  = getattr(request.app.state, "solana", None)
+
+    stellar_status: dict = {"connected": False}
+    solana_status: dict  = {"connected": False}
+
+    if stellar:
+        try:
+            tvl = await asyncio.to_thread(stellar.vault_total_tvl)
+            stellar_status = {
+                "connected":         True,
+                "total_tvl_stroops": tvl,
+                "capital_vault":     stellar.capital_vault_id,
+                "allocation_engine": stellar.allocation_engine_id,
+                "agent_registry":    stellar.agent_registry_id,
+                "slashing_module":   stellar.slashing_module_id,
+                "network":           "testnet",
+                "rpc_url":           stellar.rpc_url,
+            }
+        except Exception as exc:
+            stellar_status = {"connected": False, "error": str(exc)}
+
+    if solana:
+        try:
+            h = await asyncio.to_thread(solana.health)
+            solana_status = {"connected": True, **h}
+        except Exception as exc:
+            solana_status = {"connected": False, "error": str(exc)}
+
+    return {"stellar": stellar_status, "solana": solana_status}
+
+
 @app.get("/api/contracts/addresses")
 def contract_addresses():
     """Return all deployed contract addresses for the frontend."""
     return {
         "stellar": {
-            "agent_registry":    os.getenv("STELLAR_AGENT_REGISTRY", ""),
-            "allocation_engine": os.getenv("STELLAR_ALLOCATION_ENGINE", ""),
-            "capital_vault":     os.getenv("STELLAR_CAPITAL_VAULT", ""),
-            "slashing_module":   os.getenv("STELLAR_SLASHING_MODULE", ""),
+            "agent_registry":    os.getenv("STELLAR_AGENT_REGISTRY", "CDJD33R7ZVT7YZD2T6ROK2MPK2XRYJCKSM4AQOXPKCGMIQCAN7R6RTVJ"),
+            "allocation_engine": os.getenv("STELLAR_ALLOCATION_ENGINE", "CBBXJBG5Y74XBO7NSWUXNOZVEBWTBCEL6ZAPEXULASBIM3FSEZBRPPUV"),
+            "capital_vault":     os.getenv("STELLAR_CAPITAL_VAULT", "CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6"),
+            "slashing_module":   os.getenv("STELLAR_SLASHING_MODULE", "CAHJFZI7IZSPAZK35LZLYNG564F3LPQZFDRRFXFUENVWGY7Q6OHE3U5I"),
             "network":           "testnet",
-            "rpc_url":           os.getenv("STELLAR_RPC_URL", ""),
+            "rpc_url":           os.getenv("STELLAR_RPC_URL", "https://soroban-testnet.stellar.org"),
+            "horizon_url":       os.getenv("STELLAR_HORIZON_URL", "https://horizon-testnet.stellar.org"),
         },
         "solana": {
-            "agent_registry":    os.getenv("SOLANA_AGENT_REGISTRY", ""),
-            "allocation_engine": os.getenv("SOLANA_ALLOCATION_ENGINE", ""),
-            "capital_vault":     os.getenv("SOLANA_CAPITAL_VAULT", ""),
-            "slashing_module":   os.getenv("SOLANA_SLASHING_MODULE", ""),
-            "wallet":            os.getenv("SOLANA_WALLET_ADDRESS", ""),
+            "agent_registry":    os.getenv("SOLANA_AGENT_REGISTRY", "F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN"),
+            "allocation_engine": os.getenv("SOLANA_ALLOCATION_ENGINE", "2MKzNfzPkEvsj6BKSrEEc9d4hdXmZnkyYQgTEtFZqbvR"),
+            "capital_vault":     os.getenv("SOLANA_CAPITAL_VAULT", "4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2"),
+            "slashing_module":   os.getenv("SOLANA_SLASHING_MODULE", "AC6xZSbeD6fMRafNVGbnuN4vt94py7heNKyepp7KqBUv"),
+            "wallet":            os.getenv("SOLANA_WALLET_ADDRESS", "9cNCsgFCoutgvftQTdV9YigxSrFXWqd5v7Zjnmw8beqB"),
             "network":           "testnet",
-            "rpc_url":           os.getenv("SOLANA_RPC_URL", ""),
+            "rpc_url":           os.getenv("SOLANA_RPC_URL", "https://api.testnet.solana.com"),
         },
     }

@@ -266,11 +266,22 @@ class StellarContracts:
             return []
         try:
             addresses = []
-            for item in result.vec.sc_val:
-                addresses.append(item.address.account_id.account_id.ed25519)
+            # Handle vec of addresses
+            if hasattr(result, "vec") and result.vec:
+                for item in result.vec.sc_val:
+                    try:
+                        addr = item.address.account_id.account_id.ed25519
+                        addresses.append(addr)
+                    except Exception:
+                        pass
             return addresses
         except Exception:
             return []
+
+    def registry_activate_agent(self, agent_address: str) -> Optional[str]:
+        """Activate a registered agent (moves from probation to active)."""
+        args = [_build_scval_address(agent_address)]
+        return self._invoke(self.agent_registry_id, "activate_agent", args)
 
     def registry_slash_agent(self, agent_address: str, slash_bps: int) -> Optional[str]:
         """Slash agent by slash_bps basis points (1–10000). Admin only."""
