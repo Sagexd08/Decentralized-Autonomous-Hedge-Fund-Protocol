@@ -6,12 +6,22 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+if TYPE_CHECKING:
+    from agents.trading_engine import AgentTradingEngine
+
+# Configure logging before anything else
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
+    datefmt="%H:%M:%S",
+)
 logger = logging.getLogger(__name__)
 
 from api import agents, pools, analytics, contracts, governance, intelligence, integrations, news
@@ -226,6 +236,45 @@ async def global_exception_handler(request: Request, exc: Exception):
 @app.get("/health")
 def health():
     return {"status": "ok", "version": "2.2.0"}
+
+
+@app.get("/api/trading/status")
+async def trading_status(request: Request):
+    """Return all active agents and live chain health."""
+    engine = request.app.state.trading_engine
+    stellar = getattr(request.app.state, "stellar", None)
+    solana  = getattr(request.app.state, "solana", None)
+
+    stellar_health: dict = {}
+    solana_health:  dict = {}
+
+    if stellar:
+        try:
+            tvl = await asyncio.to_thread(stellar.vault_total_tvl)
+            stellar_health = {
+                "connected":         True,
+                "total_tvl_stroops": tvl,
+                "capital_vault":     stellar.capital_vault_id,
+                "allocation_engine": stellar.allocation_engine_id,
+                "agent_registry":    stellar.agent_registry_id,
+                "slashing_module":   stellar.slashing_module_id,
+                "network":           "testnet",
+            }
+        except Exception as exc:
+            stellar_health = {"connected": False, "error": str(exc)}
+
+    if solana:
+        try:
+            h = await asyncio.to_thread(solana.health)
+            solana_health = {"connected": True, **h}
+        except Exception as exc:
+            solana_health = {"connected": False, "error": str(exc)}
+
+    return {
+        "active_agents": engine.active_agents(),
+        "stellar":       stellar_health,
+        "solana":        solana_health,
+    }
 
 
 @app.get("/health/chains")

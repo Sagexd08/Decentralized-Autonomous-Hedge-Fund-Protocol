@@ -337,12 +337,10 @@ async def register_agent(data: AgentRegister, request: Request):
     if stellar and stellar.public_key:
         try:
             stellar_tx = await asyncio.to_thread(
-                stellar._invoke,
-                stellar.agent_registry_id,
-                "register_agent",
-                [],
+                stellar.registry_activate_agent,
+                data.address,
             )
-            logger.info("Stellar AgentRegistry.register_agent → tx=%s", stellar_tx)
+            logger.info("Stellar AgentRegistry.activate_agent → tx=%s", stellar_tx)
         except Exception as exc:
             logger.warning("Stellar register_agent failed: %s", exc)
 

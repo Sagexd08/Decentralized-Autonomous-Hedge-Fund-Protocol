@@ -76,6 +76,10 @@ export const agentsApi = {
   list: (risk?: string) =>
     get<Agent[]>(`/api/agents/${risk ? `?risk=${encodeURIComponent(risk)}` : ""}`),
   get: (id: string) => get<Agent>(`/api/agents/${id}`),
+  register: (data: unknown) => post("/api/agents/register", data),
+  stake: (data: { agent_id: string; amount: number; address: string }) =>
+    post("/api/agents/stake", data),
+  chainActive: () => get("/api/agents/chain/active"),
   startTrading: (id: string) => post<{ status: string }>(`/api/agents/${id}/start-trading`),
   stopTrading: (id: string) => post<{ status: string }>(`/api/agents/${id}/stop-trading`),
   portfolio: (id: string) => get<PortfolioResponse>(`/api/agents/${id}/portfolio`),
@@ -91,14 +95,23 @@ export const pricesApi = {
 
 export const governanceApi = {
   proposals: () => get<unknown[]>("/api/governance/proposals"),
-  vote: (id: string, support: boolean) =>
-    post(`/api/governance/proposals/${id}/vote`, { support }),
+  createProposal: (data: unknown) => post("/api/governance/proposals", data),
+  vote: (id: string, voter_address: string, support: boolean) =>
+    post(`/api/governance/vote`, { proposal_id: id, voter_address, support }),
+  params: () => get("/api/governance/params"),
+  stats: () => get("/api/governance/stats"),
 }
 
 // ─── Analytics ───────────────────────────────────────────────────────────────
 
 export const analyticsApi = {
-  monteCarlo: (params: unknown) => post("/api/analytics/monte-carlo", params),
+  monteCarlo: (S0 = 100000, mu = 0.15, sigma = 0.20, T = 30, n_paths = 200) =>
+    get(`/api/analytics/monte-carlo?S0=${S0}&mu=${mu}&sigma=${sigma}&T=${T}&n_paths=${n_paths}`),
+  rollingVolatility: (window = 30) =>
+    get(`/api/analytics/rolling-volatility?window=${window}`),
+  regime: () => get("/api/analytics/regime"),
+  allocationWeights: (eta?: number, steps = 50) =>
+    get(`/api/analytics/allocation-weights?steps=${steps}${eta !== undefined ? `&eta=${eta}` : ""}`),
 }
 
 // ─── Contract addresses ───────────────────────────────────────────────────────
@@ -125,4 +138,41 @@ export interface ContractAddresses {
 
 export const contractsApi = {
   addresses: () => get<ContractAddresses>("/api/contracts/addresses"),
+  list: () => get<unknown[]>("/api/contracts/"),
+}
+
+// ─── Trading ─────────────────────────────────────────────────────────────────
+
+export const tradingApi = {
+  status: () => get("/api/trading/status"),
+  chainHealth: () => get("/health/chains"),
+}
+
+// ─── Pools ───────────────────────────────────────────────────────────────────
+
+export interface DepositRequest {
+  pool_id: string
+  amount: number
+  investor_address: string
+}
+
+export const poolsApi = {
+  list: () => get<unknown[]>("/api/pools/"),
+  get: (id: string) => get(`/api/pools/${id}`),
+  deposit: (data: DepositRequest) => post("/api/pools/deposit", data),
+}
+
+// ─── Intelligence ─────────────────────────────────────────────────────────────
+
+export const intelligenceApi = {
+  loop: () => get("/api/intelligence/loop"),
+  demo: () => get("/api/intelligence/demo"),
+  governanceSuggestions: () => get("/api/intelligence/governance-suggestions"),
+}
+
+// ─── News ─────────────────────────────────────────────────────────────────────
+
+export const newsApi = {
+  crypto: (limit = 20) => get(`/api/news/crypto?limit=${limit}`),
+  signals: (limit = 10) => get(`/api/news/signals?limit=${limit}`),
 }
