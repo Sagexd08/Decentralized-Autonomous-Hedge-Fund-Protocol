@@ -311,7 +311,13 @@ function AgentScoreboard() {
 }
 
 // ─── Stats strip ──────────────────────────────────────────────────────────────
-function StatsStrip({ agents }: { agents: ReturnType<typeof useAgents>["agents"] }) {
+function StatsStrip({
+  agents,
+  sessionClock,
+}: {
+  agents: ReturnType<typeof useAgents>["agents"]
+  sessionClock: string
+}) {
   const active = agents.filter((a) => a.status === "active").length
   const avgSharpe = agents.length
     ? (agents.reduce((s, a) => s + a.sharpe, 0) / agents.length).toFixed(2)
@@ -322,7 +328,7 @@ function StatsStrip({ agents }: { agents: ReturnType<typeof useAgents>["agents"]
     { label: "ACTIVE AGENTS", value: `${active}/${agents.length}` },
     { label: "AVG SHARPE",    value: avgSharpe },
     { label: "AUM",           value: `$${totalStake}M` },
-    { label: "SESSION",       value: new Date().toLocaleTimeString("en", { hour12: false }) },
+    { label: "SESSION",       value: sessionClock || "--:--:--" },
   ]
 
   return (
@@ -623,7 +629,7 @@ export default function TerminalPage() {
       </div>
 
       {/* ── Stats strip ── */}
-      <StatsStrip agents={agents} />
+      <StatsStrip agents={agents} sessionClock={clock} />
 
       {/* ── Main 3-column body ── */}
       <div
