@@ -15,6 +15,8 @@ import { useLivePrices } from "@/hooks/use-live-prices"
 import { useTradingFeed } from "@/hooks/use-trading-feed"
 import { useNews } from "@/hooks/use-news"
 import { useAgents } from "@/hooks/use-agents"
+import { useIntelligenceLoop } from "@/hooks/use-intelligence-loop"
+import type { AgentDecision } from "@/hooks/use-intelligence-loop"
 import {
   Activity,
   TrendingUp,
@@ -25,6 +27,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
+  Brain,
 } from "lucide-react"
 import Link from "next/link"
 
@@ -349,6 +352,194 @@ function StatsStrip({ agents }: { agents: ReturnType<typeof useAgents>["agents"]
   )
 }
 
+// ─── Agent signals panel ──────────────────────────────────────────────────────
+function AgentSignalsPanel() {
+  const { state, loading } = useIntelligenceLoop(5000)
+
+  const decisionColor = (d: string) =>
+    d === "BUY" ? "#22c55e" : d === "SELL" ? "#ef4444" : "#f59e0b"
+  const decisionBg = (d: string) =>
+    d === "BUY" ? "#22c55e18" : d === "SELL" ? "#ef444418" : "#f59e0b18"
+  const decisionBorder = (d: string) =>
+    d === "BUY" ? "#22c55e33" : d === "SELL" ? "#ef444433" : "#f59e0b33"
+
+  const agents: AgentDecision[] = state?.agents ?? []
+  const regime = state?.regime ?? "—"
+  const posture = state?.meta_agent?.capital_posture ?? "—"
+  const recommendation = state?.meta_agent?.recommendation ?? ""
+
+  return (
+    <div style={{ borderBottom: "1px solid #f59e0b22", flexShrink: 0 }}>
+      {/* Header */}
+      <div
+        style={{
+          padding: "6px 12px",
+          borderBottom: "1px solid #f59e0b22",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          background: "#050505",
+        }}
+      >
+        <Brain size={10} color="#f59e0b" />
+        <span
+          style={{
+            fontSize: 10,
+            fontFamily: "monospace",
+            color: "#f59e0b",
+            letterSpacing: "0.1em",
+            flex: 1,
+          }}
+        >
+          AI SIGNALS
+        </span>
+        <span
+          style={{
+            fontSize: 9,
+            fontFamily: "monospace",
+            color: "#4b5563",
+            textTransform: "uppercase",
+          }}
+        >
+          {regime}
+        </span>
+        <span
+          style={{
+            fontSize: 9,
+            fontFamily: "monospace",
+            padding: "1px 4px",
+            borderRadius: 2,
+            border: `1px solid ${posture === "offensive" ? "#22c55e33" : posture === "defensive" ? "#ef444433" : "#f59e0b33"}`,
+            color: posture === "offensive" ? "#22c55e" : posture === "defensive" ? "#ef4444" : "#f59e0b",
+          }}
+        >
+          {posture}
+        </span>
+      </div>
+
+      {/* Meta recommendation */}
+      {recommendation && (
+        <div
+          style={{
+            padding: "5px 12px",
+            fontSize: 9,
+            fontFamily: "monospace",
+            color: "#6b7280",
+            borderBottom: "1px solid #ffffff06",
+            lineHeight: 1.4,
+          }}
+        >
+          {recommendation}
+        </div>
+      )}
+
+      {/* Agent decision rows */}
+      <div style={{ maxHeight: 220, overflowY: "auto" }}>
+        {loading && agents.length === 0 ? (
+          <div
+            style={{
+              padding: "12px",
+              textAlign: "center",
+              fontSize: 10,
+              color: "#374151",
+              fontFamily: "monospace",
+            }}
+          >
+            Loading signals…
+          </div>
+        ) : (
+          agents.map((agent) => (
+            <Link
+              key={agent.id}
+              href={`/agents/${agent.id}`}
+              style={{ textDecoration: "none" }}
+            >
+              <div
+                className="hover:bg-white/[0.03] transition-colors"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "5px 12px",
+                  borderBottom: "1px solid #ffffff05",
+                  cursor: "pointer",
+                }}
+              >
+                {/* Decision badge */}
+                <span
+                  style={{
+                    fontSize: 9,
+                    fontFamily: "monospace",
+                    fontWeight: 700,
+                    letterSpacing: "0.05em",
+                    padding: "1px 5px",
+                    borderRadius: 2,
+                    border: `1px solid ${decisionBorder(agent.decision)}`,
+                    background: decisionBg(agent.decision),
+                    color: decisionColor(agent.decision),
+                    minWidth: 30,
+                    textAlign: "center" as const,
+                  }}
+                >
+                  {agent.decision}
+                </span>
+
+                {/* Agent name */}
+                <span
+                  style={{
+                    fontFamily: "monospace",
+                    fontSize: 11,
+                    color: agent.rogue_flag ? "#ef4444" : "#d1d5db",
+                    flex: 1,
+                    overflow: "hidden",
+                    whiteSpace: "nowrap",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {agent.name}
+                </span>
+
+                {/* Confidence bar */}
+                <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                  <div
+                    style={{
+                      width: 36,
+                      height: 3,
+                      background: "#1f2937",
+                      borderRadius: 2,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${Math.round(agent.confidence_score * 100)}%`,
+                        height: "100%",
+                        background: decisionColor(agent.decision),
+                        borderRadius: 2,
+                      }}
+                    />
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      fontFamily: "monospace",
+                      color: "#4b5563",
+                      minWidth: 24,
+                      textAlign: "right" as const,
+                    }}
+                  >
+                    {Math.round(agent.confidence_score * 100)}%
+                  </span>
+                </div>
+              </div>
+            </Link>
+          ))
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Terminal page ────────────────────────────────────────────────────────────
 export default function TerminalPage() {
   const { events, connected: wsConnected } = useTradingFeed()
@@ -532,7 +723,7 @@ export default function TerminalPage() {
           </div>
         </div>
 
-        {/* Right: news feed */}
+        {/* Right: AI signals + news feed */}
         <div
           style={{
             display: "flex",
@@ -541,15 +732,18 @@ export default function TerminalPage() {
             background: "#060606",
           }}
         >
-          <NewsFeed
-            items={newsItems}
-            signals={signals}
-            loading={newsLoading}
-            error={newsError}
-            refresh={refresh}
-            maxHeight={520}
-            showSignals
-          />
+          <AgentSignalsPanel />
+          <div style={{ flex: 1, overflowY: "auto" }}>
+            <NewsFeed
+              items={newsItems}
+              signals={signals}
+              loading={newsLoading}
+              error={newsError}
+              refresh={refresh}
+              maxHeight={undefined}
+              showSignals
+            />
+          </div>
         </div>
       </div>
 

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 import asyncio
 import logging
+import os
 
 from db.connection import execute_statement, fetch_all_dicts, fetch_one_dict
 
@@ -278,6 +279,36 @@ def list_agents(risk: Optional[str] = None):
         return [_augment_agent(a) for a in AGENTS if a["risk"].lower() == risk.lower()]
     return [_augment_agent(a) for a in AGENTS]
 
+
+# Must be declared before /{agent_id} to prevent wildcard capture
+@router.get("/chain/active")
+async def get_chain_active_agents(request: Request):
+    """Return active agents from both Stellar and Solana registries."""
+    stellar = getattr(request.app.state, "stellar", None)
+    solana  = getattr(request.app.state, "solana", None)
+
+    stellar_agents: list[str] = []
+    solana_agents: list[str] = []
+
+    if stellar:
+        try:
+            stellar_agents = await asyncio.to_thread(stellar.registry_get_active_agents)
+        except Exception as exc:
+            logger.warning("Stellar get_active_agents failed: %s", exc)
+
+    if solana:
+        try:
+            solana_agents = await asyncio.to_thread(solana.registry_get_active_agents)
+        except Exception as exc:
+            logger.warning("Solana get_active_agents failed: %s", exc)
+
+    return {
+        "stellar": stellar_agents,
+        "solana":  solana_agents,
+        "combined": list(set(stellar_agents + solana_agents)),
+    }
+
+
 @router.get("/{agent_id}")
 def get_agent(agent_id: str):
     try:
@@ -530,7 +561,8 @@ async def algorand_build_stake_txn(data: AlgorandStakeReq, request: Request):
             ],
         )
         import base64
-        txn_b64 = base64.b64encode(algosdk.encoding.msgpack_encode(txn)).decode()
+        # txn.serialize() returns raw msgpack bytes — what Pera expects as Uint8Array
+        txn_b64 = base64.b64encode(txn.serialize()).decode()
         return {"txn_b64": txn_b64}
     except HTTPException:
         raise
@@ -540,19 +572,16 @@ async def algorand_build_stake_txn(data: AlgorandStakeReq, request: Request):
 
 @router.post("/stake/algorand/submit")
 async def algorand_submit_stake_txn(data: AlgorandSubmitReq, request: Request):
-    """Accept a Pera-signed txn, submit it, and return the txid."""
+    """Accept a Pera-signed txn (raw bytes as base64), submit it, return txid."""
     try:
         import base64
-        import algosdk
-        from algosdk import transaction as algo_tx
-
         algorand = getattr(request.app.state, "algorand", None)
         if algorand is None:
             raise HTTPException(status_code=503, detail="Algorand client not available")
 
         signed_bytes = base64.b64decode(data.signed_txn)
-        signed_txn = algosdk.encoding.msgpack_decode(signed_bytes)
-        txid = await asyncio.to_thread(algorand._algod.send_transaction, signed_txn)
+        # send_raw_transaction accepts raw signed msgpack bytes directly
+        txid = await asyncio.to_thread(algorand._algod.send_raw_transaction, signed_bytes)
         logger.info("Algorand signed txn submitted: txid=%s", txid)
         return {"txid": txid}
     except HTTPException:
@@ -561,29 +590,74 @@ async def algorand_submit_stake_txn(data: AlgorandSubmitReq, request: Request):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.get("/chain/active")
-async def get_chain_active_agents(request: Request):
-    """Return active agents from both Stellar and Solana registries."""
-    stellar = getattr(request.app.state, "stellar", None)
-    solana  = getattr(request.app.state, "solana", None)
+# ── Stellar unsigned-XDR builder + submit (Freighter signing flow) ────────────
 
-    stellar_agents: list[str] = []
-    solana_agents: list[str] = []
+class StellarStakeReq(BaseModel):
+    from_address: str
+    to_address: str
+    amount_xlm: float
+    memo: Optional[str] = None
 
-    if stellar:
-        try:
-            stellar_agents = await asyncio.to_thread(stellar.registry_get_active_agents)
-        except Exception as exc:
-            logger.warning("Stellar get_active_agents failed: %s", exc)
 
-    if solana:
-        try:
-            solana_agents = await asyncio.to_thread(solana.registry_get_active_agents)
-        except Exception as exc:
-            logger.warning("Solana get_active_agents failed: %s", exc)
+class StellarSubmitReq(BaseModel):
+    signed_xdr: str
 
-    return {
-        "stellar": stellar_agents,
-        "solana":  solana_agents,
-        "combined": list(set(stellar_agents + solana_agents)),
-    }
+
+@router.post("/stake/stellar/build")
+async def stellar_build_stake_xdr(data: StellarStakeReq):
+    """Build an unsigned Payment XDR from user address to capital vault, for Freighter to sign."""
+    try:
+        from stellar_sdk import (
+            Network, TransactionBuilder, Server, Asset, Keypair
+        )
+        import base64
+
+        horizon_url = os.environ.get("STELLAR_HORIZON_URL", "https://horizon-testnet.stellar.org")
+        network_passphrase = os.environ.get(
+            "STELLAR_NETWORK_PASSPHRASE", "Test SDF Network ; September 2015"
+        )
+
+        server = Server(horizon_url)
+        account = await asyncio.to_thread(server.load_account, data.from_address)
+
+        builder = TransactionBuilder(
+            source_account=account,
+            network_passphrase=network_passphrase,
+            base_fee=100,
+        )
+        builder.append_payment_op(
+            destination=data.to_address,
+            asset=Asset.native(),
+            amount=str(round(data.amount_xlm, 7)),
+            source=data.from_address,
+        )
+        if data.memo:
+            builder.add_text_memo(data.memo[:28])
+
+        builder.set_timeout(60)
+        txn = builder.build()
+        xdr = txn.to_xdr()
+        return {"xdr": xdr}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/stake/stellar/submit")
+async def stellar_submit_stake_xdr(data: StellarSubmitReq):
+    """Submit a Freighter-signed XDR to Horizon and return the txid."""
+    try:
+        from stellar_sdk import Server, TransactionEnvelope, Network
+
+        horizon_url = os.environ.get("STELLAR_HORIZON_URL", "https://horizon-testnet.stellar.org")
+        network_passphrase = os.environ.get(
+            "STELLAR_NETWORK_PASSPHRASE", "Test SDF Network ; September 2015"
+        )
+
+        server = Server(horizon_url)
+        envelope = TransactionEnvelope.from_xdr(data.signed_xdr, network_passphrase)
+        response = await asyncio.to_thread(server.submit_transaction, envelope)
+        txid = response.get("id") or response.get("hash", "")
+        logger.info("Stellar signed txn submitted: txid=%s", txid)
+        return {"txid": txid}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))

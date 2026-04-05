@@ -40,7 +40,7 @@ type Chain = "stellar" | "solana"
 
 const CHAIN_LABELS: Record<Chain, string> = {
   stellar: "Stellar / Soroban",
-  solana: "Solana",
+  solana: "Solana / EVM",
 }
 
 const CHAIN_COLORS: Record<Chain, string> = {
@@ -54,41 +54,50 @@ const riskColors: Record<string, string> = {
   Aggressive: "bg-destructive/20 text-destructive border-destructive/30",
 }
 
-/** Submit a Stellar payment to CAPITAL_VAULT_ADDRESS (XLM micro-payment as proof of intent) */
+/** Submit a Stellar XLM payment to the Capital Vault (Freighter signs) */
 async function submitStellarStake(amount: number, memo: string): Promise<string> {
-  const { requestTransaction, getAddress } = await import("@stellar/freighter-api")
+  const { signTransaction, getAddress } = await import("@stellar/freighter-api")
   const addrResult = await getAddress()
   if (addrResult.error) throw new Error(addrResult.error)
 
-  const CAPITAL_VAULT = process.env.NEXT_PUBLIC_STELLAR_CAPITAL_VAULT
-    ?? "CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6"
+  const CAPITAL_VAULT =
+    process.env.NEXT_PUBLIC_STELLAR_CAPITAL_VAULT ??
+    "CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6"
 
-  // Build XDR on a small backend helper (or build here with minimal stellar-base)
-  // We call our own API to build + submit; Freighter just signs
-  const res = await fetch("/api/stake/stellar", {
+  const res = await fetch("/api/agents/stake/stellar/build", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ from: addrResult.address, to: CAPITAL_VAULT, amount, memo }),
+    body: JSON.stringify({
+      from_address: addrResult.address,
+      to_address: CAPITAL_VAULT,
+      amount_xlm: amount,
+      memo,
+    }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err?.detail ?? "Stellar stake API failed")
+    throw new Error(err?.detail ?? "Stellar stake build failed")
   }
   const { xdr } = await res.json()
 
-  const signedResult = await requestTransaction({ xdr, network: "TESTNET" })
+  // 2. Freighter signs
+  const signedResult = await signTransaction(xdr, {
+    networkPassphrase: "Test SDF Network ; September 2015",
+    address: addrResult.address,
+  })
   if (signedResult.error) throw new Error(signedResult.error)
 
-  // Submit signed XDR
-  const submitRes = await fetch("/api/stake/stellar/submit", {
+  // 3. Submit signed XDR to Horizon via backend
+  const submitRes = await fetch("/api/agents/stake/stellar/submit", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ xdr: signedResult.signedTxXdr }),
+    body: JSON.stringify({ signed_xdr: signedResult.signedTxXdr }),
   })
-  if (!submitRes.ok) throw new Error("Transaction submission failed")
+  if (!submitRes.ok) throw new Error("Stellar transaction submission failed")
   const { txid } = await submitRes.json()
   return txid
 }
+
 
 export default function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
@@ -159,7 +168,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
       if (stakeChain === "stellar") {
         txid = await submitStellarStake(parseFloat(stakeAmount), agent.id)
       }
-      // Solana: record off-chain for now (Privy embedded wallet doesn't expose raw signing)
+      // Solana: record off-chain — Privy embedded wallet doesn't expose raw signing
 
       // Record stake in our backend
       await agentsApi.stake({
@@ -245,8 +254,7 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
                 <div className="grid grid-cols-2 gap-2">
                   {(["stellar", "solana"] as Chain[]).map((chain) => {
                     const addr =
-                      chain === "stellar" ? freighter.address
-                      : evmAddress
+                      chain === "stellar" ? freighter.address : evmAddress
                     const isConnectedForChain = !!addr
                     return (
                       <button
@@ -312,7 +320,6 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
                   Install Freighter browser extension and connect it above to stake via Stellar.
                 </p>
               )}
-
               <DialogFooter>
                 <Button variant="outline" onClick={() => setStakeOpen(false)}>Cancel</Button>
                 <Button
@@ -602,11 +609,6 @@ export default function AgentDetailPage({ params }: { params: Promise<{ id: stri
             {authenticated && evmAddress && (
               <span className="text-[11px] font-mono px-2 py-1 rounded border border-violet-500/30 bg-violet-500/5 text-violet-400">
                 EVM {evmAddress.slice(0, 6)}…
-              </span>
-            )}
-            {algorand.connected && algorand.address && (
-              <span className="text-[11px] font-mono px-2 py-1 rounded border border-blue-500/30 bg-blue-500/5 text-blue-400">
-                Algorand {algorand.address.slice(0, 6)}…
               </span>
             )}
           </div>
