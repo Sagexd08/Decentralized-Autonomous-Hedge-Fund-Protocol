@@ -1,0 +1,1 @@
+/Users/krishnendu/Documents/Desktop\ -\ Krishnendu’s\ MacBook\ Pro/Hacktropica-clone/rustContract/slashing_module/target/wasm32v1-none/release/slashing_module.wasm: /Users/krishnendu/Documents/Desktop\ -\ Krishnendu’s\ MacBook\ Pro/Hacktropica-clone/rustContract/slashing_module/src/lib.rs

@@ -1,0 +1,8 @@
+/Users/krishnendu/Documents/Desktop - Krishnendu’s MacBook Pro/Hacktropica-clone/rustContract/allocation_engine/target/release/deps/serde_with_macros-7c97656d1e206da4.d: /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/lib.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/apply.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/lazy_bool.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/utils.rs
+
+/Users/krishnendu/Documents/Desktop - Krishnendu’s MacBook Pro/Hacktropica-clone/rustContract/allocation_engine/target/release/deps/libserde_with_macros-7c97656d1e206da4.dylib: /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/lib.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/apply.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/lazy_bool.rs /Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/utils.rs
+
+/Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/lib.rs:
+/Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/apply.rs:
+/Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/lazy_bool.rs:
+/Users/krishnendu/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde_with_macros-3.18.0/src/utils.rs:

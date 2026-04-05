@@ -1,0 +1,1 @@
+/Users/krishnendu/Documents/Desktop\ -\ Krishnendu’s\ MacBook\ Pro/Hacktropica-clone/rustContract/agent_registry/target/wasm32v1-none/release/agent_registry.wasm: /Users/krishnendu/Documents/Desktop\ -\ Krishnendu’s\ MacBook\ Pro/Hacktropica-clone/rustContract/agent_registry/src/lib.rs
