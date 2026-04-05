@@ -89,6 +89,7 @@ export function useCandleData(symbol: string = "WBTC"): {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const seedRef = useRef(false)
+  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const flushActive = useCallback(() => {
     if (!activeCandle.current) return
@@ -142,7 +143,13 @@ export function useCandleData(symbol: string = "WBTC"): {
       c.wickSize = c.high - c.low
       c.isGreen = c.close >= c.open
     }
-    flushActive()
+    // Throttle: flush at most once per 500ms to avoid spamming re-renders
+    if (!flushTimer.current) {
+      flushTimer.current = setTimeout(() => {
+        flushActive()
+        flushTimer.current = null
+      }, 500)
+    }
   }, [flushActive])
 
   const connect = useCallback(() => {
@@ -196,6 +203,7 @@ export function useCandleData(symbol: string = "WBTC"): {
     return () => {
       wsRef.current?.close()
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
+      if (flushTimer.current) clearTimeout(flushTimer.current)
     }
   }, [connect, symbol])
 

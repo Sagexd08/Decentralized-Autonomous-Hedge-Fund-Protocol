@@ -113,14 +113,9 @@ export function WalletButton() {
   const evmAddress = wallets[0]?.address ?? null
   const anyConnected = (authenticated && !!evmAddress) || freighter.connected
 
-  if (!ready) {
-    return (
-      <Button variant="outline" size="sm" disabled className="font-mono text-xs border-amber-500/20 text-amber-500/40">
-        <Wallet className="w-3.5 h-3.5 mr-1.5" />
-        Loading…
-      </Button>
-    )
-  }
+  // Don't block rendering on `ready` — show connect button immediately
+  // (ready just means Privy has finished checking for an existing session)
+  const isConnecting = !ready && !anyConnected
 
   return (
     <DropdownMenu>
@@ -145,7 +140,7 @@ export function WalletButton() {
             </>
           ) : (
             <>
-              <Wallet className="w-3.5 h-3.5" />
+              <Wallet className={`w-3.5 h-3.5 ${isConnecting ? "opacity-40" : ""}`} />
               Connect Wallet
             </>
           )}
