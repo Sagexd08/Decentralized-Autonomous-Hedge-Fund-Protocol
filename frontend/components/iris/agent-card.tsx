@@ -65,6 +65,7 @@ export function AgentCard({ agent, variant = "card", className }: AgentCardProps
           <div className="text-xs text-muted-foreground">PnL</div>
         </div>
 
+
         <div className="text-right">
           <div className="font-mono font-semibold text-foreground">{agent.sharpe.toFixed(2)}</div>
           <div className="text-xs text-muted-foreground">Sharpe</div>
