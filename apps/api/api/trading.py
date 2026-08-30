@@ -1,0 +1,115 @@
+"""
+Trading REST API endpoints.
+
+POST /api/agents/{agent_id}/start-trading
+POST /api/agents/{agent_id}/stop-trading
+GET  /api/agents/{agent_id}/portfolio
+GET  /api/trading/status
+"""
+import asyncio
+import logging
+
+from fastapi import APIRouter, HTTPException, Request
+
+from agents.trading_engine import AgentTradingEngine
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+
+@router.post("/{agent_id}/start-trading")
+async def start_trading(agent_id: str, request: Request):
+    engine: AgentTradingEngine = request.app.state.trading_engine
+    # Idempotent: don't error if already trading
+    if engine.is_trading(agent_id):
+        return {"status": "already_trading", "agent_id": agent_id}
+    try:
+        await engine.start(agent_id)
+        return {"status": "started", "agent_id": agent_id}
+    except ValueError as e:
+        logger.warning("Start trading failed for %s: %s", agent_id, e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{agent_id}/stop-trading")
+async def stop_trading(agent_id: str, request: Request):
+    engine: AgentTradingEngine = request.app.state.trading_engine
+    # Idempotent: don't error if already stopped
+    if not engine.is_trading(agent_id):
+        return {"status": "already_stopped", "agent_id": agent_id}
+    try:
+        await engine.stop(agent_id)
+        return {"status": "stopped", "agent_id": agent_id}
+    except ValueError as e:
+        logger.warning("Stop trading failed for %s: %s", agent_id, e)
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{agent_id}/portfolio")
+async def get_portfolio(agent_id: str, request: Request):
+    engine: AgentTradingEngine = request.app.state.trading_engine
+    solana = getattr(request.app.state, "solana", None)
+
+    allocation_weight: float = 0.0
+    pool_tvls: dict = {}
+    agent_score: int = 0
+    solana_score: int = 0
+
+    if solana:
+        try:
+            solana_addr = solana.wallet_address or ""
+            solana_score = await asyncio.to_thread(
+                solana.allocation_get_agent_score, solana_addr
+            )
+            agent_score = solana_score
+            raw = await asyncio.to_thread(solana.vault_agent_weight, solana_addr)
+            allocation_weight = raw / 1e18
+            pool_tvls = await asyncio.to_thread(solana.all_pool_tvls)
+        except Exception as exc:
+            logger.warning("Portfolio Solana read failed: %s", exc)
+
+    return {
+        "agent_id":          agent_id,
+        "allocation_weight": allocation_weight,
+        "pool_tvls":         pool_tvls,
+        "agent_score":       agent_score,
+        "solana_score":      solana_score,
+        "trading_active":    engine.is_trading(agent_id),
+        "solana_programs": {
+            "capital_vault":     solana.capital_vault_id if solana else None,
+            "allocation_engine": solana.allocation_engine_id if solana else None,
+            "agent_registry":    solana.agent_registry_id if solana else None,
+            "slashing_module":   solana.slashing_module_id if solana else None,
+            "wallet":            solana.wallet_address if solana else None,
+            "network":           "testnet",
+        },
+    }
+
+
+@router.post("/{agent_id}/force-trade")
+async def force_trade(agent_id: str, request: Request):
+    """
+    Test endpoint: immediately fires one trade cycle for the agent
+    and broadcasts the result over WebSocket. Used for live testing.
+    """
+    engine: AgentTradingEngine = request.app.state.trading_engine
+    from collections import deque
+    history: deque = deque(maxlen=4)
+
+    # Seed history with current + slightly varied prices to guarantee a signal
+    try:
+        from agents.price_engine import price_engine
+        prices = price_engine.get_current_prices()
+        import random
+        for i in range(4):
+            varied = {sym: p * (1 + random.uniform(-0.003, 0.003)) for sym, p in prices.items()}
+            history.append(varied)
+        # Make last tick clearly higher to force a BUY signal
+        bullish = {sym: p * 1.005 for sym, p in prices.items()}
+        history.append(bullish)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Price engine unavailable: {exc}")
+
+    await engine._cycle(agent_id, history)
+    return {"status": "trade_cycle_executed", "agent_id": agent_id}

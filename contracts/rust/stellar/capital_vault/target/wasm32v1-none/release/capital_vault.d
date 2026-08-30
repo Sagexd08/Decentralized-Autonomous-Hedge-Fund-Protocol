@@ -1,1 +1,0 @@
-/Users/krishnendu/Documents/Desktop\ -\ Krishnendu’s\ MacBook\ Pro/Hacktropica-clone/rustContract/capital_vault/target/wasm32v1-none/release/capital_vault.wasm: /Users/krishnendu/Documents/Desktop\ -\ Krishnendu’s\ MacBook\ Pro/Hacktropica-clone/rustContract/capital_vault/src/lib.rs

@@ -39,16 +39,17 @@ htmlcov/
 .venv/
 venv/
 env/
-backend/.venv*/
+apps/api/.venv*/
 
 # -----------------------------
 # Node / Frontend
 # -----------------------------
 node_modules/
-frontend/node_modules/
-frontend/dist/
-frontend/.vite/
-frontend/coverage/
+apps/web/node_modules/
+apps/web/.next/
+apps/web/dist/
+apps/web/coverage/
+apps/web/tsconfig.tsbuildinfo
 iris/frontend/node_modules/
 iris/frontend/dist/
 iris/frontend/.vite/
