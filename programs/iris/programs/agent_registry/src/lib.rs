@@ -6,7 +6,7 @@ use anchor_spl::{
     },
 };
 
-declare_id!("F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN");
+declare_id!("6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy");
 
 const DEFAULT_MIN_STAKE: u64 = 10_000_000_000; // placeholder, adjust to your mint decimals
 const DEFAULT_SIMULATION_PERIOD: i64 = 7 * 24 * 60 * 60; // 7 days

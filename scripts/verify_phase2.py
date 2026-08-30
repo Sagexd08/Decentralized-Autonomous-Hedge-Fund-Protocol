@@ -19,8 +19,12 @@ Exit code 0 means the security gate is met.
 from __future__ import annotations
 
 import re
+import json
+import re
 import subprocess
 import sys
+import urllib.request
+from pathlib import Path
 
 GREEN, RED, YELLOW, DIM, RESET = (
     "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m",
@@ -96,6 +100,70 @@ def check(output: str, names: list[str], heading: str) -> bool:
     return ok
 
 
+DEVNET_RPC = "https://api.devnet.solana.com"
+
+
+def declared_program_ids():
+    """The ids the source actually claims, read from `declare_id!`."""
+    root = Path(__file__).resolve().parents[1] / "programs" / "iris" / "programs"
+    ids = {}
+    for name in ("agent_registry", "capital_vault"):
+        src = (root / name / "src" / "lib.rs").read_text(encoding="utf-8")
+        match = re.search(r'declare_id!\("([^"]+)"\)', src)
+        if match:
+            ids[name] = match.group(1)
+    return ids
+
+
+def devnet_status(program_id):
+    """
+    Ask devnet whether this program exists and is executable.
+
+    Read from the chain rather than from a deployment record we wrote
+    ourselves. A deployment.json says what we believe happened, and the whole
+    point of this check is to notice when that belief is wrong.
+    """
+    payload = json.dumps({
+        "jsonrpc": "2.0", "id": 1, "method": "getAccountInfo",
+        "params": [program_id, {"encoding": "base64"}],
+    }).encode()
+    request = urllib.request.Request(
+        DEVNET_RPC, data=payload, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            value = json.load(response).get("result", {}).get("value")
+    except Exception as exc:
+        return "UNKNOWN (" + type(exc).__name__ + ")"
+
+    if value is None:
+        return "NOT DEPLOYED"
+    return "DEPLOYED" if value.get("executable") else "NOT EXECUTABLE"
+
+
+def report_devnet():
+    """
+    Report the devnet half of the DoD. Returns True when both are live.
+
+    Deliberately outside the pass/fail count: the security gate is about the
+    custody boundary, and a rate-limited faucet must not be able to turn that
+    red. It is printed every run anyway, because a DoD half nobody looks at is
+    a DoD half nobody does.
+    """
+    print("")
+    print("Devnet deployment")
+    print("-" * 62)
+
+    deployed = True
+    for name, program_id in declared_program_ids().items():
+        status = devnet_status(program_id)
+        colour = GREEN if status == "DEPLOYED" else YELLOW
+        print("  " + name.ljust(18) + program_id)
+        print("  " + "".ljust(18) + colour + status + RESET)
+        deployed = deployed and status == "DEPLOYED"
+    return deployed
+
+
 def main() -> int:
     output = run_suite()
 
@@ -108,14 +176,25 @@ def main() -> int:
 
     print(f"{GREEN}Phase 2 security gate PASSED{RESET} — "
           f"{len(CUSTODY_TESTS) + len(LIFECYCLE_TESTS)} tests green.")
-    print(
-        f"\n{YELLOW}Not covered by this gate:{RESET} the DoD also says these "
-        f"instructions work\n\"on devnet\". Deploying needs the solana and anchor "
-        f"CLIs plus a funded\ndevnet keypair, none of which are available here. "
-        f"These tests run against\nsolana-program-test, which executes the real "
-        f"program against the real runtime\nbut is not the same as a deployment. "
-        f"Treat devnet as outstanding.\n"
-    )
+
+    if report_devnet():
+        print("")
+        print(GREEN + "Phase 2 COMPLETE" + RESET + " — custody gate green and "
+              "both programs live on devnet.")
+        print("")
+        return 0
+
+    print("")
+    print(YELLOW + "The DoD is not fully met." + RESET + " These tests run against "
+          "solana-program-test,")
+    print("which executes the real program against the real runtime — but the DoD")
+    print('also says the instructions work "on devnet", and that is a different claim.')
+    print("")
+    print("The toolchain is ready: `make devnet-deploy` builds both programs with")
+    print("cargo-build-sbf and deploys them, and declare_id!/Anchor.toml are already")
+    print("synced to keypairs we hold. What is missing is devnet SOL — the faucet")
+    print("rate-limits per IP. Fund the deployer address the script prints, re-run.")
+    print("")
     return 0
 
 

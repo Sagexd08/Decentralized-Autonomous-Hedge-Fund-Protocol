@@ -74,6 +74,28 @@ SPEC_ORDER = [
 ]
 
 
+# How far to search for a seed that takes a given branch. Searching rather than
+# pinning one is deliberate: which seeds commit depends on the trained models,
+# so a hardcoded seed silently becomes a test of "did the models change" instead
+# of "is this branch reachable". These tests have already been broken twice that
+# way — once when Phase 4 wired real models in, and once when the untrained
+# spread head was fixed.
+SEED_SEARCH = range(0, 40)
+
+
+def find_seed(*, commits: bool, strategy: str) -> tuple[int, AgentState, list[str]]:
+    """The first seed whose run takes the requested branch."""
+    for seed in SEED_SEARCH:
+        final, visited = run_graph(seed, strategy)
+        if final.abstained != commits:
+            return seed, final, visited
+    raise AssertionError(
+        f"no seed in {SEED_SEARCH} makes a {strategy} agent "
+        f"{'commit' if commits else 'abstain'} — that branch is unreachable, "
+        f"which means the validator is not doing its job in one direction"
+    )
+
+
 def run_graph(seed: int, strategy: str = STRATEGY_COMMITS) -> tuple[AgentState, list[str]]:
     """Run the graph in-process with no database, recording the node order."""
     visited: list[str] = []
@@ -103,8 +125,8 @@ def test_graph_walks_the_specified_node_order():
 
 def test_committing_run_executes_all_eleven_nodes():
     """Phase 3 DoD: one agent completes the full graph end to end."""
-    final, visited = run_graph(SEED_COMMITS, STRATEGY_COMMITS)
-    assert not final.abstained, f"seed {SEED_COMMITS} should commit"
+    seed, final, visited = find_seed(commits=True, strategy=STRATEGY_COMMITS)
+    assert not final.abstained, f"seed {seed} should commit"
     assert not final.errors, final.errors
 
     expected = [n.value for n in SPEC_ORDER] + [
@@ -118,8 +140,8 @@ def test_committing_run_executes_all_eleven_nodes():
 
 
 def test_abstaining_run_skips_commit_and_execution():
-    final, visited = run_graph(SEED_ABSTAINS, STRATEGY_ABSTAINS)
-    assert final.abstained is True
+    seed, final, visited = find_seed(commits=False, strategy=STRATEGY_ABSTAINS)
+    assert final.abstained is True, f"seed {seed}"
     assert final.abstain_reason
     assert Node.PREDICTION_COMMIT.value not in visited
     assert Node.EXECUTION.value not in visited
@@ -131,9 +153,10 @@ def test_the_graph_can_do_both_things():
     A validator that approved everything would pass every other test here while
     providing no protection at all. Both branches must be reachable.
     """
-    committed, _ = run_graph(SEED_COMMITS, STRATEGY_COMMITS)
-    abstained, _ = run_graph(SEED_ABSTAINS, STRATEGY_ABSTAINS)
-    assert not committed.abstained and abstained.abstained
+    commit_seed, committed, _ = find_seed(commits=True, strategy=STRATEGY_COMMITS)
+    abstain_seed, abstained, _ = find_seed(commits=False, strategy=STRATEGY_ABSTAINS)
+    assert not committed.abstained, f"seed {commit_seed}"
+    assert abstained.abstained, f"seed {abstain_seed}"
 
 
 # ── the hard boundary: risk and validation are deterministic ────────────────
@@ -403,4 +426,54 @@ def test_a_committing_run_writes_no_market_price():
     assert after == before, (
         "a committing run wrote a price observation; settlement evidence must "
         "come from the feed, not from the agent being settled"
+    )
+
+
+# ── every strategy must be able to trade ────────────────────────────────────
+
+@pytest.mark.parametrize(
+    "strategy", ["momentum", "mean_reversion", "breakout", "adaptive"]
+)
+def test_every_strategy_can_reach_a_commitment(strategy):
+    """
+    A strategy that structurally cannot clear the validation floor is dead
+    weight: it occupies an allocation slot and returns nothing, forever.
+
+    Both `momentum` and `mean_reversion` were in that state, for two different
+    reasons that both looked like "the model is just weak":
+
+      * The torch models' `spread` head was never in the training loss
+        (`pred, _ = self.net(xb)`), so it reported its random initialisation.
+        Confidence is `expected_return / spread`, so every confidence those
+        models produced was an arbitrary constant — CNN-LSTM drew a large one
+        and could never exceed 0.48.
+      * The tabular models multiplied their error scale by a leftover 2x / 4x
+        tuning constant from the old hardcoded-HOLD-logit formulation, which
+        under the current one just made them look uniformly less certain.
+
+    This asserts reachability, not a hit rate. An agent *should* abstain when
+    it is genuinely unsure; it should not be incapable of ever being sure.
+    """
+    for seed in SEED_SEARCH:
+        final, _ = run_graph(seed, strategy)
+        if not final.abstained:
+            return
+    raise AssertionError(
+        f"no seed in {SEED_SEARCH} lets a {strategy} agent commit — that "
+        f"strategy cannot trade at all"
+    )
+
+
+@pytest.mark.parametrize(
+    "strategy", ["momentum", "mean_reversion", "breakout", "adaptive"]
+)
+def test_every_strategy_can_also_abstain(strategy):
+    """The other half. A strategy that always commits is not being validated."""
+    for seed in SEED_SEARCH:
+        final, _ = run_graph(seed, strategy)
+        if final.abstained:
+            return
+    raise AssertionError(
+        f"no seed in {SEED_SEARCH} makes a {strategy} agent abstain — the "
+        f"validation floor is not binding for it"
     )

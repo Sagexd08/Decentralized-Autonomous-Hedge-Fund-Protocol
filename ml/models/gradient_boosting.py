@@ -92,7 +92,14 @@ class GradientBoostingModel:
     def predict_proba(self, features: np.ndarray) -> np.ndarray:
         f = np.asarray(features, dtype=np.float64).reshape(1, -1)
         expected_return = float(self.model.predict(f)[0]) if self.fitted else 0.0
-        # The residual spread measured at fit time is this model's uncertainty.
+        # The residual spread measured at fit time *is* this model's typical
+        # absolute error — no fudge factor. The `* 2.0` this replaced was a
+        # tuning constant from the old formulation, where snr fed a softmax
+        # against a hardcoded HOLD logit. Now that spread appears in both the
+        # snr and the HOLD logit, a multiplier does not calibrate anything: it
+        # makes the model uniformly less certain about everything, which halved
+        # this model's confidence and left every mean_reversion agent unable to
+        # clear the 0.55 validation floor.
         return direction_probabilities(
-            expected_return, self._residual_scale * 2.0, self.threshold
+            expected_return, self._residual_scale, self.threshold
         )

@@ -81,6 +81,12 @@ class BaselineModel:
         pick a direction. Feeding it raw momentum instead — which is what this
         did — let the distribution and the direction disagree, which is the
         bug `confidence_for` exists to prevent.
+
+        No fudge factor. Realised volatility is already the scale of a one-bar
+        move, so it is this model's typical error directly. The `* 4.0` this
+        replaced was a tuning constant from the old hardcoded-HOLD-logit
+        formulation, and under the current one it simply made the baseline look
+        five times less certain than it is.
         """
-        spread = max(volatility, 1e-9) * 4.0
+        spread = max(volatility, 1e-9)
         return direction_probabilities(expected_return, spread, self.threshold)

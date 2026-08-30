@@ -105,8 +105,21 @@ class TransformerModel:
         yb = torch.tensor(y / self._target_scale, dtype=torch.float32)
         for _ in range(epochs):
             opt.zero_grad()
-            pred, _ = self.net(xb)
+            pred, spread = self.net(xb)
             loss = loss_fn(pred, yb)
+        # The spread head is trained here, against the absolute residual of the
+        # prediction head. It was previously left out of the loss entirely
+        # (`pred, _ = self.net(xb)`), so it received no gradient and reported
+        # whatever its random initialisation produced. Its magnitude looked
+        # plausible only because `_target_scale` multiplies it — and since
+        # `confidence` is derived from `expected_return / spread`, every
+        # confidence this model has ever reported was an arbitrary constant.
+        #
+        # Detached, so learning to be uncertain cannot become a way to reduce
+        # the prediction loss. The two heads share a trunk but must not
+        # negotiate: a model that could widen its error bars to look better
+        # would do exactly that.
+            loss = loss + loss_fn(spread, (yb - pred).abs().detach())
             loss.backward()
             # Without clipping a single outlier bar can blow the weights out to
             # a scale the model never recovers from — the failure that produced

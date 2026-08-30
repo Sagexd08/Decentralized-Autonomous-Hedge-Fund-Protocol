@@ -4,7 +4,7 @@ use anchor_spl::{
     token_interface::{self, Mint, TokenAccount, TokenInterface, TransferChecked},
 };
 
-declare_id!("4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2");
+declare_id!("HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj");
 
 const CONSERVATIVE: u8 = 0;
 const BALANCED: u8 = 1;

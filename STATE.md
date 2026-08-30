@@ -5,18 +5,39 @@
 
 ## Current phase
 
-**Phase 7 — MWU allocation. COMPLETE and checkpointed.**
-`python scripts/verify_phase7.py` → 17/17, over **4,696 randomised rounds**.
+**Phase 8 — risk + slashing. COMPLETE and checkpointed.**
+`python scripts/verify_phase8.py` → 25/25.
 
-All seven gates pass: `make verify-all`. Both test suites pass:
-**206** in the §4 root tree (`/repo/tests`) and **61** in the legacy
+All eight gates pass: `make verify-all`. Both test suites pass:
+**264** in the §4 root tree (`/repo/tests`) and **61** in the legacy
 `apps/api/tests`.
 
-`make cycle` runs the whole loop end to end: feed → settle → score → allocate.
+`make cycle` runs the whole loop: feed → settle → score → risk → allocate.
+
+**Phase 2 is now half-closed.** The Solana toolchain exists
+(`make devnet-build`, Agave 4.2.2 + platform-tools v1.54), both programs build
+to real BPF objects (350KB / 374KB), and `declare_id!` and `Anchor.toml` are
+synced to keypairs we hold. The deploy is blocked only on **devnet SOL** — the
+faucet rate-limits per IP. See *Known blockers* 6.
 
 Phase 2's security gate passed (17/17) but the phase is **not fully
 checkpointed** — its DoD also says the instructions work "on devnet" and
 nothing is deployed. See *Known blockers* 6.
+
+### Phase 8 Definition of Done (§27)
+
+| Link | Status |
+|---|---|
+| breach | **verified** — recorded in `risk_events`, not just detected |
+| → freeze | **verified** — status change *and* a FREEZE event, so it is explicable |
+| → slash | **verified** — cites the breach, takes stake, writes the ledger |
+| → reduced allocation | **verified** — weight 0.0897 → 0.0000, vault reallocated |
+
+Checked as one causal chain on one agent, not four features in isolation. The
+gate also checks the links that must **not** fire: a small sample cannot breach,
+a single warning cannot freeze, a slash with no breach behind it is refused, a
+slashed agent cannot be restored, and a frozen agent can still predict — which
+is the only way it can earn its way back.
 
 ### Phase 7 Definition of Done (§27)
 
@@ -186,6 +207,45 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
       than trade on a guess.
 - [x] Evaluation leads with the direction confusion matrix, not MSE.
 
+### Phase 8
+
+- [x] `agents/risk/`: `limits.py` (six limits over a settled record) and
+      `engine.py` (the chain).
+- [x] `db/migrations/0003_risk.sql` — the chain made structural. A slash must
+      cite a breach, that breach must belong to the same agent, a LIVE slash
+      cannot rest on SIMULATION evidence, `slash_bps` cannot exceed the stake,
+      and SLASHED → ACTIVE is rejected.
+- [x] **Per-run and per-record breaches are different things.** `RISK_ANALYSIS`
+      stops *this* trade; only a pattern across settled outcomes can freeze or
+      slash. A single bad prediction is not misconduct.
+- [x] **A sample floor.** Below 10 settled predictions nothing breaches —
+      otherwise every agent is frozen for the variance every new agent has.
+- [x] **HOLD earns nothing**, so an agent cannot manage its drawdown by
+      abstaining.
+- [x] **The slash scales with the excess, not the drawdown**, so the limit is
+      not a cliff. Bounded at both ends: a slash that takes everything leaves
+      no reason to keep operating honestly.
+- [x] **Freezing is reversible, slashing is not.** A frozen agent keeps
+      predicting — freezing removes its capital, not its voice — and is
+      unfrozen by the same sweep once its record recovers.
+- [x] `python -m agents.risk.engine` / `make risk`.
+- [x] `scripts/verify_phase8.py` (25 checks), 21 unit tests, 21 database tests.
+
+### Devnet (Phase 2, second half)
+
+- [x] `docker/devnet.Dockerfile` — Agave **4.2.2**, platform-tools v1.54. The
+      2.1.x line ships Rust 1.79 for the BPF target, too old for `edition2024`,
+      which a transitive build-dependency of `spl-token` now requires.
+- [x] `docker/devnet-deploy.sh` — generates persistent keypairs, syncs
+      `declare_id!` and `Anchor.toml` to them, builds with `cargo build-sbf`,
+      deploys, and **verifies by reading the account back off-chain** rather
+      than trusting the exit code.
+- [x] Both programs build: `agent_registry.so` 350,896 bytes,
+      `capital_vault.so` 374,360 bytes.
+- [x] `scripts/verify_phase2.py` now queries devnet directly and reports
+      DEPLOYED / NOT DEPLOYED per program.
+- [ ] **Not deployed.** The faucet is rate-limited; see *Known blockers* 6.
+
 ### Phase 7
 
 - [x] `agents/allocation/`: `mwu.py` (the update rule, the bounds, and
@@ -339,12 +399,27 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
    Stale `hacktropica-frontend`/`-backend` images (1.5 GB + 8.6 GB) remain and
    can be pruned.
 
-6. **Nothing is deployed to devnet.** Needs the `solana` and `anchor` CLIs
-   (neither installed; Anchor has no first-class Windows support and wants WSL)
-   and a funded devnet keypair. The program IDs in `Anchor.toml` are inherited
-   from the pre-v2 deployment and have not been re-verified against the
-   modified programs — `agent_registry` changed shape this phase, so its
-   deployed bytecode no longer matches this source.
+6. **Nothing is deployed to devnet — blocked on faucet SOL only.**
+   Everything else is now in place:
+
+   - toolchain: `make devnet-build` (Agave 4.2.2, platform-tools v1.54)
+   - both programs compile to real BPF objects (350KB / 374KB)
+   - `declare_id!` and `Anchor.toml` are synced to keypairs in the
+     `iris-devnet-keys` volume, and the 17 Rust tests still pass against them
+   - `make devnet-deploy` builds, deploys and verifies by reading the account
+     back off-chain
+
+   The devnet faucet rate-limits per IP and is currently refusing. Fund the
+   deployer and re-run — the keypairs persist, so the programs land on the same
+   ids:
+
+       8t2C5qDCgwJr3arDbdYnf6AjaEYCoa1h42qcysdXL7bo    (needs ~6 SOL)
+
+       agent_registry  6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy
+       capital_vault   HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj
+
+   `make devnet-address` prints the address and balance; `verify_phase2.py`
+   queries the chain and will report DEPLOYED on its own once it lands.
 
 ## Local edit outside the repo
 
@@ -442,6 +517,57 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
     healthcheck used `wget http://localhost:3000`, which resolves to `::1`
     first; `next dev --hostname 0.0.0.0` binds IPv4 only. Now `127.0.0.1`.
 
+### Found in Phase 8
+
+17. **The uncertainty head was never trained.** Both torch models compute
+    `pred, _ = self.net(xb)` in the fit loop — the `spread` head was outside
+    the loss entirely and received no gradient, so it reported its random
+    initialisation forever. Confidence is `expected_return / spread`, so **every
+    confidence those models ever produced was an arbitrary constant.** Its
+    magnitude looked plausible only because `_target_scale` multiplies it.
+    Now trained against the detached absolute residual — detached, so widening
+    its error bars cannot become a way to reduce the prediction loss.
+
+18. **CNN-LSTM was under-trained, not weak.** 60 epochs at a fixed learning
+    rate against the transformer's 300 on a cosine schedule. The transformer
+    was given the longer schedule when it hit the flat-HOLD basin; the same fix
+    was never applied here. Mean |prediction| was 0.00086 against a target
+    scale of 0.0048 — it was predicting the mean. With a matched budget it went
+    0.408 → 0.508 and now **beats** the baseline. That is a fix to training,
+    not a moved goalpost: the degeneracy and MSE disqualifiers are untouched.
+
+19. **Leftover fudge factors in the tabular models.** Gradient boosting used
+    `_residual_scale * 2.0` and the baseline `volatility * 4.0` — tuning
+    constants from the old formulation, where snr fed a softmax against a
+    hardcoded 0.35 HOLD logit. Under the current one, where spread appears in
+    *both* the snr and the HOLD logit, a multiplier does not calibrate
+    anything; it makes the model uniformly less certain. This left every
+    `mean_reversion` agent unable to clear the 0.55 floor.
+
+    Together, 17–19 are why **two of four strategies could not trade at all**.
+    Each looked like "that model is just weak".
+
+20. **The branch tests were pinned to lucky seeds.** Which seeds commit depends
+    on the trained models, so a hardcoded seed silently becomes a test of "did
+    the models change" rather than "is this branch reachable". Broken twice
+    that way. They now search a seed range, and there are new tests asserting
+    every strategy can both commit and abstain.
+
+21. **A schema test depended on an empty table.** `test_one_allocation_row_per_agent_per_step`
+    hardcoded step 0 and started failing the moment Phase 7's allocator wrote a
+    real step 0 — a false failure for the best possible reason.
+
+22. **The SBF toolchain was two major versions stale.** Agave 2.1.21 ships Rust
+    1.79 for the BPF target; a transitive build-dependency of `spl-token` now
+    requires `edition2024`. Pinning the dependency fights the resolver through
+    four levels of the graph. Bumped to 4.2.2 / platform-tools v1.54.
+
+23. **The first deploy stranded its own funds.** `MIN_SOL` was 3; each program
+    costs ~2.45 SOL, so it failed partway through the first and left a write
+    buffer holding the lamports needed to finish — making every retry poorer
+    than the attempt that failed. The script now reclaims orphaned buffers
+    before deploying and checks the balance before each program, not once.
+
 ### Found in Phase 7
 
 15. **The floor and cap were jointly infeasible.** Two agents cannot both hold
@@ -481,41 +607,42 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Next phase
 
-**Phase 8 — risk + slashing.** DoD: a breach leads to freeze, then slash, then
-reduced allocation — demonstrated as one causal chain, not three features.
+**Phase 9 — WebSocket infrastructure.** DoD: real events from phases 3-8 reach
+a connected client.
 
-Phase 7 supplies the last link already: `allocatable_agents` excludes FROZEN,
-SLASHED and RETIRED, and the Phase 7 gate proves a frozen agent receives no
-allocation and that the vault is fully reallocated around it. So Phase 8 owns
-the first two links and the evidence that they connect.
+The emphasis is on *real*. Phases 3-8 now produce a genuine event stream —
+`agent_runs`, `graph_checkpoints`, `predictions`, `prediction_outcomes`,
+`reputation_scores`, `allocation_history`, `risk_events`, `slash_events` — and
+the gate has to show a client receiving those rows, not a generator emitting
+plausible-looking traffic on a timer. That distinction is the whole phase: a
+WebSocket that invents its own events is indistinguishable from a working one
+until somebody checks the database.
 
-What exists: `risk_events` and `slash_events` tables; `agents.status` with a
-CHECK admitting FROZEN and SLASHED; on-chain `freeze_agent` / `unfreeze_agent`
-in the registry (Phase 2, tested against solana-program-test, not deployed);
-`RISK_ANALYSIS` in the graph with `MAX_VOLATILITY_BPS`, `MAX_DRAWDOWN_BPS` and
-`exposure_ok`, which today can only make a single run abstain.
+What exists: `apps/api/api/ws_trading.py` and the legacy `market_stream`
+service, both from the pre-v2 runtime, which broadcast simulated ticks. They
+predate every table above.
 
-What is missing is the part that persists: a breach in one run leaves no
-record, so nothing accumulates and nothing can be slashed for it.
+Two things Phase 9 must not do:
 
-Two things Phase 8 must not do:
+  * **Emit an event that has no row behind it.** Every message should be
+    traceable to a primary key, so the Observatory (§15) can be checked against
+    the database rather than believed.
+  * **Drop the provenance label.** `data_source` and `execution_mode` exist on
+    the rows; a socket frame that omits them hands the UI a number with no way
+    to know it is simulated (§0c).
 
-  * **Slash on simulated evidence as though it were real.** `data_source` is on
-    every outcome and `trades.execution_mode` is a SIMULATION/TESTNET/LIVE
-    enum. A slash recorded against a synthetic tape must say so, or the Model
-    Cemetery in §15 becomes a list of agents punished for a simulation.
-  * **Make freezing recoverable only by hand.** The MWU floor exists so an
-    agent can earn its way back; a freeze with no defined exit is a different
-    penalty from the one the allocator was designed around.
+Then phases 10-12 (Arena, Observatory, Ledger) render what this streams, and
+§27 requires each to be driven by real rows rather than fixtures.
 
 `agent_performance` is still empty — nothing computes windowed pnl / sharpe /
-sortino. Phase 8's drawdown breach is the natural place for it.
+sortino. Phase 8 computes drawdown and volatility per sweep but does not
+persist a window.
 
 `REGIME_ANALYSIS` still uses threshold stand-ins; the HMM classifier in
 `ml/regime/classifier.py` is merged but not wired into the graph.
 
 ## Last verified commit
 
-`9a82221` — feat(phase-6): the IRIS Score, six dimensions discounted by evidence
+`628e7ed` — feat(phase-7): MWU allocation, with the four invariants proved as properties
 
-Phase 7 is committed on top of it.
+Phase 8 is committed on top of it.

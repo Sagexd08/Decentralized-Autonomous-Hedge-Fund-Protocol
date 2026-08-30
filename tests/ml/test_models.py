@@ -301,3 +301,79 @@ def test_a_precise_model_predicting_no_move_is_confident_about_it(data):
 
 def _train_targets(data):
     return data[2]
+
+
+# ── the uncertainty head is actually trained ────────────────────────────────
+
+@pytest.mark.parametrize("name", ["cnn_lstm", "transformer"])
+def test_the_spread_head_learns(name, data):
+    """
+    `spread` was never in the training loss — `pred, _ = self.net(xb)` — so it
+    received no gradient and reported whatever its random initialisation gave.
+    Confidence is `expected_return / spread`, so every confidence these models
+    ever produced was an arbitrary constant. Its magnitude looked plausible
+    only because `_target_scale` multiplies it.
+
+    Two things must hold for it to mean anything: fitting has to move it, and
+    it has to vary per input. A constant spread is a constant confidence, which
+    is the same failure wearing a trained-looking number.
+    """
+    _, X_windows, y = data
+    model = all_models(seed=0)[name]
+
+    before = np.array([model._forward(X_windows[i])[1] for i in range(0, 60, 6)])
+    model.fit(X_windows[:200], y[:200])
+    after = np.array([model._forward(X_windows[i])[1] for i in range(0, 60, 6)])
+
+    assert not np.allclose(before, after), "fitting must move the spread head"
+    assert after.std() > 1e-5, (
+        f"{name} reports a near-constant spread ({after.std():.2e}); "
+        f"confidence derived from it carries no information"
+    )
+
+
+@pytest.mark.parametrize("name", ["cnn_lstm", "transformer"])
+def test_the_spread_is_the_right_order_of_magnitude(name, data):
+    """
+    Trained against |residual|, so it should land near the scale of the targets
+    rather than at an arbitrary constant. A spread ten times too large makes
+    every prediction look unconfident; ten times too small makes every one look
+    certain.
+    """
+    _, X_windows, y = data
+    model = all_models(seed=0)[name]
+    model.fit(X_windows[:200], y[:200])
+
+    spread = np.mean([model._forward(X_windows[i])[1] for i in range(0, 60, 6)])
+    target_scale = float(np.mean(np.abs(y)))
+    assert 0.1 * target_scale < spread < 10 * target_scale, (
+        f"{name} spread {spread:.6f} against a target scale of {target_scale:.6f}"
+    )
+
+
+@pytest.mark.parametrize(
+    "name", ["baseline", "gradient_boosting", "cnn_lstm", "transformer"]
+)
+def test_a_model_can_reach_a_tradeable_confidence(name, data):
+    """
+    The agent graph will not commit below 0.55. A model that cannot exceed that
+    on any input is not cautious, it is inert — the strategy built on it can
+    never trade.
+
+    This is the property the leftover 2x / 4x error-scale multipliers broke for
+    the tabular models, and the untrained spread head broke for CNN-LSTM.
+    """
+    X_features, X_windows, y = data
+    model = all_models(seed=0)[name]
+    if hasattr(model, "fit"):
+        model.fit((X_features if name in TABULAR else X_windows)[:250], y[:250])
+
+    inputs = X_features if name in TABULAR else X_windows
+    best = max(
+        model.predict(inputs[i]).confidence
+        for i in range(0, min(len(inputs), 400), 3)
+    )
+    assert best > 0.55, (
+        f"{name} never exceeds confidence {best:.3f}; the 0.55 validation "
+        f"floor makes it structurally unable to trade"
+    )

@@ -6,12 +6,12 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-agent_registry = "F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN"
-capital_vault  = "4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2"
+agent_registry = "6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy"
+capital_vault  = "HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj"
 
 [programs.devnet]
-agent_registry = "F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN"
-capital_vault  = "4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2"
+agent_registry = "6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy"
+capital_vault  = "HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj"
 
 [provider]
 cluster = "Devnet"

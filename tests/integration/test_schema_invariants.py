@@ -199,11 +199,17 @@ def test_allocation_weight_stays_in_the_unit_interval(cur, weight):
 def test_one_allocation_row_per_agent_per_step(cur):
     cur.execute("select id from agents order by id limit 1")
     agent_id = cur.fetchone()[0]
+    # A step no real allocation will ever reach. Hardcoding step 0 made this
+    # test depend on `allocation_history` being empty, so it started failing
+    # the moment Phase 7's allocator wrote a real step 0 — for the right
+    # reason, which is the worst kind of false failure.
+    cur.execute("select coalesce(max(step), -1) + 1000 from allocation_history")
+    step = cur.fetchone()[0]
     stmt = ("insert into allocation_history (agent_id, step, weight, eta) "
-            "values (%s, 0, 0.25, 0.01)")
-    cur.execute(stmt, (agent_id,))
+            "values (%s, %s, 0.25, 0.01)")
+    cur.execute(stmt, (agent_id, step))
     with pytest.raises(errors.UniqueViolation):
-        cur.execute(stmt, (agent_id,))
+        cur.execute(stmt, (agent_id, step))
 
 
 # ── Section 5: risk profiles are constraints ─────────────────────────────────

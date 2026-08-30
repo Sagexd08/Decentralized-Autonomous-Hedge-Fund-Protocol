@@ -53,7 +53,7 @@ TRAINING_SAMPLES = 600
 TRAINING_START_PRICE = 100.0
 TRAINING_MEAN_REVERSION = 0.02
 TRAINING_NOISE = 0.6
-CONTRACT_VERSION = 2   # bumped when confidence was rederived in ml/models/base
+CONTRACT_VERSION = 4   # bumped when spread became the model's own error scale
 
 _lock = threading.Lock()
 _memo: dict[tuple[str, int], BaseModel] = {}
