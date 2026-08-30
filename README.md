@@ -29,9 +29,10 @@ the build loop, and it is more current than this file.
 
 | | |
 |---|---|
-| Current phase | **Phase 1** — repo, Docker, database, skeleton |
+| Phases complete | **1, 3, 4, 5** — Phase 2's security gate passes but nothing is deployed to devnet |
 | Canonical chain | Solana (Stellar was removed in `a72d3ed`) |
-| Market data | **Simulated** — see [Limitations](#limitations) |
+| Market data | **Simulated**, and labelled as such end to end — see [Limitations](#limitations) |
+| Model weights | Trained on a **synthetic** seeded series |
 
 ---
 
@@ -61,7 +62,30 @@ which asserts the Phase 1 gate — that `web`, `api` and `db` all answer:
 | api → db | `GET http://localhost:8000/health/db` → 200 |
 | db | all 21 tables present |
 
-`make help` lists the rest.
+`make verify-all` runs every phase gate. `make help` lists the rest.
+
+### Running one full prediction cycle
+
+The four steps are separate on purpose — each is a different actor, and
+collapsing them is how a system starts marking its own homework.
+
+```bash
+make warm                                              # fit and cache the models (~40s once)
+docker compose exec api python -m agents.evaluation.prices --asset BTC --hours 6
+docker compose exec api python -m agents.runtime.runner --agent AGT-QUANTA --asset BTC --seed 7
+make settle                                            # after the 10-minute horizon closes
+```
+
+The feed writes the market. The agent observes it and commits a hashed
+prediction *before* the horizon. The sweep measures what happened and scores
+it. The agent never writes the price it will be judged against — see
+`agents/runtime/persistence.persist_prediction` for why that is enforced rather
+than merely intended.
+
+A prediction whose horizon has closed but for which no price evidence exists
+does **not** get settled. It parks in `WAITING_FOR_OUTCOME` and counts toward
+nothing. `make settle` reports those separately, because the number of
+predictions the system declines to score is as informative as the ones it does.
 
 ---
 
@@ -170,11 +194,11 @@ what else passed.
 
 | # | Phase | Gate |
 |---|---|---|
-| 1 | Repo, Docker, DB, skeleton | `docker compose up` → 200 on web, api, db |
-| 2 | AgentRegistry + CapitalVault | **agent cannot withdraw the vault** |
-| 3 | Agent runtime + LangGraph | one agent completes the graph, checkpointed |
-| 4 | ML models + inference | 4 model classes, baseline comparison logged |
-| 5 | Prediction commit + evaluation | hash pre-horizon, settle post-horizon |
+| 1 | Repo, Docker, DB, skeleton | `docker compose up` → 200 on web, api, db — **passing** |
+| 2 | AgentRegistry + CapitalVault | **agent cannot withdraw the vault** — passing; not deployed |
+| 3 | Agent runtime + LangGraph | one agent completes the graph, checkpointed — **passing** |
+| 4 | ML models + inference | 4 model classes, baseline comparison logged — **passing** |
+| 5 | Prediction commit + evaluation | hash pre-horizon, settle post-horizon — **passing** |
 | 6 | Reputation engine | IRIS Score from ≥6 dimensions, unit-tested |
 | 7 | MWU allocation | 4 mathematical invariants pass as tests |
 | 8 | Risk + slashing | breach → freeze → slash → reduced allocation |
@@ -194,6 +218,25 @@ violate the protocol's own honesty rule.
   prices come from an Ornstein–Uhlenbeck engine, not an exchange. Every P&L,
   Sharpe ratio and slash currently runs against synthetic tape. The UI does not
   yet label this everywhere it should — that is tracked in `STATE.md`.
+
+  In the data layer it *is* labelled: every observation carries
+  `market_events.source`, and a settled prediction inherits the **weakest**
+  provenance of its two price endpoints into
+  `prediction_outcomes.data_source`. A return measured from one live and one
+  simulated price is not recorded as a live result.
+
+- **Model weights are trained on a synthetic series** — seeded and
+  reproducible (`ml/inference/artifacts.training_series`), and not evidence
+  that any model would work on a real tape. The Phase 4 evaluation says which
+  models beat the baseline *on that series* and says plainly that `cnn_lstm`
+  does not.
+
+- **One strategy currently cannot trade.** `momentum` maps to `cnn_lstm`, which
+  lost to the baseline in Phase 4 and whose confidence does not reach the 0.55
+  validation floor, so those agents abstain every cycle. This is left as-is
+  rather than tuned around: an agent whose model cannot distinguish signal from
+  its own noise *should* decline, and Phases 6–7 are where reputation and
+  allocation are supposed to route capital away from it.
 - **Governance is off-chain.** Proposals, votes and quorum resolve in a JSON
   store and an in-process singleton. The parameter change is real and
   immediate; the vote is not on-chain.
@@ -239,9 +282,23 @@ absolute paths baked in; recreate it rather than reusing it.
 ## Testing
 
 ```bash
-make test                      # API suite inside the container
-python scripts/verify_phase1.py  # Phase 1 gate
+make test          # both suites: 105 in tests/, 61 in apps/api/tests/
+make verify-all    # every phase gate, in order
+make anchor-test   # the Solana programs, in a Linux container
 ```
+
+Two test trees, deliberately. `tests/` is the §4 layout and covers the v2
+runtime — the agent graph, the model layer, the settlement sweep, and the
+schema invariants. `apps/api/tests/` covers the legacy pre-v2 API that is still
+mounted. They are kept apart because `/app` is `apps/api` inside the container
+while the §4 tree lives at the repo root; both are mounted, neither shadows the
+other.
+
+The gates are not a second copy of the tests. A gate asserts the phase's
+Definition of Done against the *running stack* — it executes an agent, reads
+the rows back out of Postgres, and fails if the trace is missing. Every gate so
+far has caught at least one bug that the type checker and a green test run did
+not; those are listed in `STATE.md`.
 
 The testing matrix each phase must satisfy lives in the build prompt; a phase
 does not checkpoint without its row passing.
