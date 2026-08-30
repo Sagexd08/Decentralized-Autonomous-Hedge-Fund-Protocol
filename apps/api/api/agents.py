@@ -215,32 +215,39 @@ def _fetch_agents_from_db(risk: Optional[str] = None):
         select
             a.id,
             a.name,
-            a.owner_address,
-            a.strategy_description,
-            a.risk_pool,
-            a.stake_amount,
+            u.wallet_address as owner_address,
+            a.strategy as strategy_description,
+            a.vault_id as risk_pool,
+            coalesce(stk.total, 0) as stake_amount,
             a.status,
             coalesce(perf.pnl, 0) as pnl,
-            coalesce(perf.sharpe_ratio, 0) as sharpe,
-            coalesce(perf.max_drawdown, 0) as drawdown,
-            coalesce(perf.volatility, 0) as volatility,
-            coalesce(perf.allocation_weight * 100, 0) as allocation,
-            coalesce(perf.reputation_score, 50) as score
+            coalesce(perf.sharpe, 0) as sharpe,
+            coalesce(perf.max_drawdown_bps / 100.0, 0) as drawdown,
+            coalesce(perf.volatility_bps / 100.0, 0) as volatility,
+            coalesce(alloc.weight * 100, 0) as allocation,
+            coalesce(rep.iris_score, 50) as score
         from agents a
+        left join users u on u.id = a.owner_id
         left join lateral (
-            select
-                ap.pnl,
-                ap.sharpe_ratio,
-                ap.max_drawdown,
-                ap.volatility,
-                ap.allocation_weight,
-                ap.reputation_score
+            select sum(case when s2.is_unstake then -s2.amount else s2.amount end) as total
+            from agent_stakes s2 where s2.agent_id = a.id
+        ) stk on true
+        left join lateral (
+            select ap.pnl, ap.sharpe, ap.max_drawdown_bps, ap.volatility_bps
             from agent_performance ap
             where ap.agent_id = a.id
-            order by ap.timestamp desc
+            order by ap.window_end desc
             limit 1
         ) perf on true
-        {"where a.risk_pool = :risk_pool" if risk else ""}
+        left join lateral (
+            select ah.weight from allocation_history ah
+            where ah.agent_id = a.id order by ah.step desc limit 1
+        ) alloc on true
+        left join lateral (
+            select rs.iris_score from reputation_scores rs
+            where rs.agent_id = a.id order by rs.computed_at desc limit 1
+        ) rep on true
+        {"where a.vault_id = :risk_pool" if risk else ""}
         order by a.id
         """,
         params,
@@ -308,31 +315,38 @@ def get_agent(agent_id: str):
             select
                 a.id,
                 a.name,
-                a.owner_address,
-                a.strategy_description,
-                a.risk_pool,
-                a.stake_amount,
+                u.wallet_address as owner_address,
+                a.strategy as strategy_description,
+                a.vault_id as risk_pool,
+                coalesce(stk.total, 0) as stake_amount,
                 a.status,
                 coalesce(perf.pnl, 0) as pnl,
-                coalesce(perf.sharpe_ratio, 0) as sharpe,
-                coalesce(perf.max_drawdown, 0) as drawdown,
-                coalesce(perf.volatility, 0) as volatility,
-                coalesce(perf.allocation_weight * 100, 0) as allocation,
-                coalesce(perf.reputation_score, 50) as score
+                coalesce(perf.sharpe, 0) as sharpe,
+                coalesce(perf.max_drawdown_bps / 100.0, 0) as drawdown,
+                coalesce(perf.volatility_bps / 100.0, 0) as volatility,
+                coalesce(alloc.weight * 100, 0) as allocation,
+                coalesce(rep.iris_score, 50) as score
             from agents a
+            left join users u on u.id = a.owner_id
             left join lateral (
-                select
-                    ap.pnl,
-                    ap.sharpe_ratio,
-                    ap.max_drawdown,
-                    ap.volatility,
-                    ap.allocation_weight,
-                    ap.reputation_score
+                select sum(case when s2.is_unstake then -s2.amount else s2.amount end) as total
+                from agent_stakes s2 where s2.agent_id = a.id
+            ) stk on true
+            left join lateral (
+                select ap.pnl, ap.sharpe, ap.max_drawdown_bps, ap.volatility_bps
                 from agent_performance ap
                 where ap.agent_id = a.id
-                order by ap.timestamp desc
+                order by ap.window_end desc
                 limit 1
             ) perf on true
+            left join lateral (
+                select ah.weight from allocation_history ah
+                where ah.agent_id = a.id order by ah.step desc limit 1
+            ) alloc on true
+            left join lateral (
+                select rs.iris_score from reputation_scores rs
+                where rs.agent_id = a.id order by rs.computed_at desc limit 1
+            ) rep on true
             where a.id = :agent_id
             """,
             {"agent_id": agent_id},
@@ -366,25 +380,43 @@ async def register_agent(data: AgentRegister, request: Request):
             logger.warning("Solana register_agent failed: %s", exc)
 
     try:
-        risk_pool = _RISK_LABEL_TO_POOL.get(data.risk.lower(), "balanced")
+        vault_id = _RISK_LABEL_TO_POOL.get(data.risk.lower(), "balanced")
         existing = fetch_all_dicts("select id from agents order by id")
         new_id = f"AGT-{len(existing) + 1:03d}"
+
+        # The owner is a user, not a bare string column, in the v2 schema.
         execute_statement(
             """
-            insert into agents (id, name, owner_address, strategy_hash, strategy_description, risk_pool, stake_amount, status)
-            values (:id, :name, :owner_address, :strategy_hash, :strategy_description, :risk_pool, :stake_amount, :status)
+            insert into users (wallet_address) values (:address)
+            on conflict (wallet_address) do nothing
+            """,
+            {"address": data.address},
+        )
+        execute_statement(
+            """
+            insert into agents (id, name, owner_id, strategy, vault_id, status)
+            values (
+                :id, :name,
+                (select id from users where wallet_address = :address),
+                :strategy, :vault_id, 'PROBATION'
+            )
             """,
             {
                 "id": new_id,
                 "name": data.name,
-                "owner_address": data.address,
-                "strategy_hash": None,
-                "strategy_description": data.strategy,
-                "risk_pool": risk_pool,
-                "stake_amount": data.stake,
-                "status": "probation",
+                "address": data.address,
+                "strategy": data.strategy,
+                "vault_id": vault_id,
             },
         )
+        # Stake is an event, not a mutable column.
+        if data.stake:
+            execute_statement(
+                """
+                insert into agent_stakes (agent_id, amount) values (:id, :amount)
+                """,
+                {"id": new_id, "amount": data.stake},
+            )
         return {
             "id": new_id,
             "message": "Agent registered. Entering simulation arena.",
@@ -464,8 +496,9 @@ async def stake_agent(data: StakeRequest, request: Request):
     # Update DB stake amount
     try:
         execute_statement(
-            "update agents set stake_amount = coalesce(stake_amount, 0) + :amount where id = :id",
-            {"amount": data.amount, "id": data.agent_id},
+            "insert into agent_stakes (agent_id, amount, solana_sig) "
+            "values (:id, :amount, :sig)",
+            {"amount": data.amount, "id": data.agent_id, "sig": solana_tx},
         )
     except Exception:
         pass

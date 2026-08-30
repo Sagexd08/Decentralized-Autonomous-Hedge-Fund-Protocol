@@ -28,13 +28,13 @@ def _fetch_pools_from_db():
     rows = fetch_all_dicts(
         """
         select
-            p.id, p.name, p.tvl, p.apy,
-            round(p.volatility_cap_bps / 100.0, 2) as volatility_cap,
+            v.id, v.name, v.tvl, null::numeric as apy,
+            round(v.volatility_cap_bps / 100.0, 2) as volatility_cap,
             count(a.id) as agents
-        from pools p
-        left join agents a on a.risk_pool = p.id
-        group by p.id, p.name, p.tvl, p.apy, p.volatility_cap_bps
-        order by p.id
+        from vaults v
+        left join agents a on a.vault_id = v.id
+        group by v.id, v.name, v.tvl, v.volatility_cap_bps
+        order by v.id
         """,
     )
     return [
@@ -66,13 +66,13 @@ def get_pool(pool_id: str):
         pool = fetch_one_dict(
             """
             select
-                p.id, p.name, p.tvl, p.apy,
-                round(p.volatility_cap_bps / 100.0, 2) as volatility_cap,
+                v.id, v.name, v.tvl, null::numeric as apy,
+                round(v.volatility_cap_bps / 100.0, 2) as volatility_cap,
                 count(a.id) as agents
-            from pools p
-            left join agents a on a.risk_pool = p.id
-            where p.id = :pool_id
-            group by p.id, p.name, p.tvl, p.apy, p.volatility_cap_bps
+            from vaults v
+            left join agents a on a.vault_id = v.id
+            where v.id = :pool_id
+            group by v.id, v.name, v.tvl, v.volatility_cap_bps
             """,
             {"pool_id": pool_id},
         )
@@ -114,24 +114,25 @@ async def deposit(data: Deposit, request: Request):
 
     try:
         pool_row = fetch_one_dict(
-            "select id from pools where id = :pool_id", {"pool_id": data.pool_id}
+            "select id from vaults where id = :pool_id", {"pool_id": data.pool_id}
         )
         if pool_row:
             execute_statement(
-                "insert into investors (address) values (:address) on conflict (address) do nothing",
+                "insert into users (wallet_address) values (:address) "
+                "on conflict (wallet_address) do nothing",
                 {"address": data.investor_address},
             )
             execute_statement(
-                """insert into deposits (investor_id, pool_id, amount, tx_hash)
+                """insert into deposits (user_id, vault_id, amount, solana_sig)
                    values (
-                       (select id from investors where address = :address),
-                       :pool_id, :amount, :tx_hash
+                       (select id from users where wallet_address = :address),
+                       :pool_id, :amount, :sig
                    )""",
                 {"address": data.investor_address, "pool_id": data.pool_id,
-                 "amount": data.amount, "tx_hash": tx_hash},
+                 "amount": data.amount, "sig": solana_tx},
             )
             execute_statement(
-                "update pools set tvl = coalesce(tvl, 0) + :amount where id = :pool_id",
+                "update vaults set tvl = coalesce(tvl, 0) + :amount where id = :pool_id",
                 {"amount": data.amount, "pool_id": data.pool_id},
             )
             return {"tx_hash": tx_hash, "solana_tx": solana_tx,
