@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from agents.trading_engine import AgentTradingEngine, _compute_decision
+from services.trading_engine import AgentTradingEngine, _compute_decision
 
 class DummyAccount:
     def __init__(self, address: str):

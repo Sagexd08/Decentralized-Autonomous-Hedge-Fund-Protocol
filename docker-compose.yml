@@ -41,6 +41,12 @@ services:
     environment:
       DATABASE_URL: postgresql://iris:iris@db:5432/iris
       REDIS_URL: redis://redis:6379
+      PYTHONPATH: /app
+    volumes:
+      # Live-mount the source the image also bakes in, so an edit is a restart
+      # rather than a rebuild. The image stays self-contained for deployment.
+      - ./apps/api:/app
+      - ./agents:/app/agents
     depends_on:
       db:
         condition: service_healthy

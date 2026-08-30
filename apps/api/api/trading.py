@@ -11,7 +11,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, Request
 
-from agents.trading_engine import AgentTradingEngine
+from services.trading_engine import AgentTradingEngine
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ async def force_trade(agent_id: str, request: Request):
 
     # Seed history with current + slightly varied prices to guarantee a signal
     try:
-        from agents.price_engine import price_engine
+        from services.price_engine import price_engine
         prices = price_engine.get_current_prices()
         import random
         for i in range(4):

@@ -1,0 +1,6 @@
+# Agent runtime — IRIS_BUILD_PROMPT v2.0 section 10.
+langgraph>=1.0
+langgraph-checkpoint-postgres>=2.0
+langchain-core>=0.3
+psycopg[binary,pool]>=3.2
+pydantic>=2.9

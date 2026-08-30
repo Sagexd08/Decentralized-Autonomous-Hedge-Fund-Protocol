@@ -4,7 +4,7 @@ import time
 from typing import Optional
 
 from core.settings import settings
-from agents.price_engine import price_engine
+from services.price_engine import price_engine
 
 logger = logging.getLogger(__name__)
 

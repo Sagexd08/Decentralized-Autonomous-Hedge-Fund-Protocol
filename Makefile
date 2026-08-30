@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test clean
+.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test verify-all clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -35,6 +35,11 @@ db-seed: ## Load development seed data
 
 db-shell: ## Open a psql shell
 	$(COMPOSE) exec db psql -U iris -d iris
+
+verify-all: ## Run every phase gate in order
+	python scripts/verify_phase1.py
+	python scripts/verify_phase2.py
+	python scripts/verify_phase3.py
 
 anchor-test: ## Phase 2 gate: Anchor program tests (Linux container)
 	docker build -f docker/anchor.Dockerfile -t iris-anchor-test .

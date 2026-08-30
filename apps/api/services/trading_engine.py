@@ -111,7 +111,7 @@ class AgentTradingEngine:
         confidence_boost = config.get("confidence_boost", 1.0)
         
         try:
-            from agents.price_engine import price_engine
+            from services.price_engine import price_engine
             current_prices: dict[str, float] = price_engine.get_current_prices()
         except Exception:
             current_prices = {}
@@ -129,7 +129,7 @@ class AgentTradingEngine:
             decision_source = "unknown"
             
             try:
-                from agents.price_engine import price_engine as pe
+                from services.price_engine import price_engine as pe
                 # Get agent-specific lookback period
                 agent_hist = pe.get_history(sym, lookback)
                 

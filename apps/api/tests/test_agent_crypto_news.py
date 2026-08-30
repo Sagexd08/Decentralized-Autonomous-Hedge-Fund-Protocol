@@ -1,6 +1,6 @@
 import pytest
 
-from agents.crypto_news import CryptoNewsService
+from services.crypto_news import CryptoNewsService
 
 def test_extract_coins_detects_symbols():
     service = CryptoNewsService()

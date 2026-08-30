@@ -19,7 +19,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 if TYPE_CHECKING:
-    from agents.trading_engine import AgentTradingEngine
+    from services.trading_engine import AgentTradingEngine
 
 # Configure logging before anything else
 logging.basicConfig(
@@ -81,8 +81,8 @@ async def lifespan(app: FastAPI):
     app.state.ml_model, app.state.ml_scaler = _load_ml_artifacts()
 
     # Price engine + market stream
-    from agents.price_engine import price_engine
-    from agents.market_stream import market_stream
+    from services.price_engine import price_engine
+    from services.market_stream import market_stream
     price_engine.start()
     market_stream.start()
     logger.info("Price engine started.")
@@ -113,7 +113,7 @@ async def lifespan(app: FastAPI):
         logger.warning("Algorand client init failed: %s", exc)
 
     # Trading engine
-    from agents.trading_engine import AgentTradingEngine
+    from services.trading_engine import AgentTradingEngine
     ml_model = app.state.ml_model
     ml_scaler = app.state.ml_scaler
     if ml_model is not None:

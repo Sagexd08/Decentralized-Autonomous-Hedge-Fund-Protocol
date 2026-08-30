@@ -2,7 +2,7 @@ import time
 
 import pytest
 
-from agents.gemini_social import GeminiSocialEngine, SocialPost, _enforce_length
+from services.gemini_social import GeminiSocialEngine, SocialPost, _enforce_length
 
 def test_enforce_length_truncates_long_text():
     text = " ".join(["word"] * 60)
@@ -26,7 +26,7 @@ async def test_generate_post_cycle_adds_post_and_broadcasts(monkeypatch):
     async def fake_broadcast(msg):
         seen.append(msg)
 
-    monkeypatch.setattr("agents.gemini_social.random.random", lambda: 0.9)
+    monkeypatch.setattr("services.gemini_social.random.random", lambda: 0.9)
     monkeypatch.setattr(engine, "_call_gemini", fake_call)
     monkeypatch.setattr(engine, "_broadcast", fake_broadcast)
 

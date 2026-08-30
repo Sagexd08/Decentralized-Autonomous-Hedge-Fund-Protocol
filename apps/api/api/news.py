@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query
 
-from agents.crypto_news import crypto_news_service
+from services.crypto_news import crypto_news_service
 from core.settings import settings
 
 router = APIRouter()

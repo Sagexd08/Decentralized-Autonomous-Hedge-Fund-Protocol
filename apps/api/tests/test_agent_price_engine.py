@@ -1,6 +1,6 @@
 import pytest
 
-from agents.price_engine import (
+from services.price_engine import (
     PRICE_BOUNDS,
     PriceEngine,
     compute_agent_prediction,

@@ -9,8 +9,8 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from agents.price_engine import price_engine, compute_agent_prediction, INITIAL_PRICES
-from agents.market_stream import market_stream
+from services.price_engine import price_engine, compute_agent_prediction, INITIAL_PRICES
+from services.market_stream import market_stream
 from core.settings import settings
 
 logger = logging.getLogger(__name__)

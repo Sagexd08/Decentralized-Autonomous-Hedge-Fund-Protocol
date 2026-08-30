@@ -2,7 +2,7 @@ import asyncio
 
 import pytest
 
-from agents.market_stream import NormalizedMarketStream
+from services.market_stream import NormalizedMarketStream
 
 def test_market_stream_normalize_shape():
     stream = NormalizedMarketStream()

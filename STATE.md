@@ -5,12 +5,21 @@
 
 ## Current phase
 
-**Phase 2 — AgentRegistry + CapitalVault.** Security gate PASSED; the phase is
-**not fully checkpointed**, because the DoD also says these instructions work
-"on devnet" and nothing has been deployed. See *Known blockers* 6.
+**Phase 3 — agent runtime + LangGraph. COMPLETE and checkpointed.**
+`python scripts/verify_phase3.py` → 12/12, plus 18/18 in
+`tests/integration/test_agent_graph.py`.
 
-`python scripts/verify_phase2.py` → 17/17 green (5 custody + 12 lifecycle).
-Phase 1 remains complete (`verify_phase1.py` → 0).
+Phase 1 complete. Phase 2's security gate passed (17/17) but the phase is **not
+fully checkpointed** — its DoD also says the instructions work "on devnet" and
+nothing is deployed. See *Known blockers* 6. `make verify-all` runs all three.
+
+### Phase 3 Definition of Done (§27)
+
+| Requirement | Status |
+|---|---|
+| One agent completes the full graph end to end | **verified** — 11 nodes, §10 order |
+| …on synthetic data | verified — seeded O-U tape, labelled SIMULATION |
+| …checkpointed in Neon | **verified** — 11 `graph_checkpoints` rows + LangGraph `PostgresSaver` |
 
 ### Phase 2 Definition of Done (§27)
 
@@ -102,6 +111,26 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 - [x] `scripts/verify_phase2.py` asserts each required test passed **by name**,
       not just that the suite exited 0.
 
+### Phase 3
+
+- [x] `agents/` package per §4: `state.py`, `graphs/{nodes,trading_graph}.py`,
+      `runtime/{persistence,runner}.py`.
+- [x] All 11 §10 nodes as typed functions over a Pydantic `AgentState`; single
+      conditional branch at VALIDATION (commit vs abstain).
+- [x] **The hard boundary holds.** RISK_ANALYSIS and VALIDATION are
+      deterministic, and a test reads their source and fails if an LLM or
+      network call ever appears in either.
+- [x] PREDICTION_COMMIT hashes a canonical payload (sorted keys, fixed float
+      formatting) and stamps `committed_at < horizon_end`. Tested for
+      stability, and that changing *any* of 7 fields changes the digest.
+- [x] Two checkpointing layers, both in Postgres: LangGraph's `PostgresSaver`
+      (for resuming a run) and our `graph_checkpoints` (the audit trail the
+      Observatory reads). Each checkpoint's `input_hash` equals the previous
+      node's `output_hash`, so the trail is a chain rather than 11 snapshots.
+- [x] Abstention recorded as `ABSTAINED`, not `FAILED` — declining because risk
+      objected is the system working.
+- [x] `scripts/verify_phase3.py` (12 checks) and 18 integration tests.
+
 ### Outside the phase loop
 
 - [x] Brand assets extracted from the supplied lockup screenshot →
@@ -166,6 +195,12 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Bugs found by the gates (not written by them)
 
+0. **`apps/api/agents/` collided with the new `agents/` package** and shadowed
+   it, crashing the API on boot. Four of its five modules (price_engine,
+   market_stream, crypto_news, gemini_social) are data services, not agents, so
+   it was renamed `apps/api/services/`. `trading_engine.py` moved with them and
+   is the legacy runtime the graph replaces — remove it once the graph drives
+   allocation.
 1. **`AgentList` was unallocatable.** `#[max_len(5000)]` on `Vec<Pubkey>` asks
    for ~160KB, but the runtime caps a program-created account at 10,240 bytes.
    `initialize` failed with `InvalidRealloc` — on devnet exactly as in the
@@ -177,11 +212,12 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Next phase
 
-**Phase 3 — agent runtime + LangGraph.** DoD: one agent completes the full graph
-end to end on synthetic data, checkpointed in Neon. Note that
-`apps/api/tests/test_agent_trading_engine.py` is stale and belongs to this
-phase's rewrite (blocker 4).
+**Phase 4 — ML models + inference.** DoD: all 4 model classes (rule-based
+baseline, gradient boosting, CNN-LSTM, transformer) return predictions through
+one common interface, with the baseline comparison logged rather than buried.
+`MODEL_INFERENCE` and `REGIME_ANALYSIS` currently hold seeded deterministic
+stand-ins labelled SIMULATION; Phase 4 replaces them.
 
 ## Last verified commit
 
-`d1b9d2a` — chore(phase-1): checkpoint — gate passed
+`d8ea4ad` — feat(phase-2): AgentRegistry + CapitalVault, custody gate passing

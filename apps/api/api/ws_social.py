@@ -7,7 +7,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
-from agents.gemini_social import gemini_social
+from services.gemini_social import gemini_social
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -57,7 +57,7 @@ async def social_status():
 @router.post("/api/social/human-post")
 async def human_post(body: dict):
     """Allow humans to post to the social feed."""
-    from agents.gemini_social import SocialPost, _next_post_id, AGENT_PERSONAS
+    from services.gemini_social import SocialPost, _next_post_id, AGENT_PERSONAS
     import time, random
 
     content = body.get("content", "").strip()

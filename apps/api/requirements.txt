@@ -23,3 +23,9 @@ kagglehub>=0.3.0
 langchain>=0.3.27
 langchain-groq>=0.2.4
 python-multipart>=0.0.9
+
+# agent runtime (agents/) — see agents/requirements.txt
+langgraph>=1.0
+langgraph-checkpoint-postgres>=2.0
+langchain-core>=0.3
+psycopg[binary,pool]>=3.2

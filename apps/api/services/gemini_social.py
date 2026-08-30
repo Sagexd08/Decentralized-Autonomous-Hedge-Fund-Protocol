@@ -229,7 +229,7 @@ class GeminiSocialEngine:
             return _research_cache
 
         try:
-            from agents.crypto_news import crypto_news_service
+            from services.crypto_news import crypto_news_service
 
             service_items = await crypto_news_service.get_latest_news(limit=6)
             if service_items:
@@ -524,7 +524,7 @@ class GeminiSocialEngine:
 
     async def _get_market_context(self) -> str:
         try:
-            from agents.price_engine import price_engine
+            from services.price_engine import price_engine
 
             prices = price_engine.get_current_prices()
             lines = [f"{sym}: ${price:.4f}" for sym, price in prices.items()]
