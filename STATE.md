@@ -5,11 +5,10 @@
 
 ## Current phase
 
-**Phase 1 — repo, Docker, database, skeleton.**
-Implementation complete; **gate not yet verified**. `docker compose up -d --build`
-is running for the first time against the new compose file. Phase 1 may not
-checkpoint, and Phase 2 may not start, until `python scripts/verify_phase1.py`
-exits 0.
+**Phase 1 — repo, Docker, database, skeleton. COMPLETE and checkpointed.**
+Gate verified: `python scripts/verify_phase1.py` exits 0 with all four checks
+green. Phase 2 (AgentRegistry + CapitalVault, gated on the
+agent-cannot-withdraw-vault test) is cleared to start.
 
 ### Phase 1 Definition of Done (§27)
 
@@ -18,8 +17,17 @@ exits 0.
 | Repo restructured to §4 | done |
 | Stellar removed (§2 single-chain) | done |
 | 21 tables, real FKs and indexes (§13) | done — `db/migrations/0001_init.sql` |
-| `docker compose up` boots web + api + db | **unverified** |
-| health route returns 200 on all three | **unverified** |
+| `docker compose up` boots web + api + db | verified |
+| health route returns 200 on all three | verified |
+
+```
+PASS  api          200  {"status":"ok","service":"iris-api","version":"2.2.0"}
+PASS  api-db       200  {"status":"ok","dialect":"postgresql"}
+PASS  web          200  {"status":"ok","service":"iris-web"}
+PASS  schema       all 21 tables present
+```
+
+Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Decisions taken
 
@@ -104,9 +112,12 @@ exits 0.
    none of which are parameters any more, and asserts lowercase decisions
    against an engine that returns uppercase. Pre-existing, not caused by the
    Stellar removal. Belongs to Phase 3's rewrite of the runtime.
-5. **Stale containers from the old compose file** (`backend`, `frontend`,
-   `postgres`) are still on the machine, plus an 8.6 GB `hacktropica-backend`
-   image. Safe to `docker rm` / `docker image prune` once the new stack is up.
+5. **The 4-month-old `pgdata` volume was destroyed.** It had to be: Postgres
+   saw an existing data directory, skipped initialisation entirely, and the
+   volume contained neither an `iris` nor a `postgres` role — an aborted init
+   from 2026-04-04 that no credential could read. Nothing was recoverable.
+   Stale `hacktropica-frontend`/`-backend` images (1.5 GB + 8.6 GB) remain and
+   can be pruned.
 
 ## Local edit outside the repo
 
@@ -114,6 +125,15 @@ exits 0.
 `Algorand deploy failed: …`), which is not valid dotenv and made
 `docker compose config` fail. They are now commented out; all values preserved.
 
+## Next phase
+
+**Phase 2 — AgentRegistry + CapitalVault (Anchor).** DoD: register/stake/unstake
+work on devnet, and the **agent-cannot-withdraw-vault test passes** — the single
+highest-priority security test in the repo (§5). Needs the `anchor` and `solana`
+CLIs, neither of which is installed on this machine. Work also includes
+consolidating the four standalone workspaces under `contracts/rust/solana/`
+into the `programs/iris/` Anchor workspace.
+
 ## Last verified commit
 
-`a72d3ed` — refactor: restructure to apps/ layout and drop Stellar
+`b01115e` — fix(phase-1): migrate API queries onto the v2 schema

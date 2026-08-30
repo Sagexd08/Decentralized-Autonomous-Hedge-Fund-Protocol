@@ -8,7 +8,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/*
 
 COPY apps/api/requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+# CPU-only torch. The default wheel drags in ~2.5GB of CUDA runtime that no
+# container here can use, and it dominates both image size and build time.
+RUN pip install --no-cache-dir -r requirements.txt       --extra-index-url https://download.pytorch.org/whl/cpu
 
 COPY apps/api/ ./
 EXPOSE 8000
