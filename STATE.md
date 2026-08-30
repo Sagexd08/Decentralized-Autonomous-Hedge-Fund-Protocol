@@ -5,16 +5,31 @@
 
 ## Current phase
 
-**Phase 5 — prediction commitment + evaluation. COMPLETE and checkpointed.**
-`python scripts/verify_phase5.py` → 17/17.
+**Phase 6 — reputation engine. COMPLETE and checkpointed.**
+`python scripts/verify_phase6.py` → 22/22.
 
-All five gates pass: `make verify-all`. Both test suites pass:
-**105** in the §4 root tree (`/repo/tests`) and **61** in the legacy
+All six gates pass: `make verify-all`. Both test suites pass:
+**154** in the §4 root tree (`/repo/tests`) and **61** in the legacy
 `apps/api/tests`.
 
 Phase 2's security gate passed (17/17) but the phase is **not fully
 checkpointed** — its DoD also says the instructions work "on devnet" and
 nothing is deployed. See *Known blockers* 6.
+
+### Phase 6 Definition of Done (§27)
+
+| Requirement | Status |
+|---|---|
+| IRIS Score from ≥6 dimensions | **verified** — accuracy, calibration, magnitude, consistency, risk_adjusted, conviction |
+| configurable weights | **verified** — validated; missing / unknown / non-unit-sum / negative all rejected |
+| unit-tested | **verified** — 34 unit + 11 database tests |
+
+```
+IRIS Score = 100 x (weighted quality) x evidence
+```
+
+`evidence` is a **multiplier, not a seventh dimension**, and the gate is what
+forced that. See *Bugs found by the gates* 14.
 
 ### Phase 5 Definition of Done (§27)
 
@@ -154,6 +169,33 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
       `(UNTRAINED)`; a model that fails to load makes the agent abstain rather
       than trade on a guess.
 - [x] Evaluation leads with the direction confusion matrix, not MSE.
+
+### Phase 6
+
+- [x] `agents/reputation/`: `dimensions.py` (six pure functions on a settled
+      record) and `score.py` (weighting, validation, persistence, CLI).
+- [x] Six dimensions that each answer a question the others cannot — the gate
+      proves it, by zeroing each weight in turn (none is inert) and comparing
+      every pair across four records (no two are the same measurement).
+- [x] **Weights are validated, not trusted.** A missing dimension is silently
+      weighted 0; an unknown one is silently ignored; weights that do not sum
+      to 1 shift every score by a constant factor and leave the leaderboard
+      looking plausible. All four cases raise.
+- [x] **An untested agent has no score.** `None`, not 0 and not 50. A default
+      would let an agent that has never been tested outrank one with a proven
+      bad record — and Phase 7 allocates capital by that ranking. The
+      leaderboard lists them as unranked rather than last.
+- [x] **Records are never aggregated across provenance.** Scoring is per
+      `data_source`, so a simulated track record cannot be presented as live
+      performance (§0c).
+- [x] **Only settled, scored outcomes count.** `WAITING_FOR_OUTCOME` and
+      measured-but-unscored rows are excluded, so an agent cannot dilute a bad
+      record by predicting on assets with no price feed.
+- [x] `reputation_scores` is append-only, and every row carries the weights,
+      the evidence factor, the sample size and the provenance — so a score is
+      re-derivable from its own row after the weighting changes.
+- [x] `python -m agents.reputation.score` / `make score`.
+- [x] `scripts/verify_phase6.py` (22 checks), 34 unit tests, 11 database tests.
 
 ### Phase 5
 
@@ -357,6 +399,19 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
     healthcheck used `wget http://localhost:3000`, which resolves to `::1`
     first; `next dev --hostname 0.0.0.0` binds IPv4 only. Now `127.0.0.1`.
 
+### Found in Phase 6
+
+14. **A single lucky prediction scored 79.2 out of 100.** `experience` was one
+    of seven weighted dimensions at 0.10 — but every *other* dimension maxes
+    out on a sample of one, and a 10% weight cannot pull that down. Phase 7
+    allocates capital by this ranking, so that agent would have been handed the
+    vault on one call. Evidence now **multiplies** the weighted quality instead
+    of being averaged into it: a weight small enough to be fair to a long
+    record is far too small to discount a short one. Same record now scores
+    4.2 at n=1 and 84.9 at n=200. `conviction` took the freed dimension slot.
+
+### Found in Phase 5 (continued)
+
 13. **Two test files asserted the behaviour of deleted code.**
     `test_agent_trading_engine.py` constructed the engine with Ethereum-era
     parameters and monkeypatched four methods the Solana migration removed —
@@ -367,34 +422,48 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Next phase
 
-**Phase 6 — reputation engine.** DoD: an IRIS Score computed from at least six
-dimensions with configurable weights.
+**Phase 7 — MWU allocation.** DoD: four mathematical invariants pass as tests.
 
-Phase 5 leaves the inputs in place. `prediction_outcomes` now carries
-`direction_correct`, `error` and `evaluation_score` per prediction, and
-`reputation_scores` already stores `dimensions` *and* `weights` as JSONB so a
-historical score can be re-derived after a weighting change — which is the
-whole reason the schema keeps them side by side.
+The multiplicative-weights update from §7:
 
-Two things Phase 6 must not do, both of which Phase 5 made easy to get wrong:
+    w_i(t+1) = w_i(t) * exp(eta * R_i(t)) / Z
 
-  * **Score across provenance.** An agent with 40 SIMULATION outcomes and 2 LIVE
-    ones does not have a reputation. `data_source` is on every outcome; the
-    aggregate has to respect it or the IRIS Score becomes a number about a
-    simulation wearing a live label.
-  * **Count unsettled predictions.** `WAITING_FOR_OUTCOME` exists precisely so
-    that predictions with no evidence stay out of every reputation number.
-    Including them as neutral would let an agent dilute a bad record by
-    predicting on assets with no feed.
+The four invariants the gate has to prove, stated as properties rather than as
+"the function returns numbers":
 
-`agent_performance` is still empty — nothing computes windowed pnl/sharpe/
-sortino yet, and four of the six dimensions will come from there.
+  1. **Weights always sum to 1.** After any update, from any starting point.
+  2. **Weights are never negative.** The exponential guarantees it in theory;
+     underflow and normalisation by a near-zero Z are how it fails in practice.
+  3. **A better score never loses weight relative to a worse one.** Monotonicity
+     is the entire claim of the algorithm — if it can be violated, the mechanism
+     is decorative.
+  4. **The update is bounded.** One catastrophic round must not take an agent's
+     weight to exactly 0 or 1; recovery has to remain possible, and no single
+     agent may capture the vault in one step.
+
+Phase 6 leaves the input in place: `reputation_scores.iris_score` on 0-100, and
+`allocation_history` with `(agent_id, step)` UNIQUE, a `weight` CHECK of
+[0, 1], and `eta` stored per row so a historical allocation can be replayed.
+
+Two things Phase 7 must get right, both of which Phase 6 set up deliberately:
+
+  * **An agent with no score cannot be allocated to.** `score_agent` returns
+    None rather than a default precisely so this decision has to be made
+    explicitly. A neutral 50 would let an untested agent take capital from a
+    proven one on its first cycle.
+  * **The score is already evidence-discounted**, so the allocator must not
+    apply its own sample-size correction on top — that would penalise a short
+    record twice.
+
+`agent_performance` is still empty; nothing computes windowed pnl / sharpe /
+sortino yet. The IRIS Score does not currently read it, so Phase 7 is not
+blocked on it, but §15's Observatory will be.
 
 `REGIME_ANALYSIS` still uses threshold stand-ins; the HMM classifier in
 `ml/regime/classifier.py` is merged but not wired into the graph.
 
 ## Last verified commit
 
-`9391565` — feat(phase-4): four model classes, one interface, an honest baseline
+`5610290` — feat(phase-5): settlement, scoring, and invariant 2 enforced by the database
 
-Phase 5 is committed on top of it.
+Phase 6 is committed on top of it.

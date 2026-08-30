@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test verify-all warm settle clean
+.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test verify-all warm settle feed score clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -43,6 +43,7 @@ verify-all: ## Run every phase gate in order
 	python scripts/verify_phase3.py
 	python scripts/verify_phase4.py
 	python scripts/verify_phase5.py
+	python scripts/verify_phase6.py
 
 anchor-test: ## Phase 2 gate: Anchor program tests (Linux container)
 	docker build -f docker/anchor.Dockerfile -t iris-anchor-test .
@@ -57,6 +58,12 @@ warm: ## Fit and cache the model artifacts (~40s cold, ~0.2s after)
 
 settle: ## Run the Phase 5 settlement sweep against the live database
 	$(COMPOSE) exec -T api python -m agents.evaluation.settlement
+
+feed: ## Write a labelled simulated price tape (gap-filling, idempotent)
+	$(COMPOSE) exec -T api python -m agents.evaluation.prices --asset BTC --hours 6
+
+score: ## Compute and store the IRIS Score for every agent
+	$(COMPOSE) exec -T api python -m agents.reputation.score
 
 clean: ## Stop the stack and DROP the database volume
 	$(COMPOSE) down -v
