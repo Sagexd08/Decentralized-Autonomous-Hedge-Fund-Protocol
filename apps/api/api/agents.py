@@ -275,16 +275,42 @@ def _augment_agent(agent: dict):
 
 @router.get("/")
 def list_agents(risk: Optional[str] = None):
+    """
+    Registered agents.
+
+    The fallback below is a §0c hazard and is labelled rather than removed,
+    because the pre-v2 dashboard still reads this route. `AGENTS` is nine
+    invented agents with invented Sharpe ratios; before this, a database
+    failure was swallowed by `except Exception: pass` and those nine were
+    returned looking exactly like real rows. A dashboard full of numbers nobody
+    produced is worse than a dashboard that is empty.
+
+    Every agent now carries `data_source`. The v2 screens use
+    `/api/protocol/arena`, which has no fixture path at all.
+    """
     try:
         agents = _fetch_agents_from_db(risk)
         if agents:
-            return [_augment_agent(a) for a in agents]
-    except Exception:
-        pass
-    # Fallback to static agent list when DB is unavailable
+            return [
+                {**_augment_agent(a), "data_source": "SIMULATION"} for a in agents
+            ]
+    except Exception as exc:
+        logger.warning("agent query failed, falling back to fixtures: %s", exc)
+
     if risk:
-        return [_augment_agent(a) for a in AGENTS if a["risk"].lower() == risk.lower()]
-    return [_augment_agent(a) for a in AGENTS]
+        fixtures = [a for a in AGENTS if a["risk"].lower() == risk.lower()]
+    else:
+        fixtures = AGENTS
+    return [
+        {
+            **_augment_agent(a),
+            # Not a detail. Without it these are indistinguishable from real
+            # agents, and the numbers on them were never measured at all.
+            "data_source": "FIXTURE",
+            "warning": "illustrative data, not a registered agent",
+        }
+        for a in fixtures
+    ]
 
 
 # Must be declared before /{agent_id} to prevent wildcard capture

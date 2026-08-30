@@ -5,15 +5,19 @@
 
 ## Current phase
 
-**Phase 9 — WebSocket infrastructure. COMPLETE and checkpointed.**
-`python scripts/verify_phase9.py` → 12/12.
+**Phases 10-12 — Arena, Observatory, Ledger. COMPLETE and checkpointed.**
+`python scripts/verify_phase10_12.py` → 27/27.
 
-All nine gates pass: `make verify-all`. Both test suites pass:
+All ten gates pass: `make verify-all`. Both test suites pass:
 **284** in the §4 root tree (`/repo/tests`) and **61** in the legacy
 `apps/api/tests`.
 
 `make cycle` runs the whole loop: feed → settle → score → risk → allocate.
-`make events` tails what that loop emits.
+`make events` tails what that loop emits. The three screens render it at
+`/arena`, `/observatory` and `/ledger`.
+
+**§0c is now satisfied in the UI**, which it had not been since Phase 1. See
+*Stubbed / SIMULATION-labeled*.
 
 **Phase 2 is now half-closed.** The Solana toolchain exists
 (`make devnet-build`, Agave 4.2.2 + platform-tools v1.54), both programs build
@@ -24,6 +28,18 @@ faucet rate-limits per IP. See *Known blockers* 6.
 Phase 2's security gate passed (17/17) but the phase is **not fully
 checkpointed** — its DoD also says the instructions work "on devnet" and
 nothing is deployed. See *Known blockers* 6.
+
+### Phases 10-12 Definition of Done (§27)
+
+| Screen | Requirement | Status |
+|---|---|---|
+| Agent Arena | driven by real rows | **verified** — every IRIS Score compared against `reputation_scores` |
+| AI Observatory | driven by real rows | **verified** — 11 checkpoints per run, hash chain verified not asserted |
+| Prediction Ledger | driven by real rows | **verified** — counts and scores compared against the tables |
+
+The gate reads each number back out of the database rather than checking that
+a page rendered. A screen backed by plausible constants looks identical to one
+backed by the database until somebody does that comparison.
 
 ### Phase 9 Definition of Done (§27)
 
@@ -219,6 +235,31 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
       than trade on a guess.
 - [x] Evaluation leads with the direction confusion matrix, not MSE.
 
+### Phases 10-12
+
+- [x] `apps/api/api/protocol.py` — `/api/protocol/{arena,observatory,ledger,risk,summary}`,
+      reading the tables phases 5-8 write. **No fixture fallback anywhere in
+      this path.**
+- [x] `apps/web/app/{arena,observatory,ledger}/` — three screens on
+      `lib/protocol.ts` and the Phase 9 socket, reloading on the events that
+      actually changed something rather than on a timer.
+- [x] **The Arena separates *unranked* from *last*.** An agent with no settled
+      record has `iris_score: null`, and rendering it at the bottom of the same
+      table would undo Phase 6's whole point — a reader scanning a leaderboard
+      reads "last" as "worst".
+- [x] **The Observatory verifies the hash chain** rather than displaying the
+      nodes in order. `chain_intact` is computed from the rows; the gate
+      tampers with a copy to prove the check is not hardcoded.
+- [x] **The Ledger gives `WAITING_FOR_OUTCOME` its own treatment.** It is not
+      "pending" — it is the protocol declining to score something it has no
+      evidence for, and a spinner would hide the most honest thing it does.
+- [x] `components/iris/simulation-notice.tsx` — a **server** component, so the
+      §0c label is in the HTML before hydration, without JavaScript, and in the
+      loading and error states. See *Bugs found by the gates* 24.
+- [x] The legacy `/api/agents` fixture fallback is now labelled `FIXTURE` with
+      a warning. See *Bugs found by the gates* 25.
+- [x] `scripts/verify_phase10_12.py` (27 checks).
+
 ### Phase 9
 
 - [x] `db/migrations/0004_events.sql` — an **outbox**. Triggers on the eight
@@ -392,9 +433,11 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Stubbed / SIMULATION-labeled
 
-- **Price data is simulated** (`WS_MARKET_SOURCE=simulated`, Ornstein–Uhlenbeck
-  engine). Not yet labeled in the UI — **violates §0c**, must be fixed by
-  whichever phase next touches those screens.
+- **Price data is simulated** (Ornstein–Uhlenbeck tape), and is now **labelled
+  end to end**: `market_events.source` → `prediction_outcomes.data_source` →
+  the API's `provenance` block → a server-rendered notice on every protocol
+  screen. §0c is satisfied for `/arena`, `/observatory` and `/ledger`.
+  The pre-v2 dashboard pages still show unlabelled numbers.
 - **Governance is off-chain** (`governance_store.json` + in-process singleton).
 - ~~**Prediction primitive is schema-only.**~~ **Closed in Phase 5.** The
   runtime commits, the sweep settles and scores, and the ordering is enforced
@@ -554,6 +597,26 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
     healthcheck used `wget http://localhost:3000`, which resolves to `::1`
     first; `next dev --hostname 0.0.0.0` binds IPv4 only. Now `127.0.0.1`.
 
+### Found in Phases 10-12
+
+24. **The §0c label depended on a successful fetch.** The provenance banner
+    rendered only once data arrived, so it was absent from the server HTML,
+    absent with JavaScript disabled, and absent in the loading and error states
+    — which is exactly where a reader forms their first impression. Section 0c
+    says label simulated data *in the UI*; a label that needs a round trip is a
+    label on the happy path. Now a server component in a route layout.
+
+25. **A database outage rendered as a working dashboard.** `/api/agents` caught
+    every exception with `except Exception: pass` and fell back to nine
+    hardcoded agents with invented Sharpe ratios, indistinguishable from real
+    rows. The query migration in Phase 1 fixed the queries and left the
+    fallback. It now logs the failure and labels every row `FIXTURE` with a
+    warning; the v2 screens use `/api/protocol/*`, which has no fixture path.
+
+26. **The web container had no live mount.** Three finished routes returned 404
+    because the container serves the baked image and `apps/web` was never
+    mounted, unlike `apps/api`. A new page needed a full rebuild to exist.
+
 ### Found in Phase 8
 
 17. **The uncertainty head was never trained.** Both torch models compute
@@ -644,48 +707,48 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Next phase
 
-**Phases 10-12 — Agent Arena, AI Observatory, Prediction Ledger.** DoD for each:
-driven by real rows, not fixtures.
+**Phase 13 — simulation + backtesting.** DoD: the same seed produces the same
+result.
 
-Phase 9 makes that checkable. Every screen can now be built on `/ws/events` and
-`/api/events`, and every frame names the `source_table` and `source_id` it came
-from — so a gate for these phases can compare what the UI renders against the
-rows behind it, rather than against a screenshot.
+Most of the pieces are already seeded and reproducible, and were built that way
+deliberately: `market_observation` seeds its tape from the run,
+`ml.inference.artifacts.training_series` is a fixed seeded series,
+`agents.evaluation.prices.simulated_tape` is seeded, and model artifacts are
+cached by a contract key that changes when any training input does.
 
-The three screens map onto data that already exists:
+What does not yet exist is the thing that makes those facts checkable: a
+**replay harness** that runs a whole scenario end to end — feed, agents,
+settlement, scoring, risk, allocation — twice from one seed and asserts the two
+runs agree. That is a stronger claim than "each generator is seeded", because
+the places reproducibility actually breaks are the joins: wall-clock timestamps,
+dict ordering, a float summed in a different order, `now()` reaching the
+database.
 
-  * **Arena** (§15) — `reputation_scores` + `allocation_history`. The
-    leaderboard is `agents.reputation.score.leaderboard`. Note that agents with
-    no settled record return `None`, not 0: they must render as *unranked*, not
-    as bottom of the table.
-  * **Observatory** (§15) — `agent_runs` + `graph_checkpoints`. Eleven
-    `NODE_COMPLETED` events per run, each with its latency and output hash, so
-    the graph can be replayed node by node rather than reconstructed.
-  * **Ledger** (§15) — `predictions` + `prediction_outcomes`. The
-    commit-before-outcome primitive is the thing to show: hash, `committed_at`,
-    `horizon_end`, then the settlement. `WAITING_FOR_OUTCOME` needs its own
-    treatment — it is not "pending", it is *the protocol declining to score
-    something it has no evidence for*, and flattening that into a spinner would
-    hide the most honest thing the system does.
+Three known non-determinisms to deal with rather than paper over:
 
-Two constraints carry over:
+  * **Wall-clock time.** `committed_at`, `settled_at` and `computed_at` all come
+    from the real clock. A replay needs a virtual clock, or the comparison has
+    to exclude timestamps — and excluding them silently would let a genuine
+    ordering bug pass.
+  * **Torch.** Seeded, but CPU thread count and library version affect the last
+    bits. The comparison should be on the decisions and scores, not on raw
+    weights.
+  * **The devnet keypairs** are generated once and reused; a replay must not
+    regenerate them.
 
-  * **§0c is still outstanding in the UI.** Everything is labelled in the data
-    layer and nothing is labelled on screen. These are the phases that fix it,
-    and every one of the three screens shows numbers derived from a simulated
-    tape.
-  * **The Vercel Root Directory is still `frontend`** — see *Known blockers* 1.
-    Anything built here will not deploy until that setting changes.
+Then Phases 14-16: security hardening, the testing matrix, production polish.
+Phase 16's demo-mode gate wants a cold boot under 60 seconds, which the 3.2 GB
+API image will not hit without a slimming pass — and `make warm` currently
+takes ~40 seconds on a cold cache before an agent can trade at all.
 
 `agent_performance` is still empty — nothing computes windowed pnl / sharpe /
-sortino. Phase 8 measures drawdown and volatility per sweep but does not
-persist a window, and the Observatory will want one.
+sortino.
 
 `REGIME_ANALYSIS` still uses threshold stand-ins; the HMM classifier in
 `ml/regime/classifier.py` is merged but not wired into the graph.
 
 ## Last verified commit
 
-`1726a67` — feat(phase-8): risk and slashing as one causal chain, and two dead strategies revived
+`d02aa1b` — feat(phase-9): the protocol event stream, where the event is a row
 
-Phase 9 is committed on top of it.
+Phases 10-12 are committed on top of it.

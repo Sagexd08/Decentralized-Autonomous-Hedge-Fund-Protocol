@@ -49,6 +49,7 @@ verify-all: ## Run every phase gate in order
 	python scripts/verify_phase7.py
 	python scripts/verify_phase8.py
 	python scripts/verify_phase9.py
+	python scripts/verify_phase10_12.py
 
 devnet-build: ## Build the Solana devnet toolchain image (solana 4.2.2 + SBF)
 	docker build -f docker/devnet.Dockerfile -t iris-devnet .

@@ -20,6 +20,17 @@ services:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_PUBLIC_WS_URL: ws://localhost:8000
       WATCHPACK_POLLING: "true"
+    volumes:
+      # Live-mount the source, exactly as the api service does. Without this a
+      # new page needs a full image rebuild to appear at all, which is how
+      # three finished routes came back 404.
+      #
+      # node_modules and .next stay as anonymous volumes so the mount does not
+      # shadow what the image installed — the host has no node_modules (see
+      # STATE.md, Known blockers 2) and mounting over it would empty them.
+      - ./apps/web:/app
+      - /app/node_modules
+      - /app/.next
     depends_on:
       api:
         condition: service_healthy

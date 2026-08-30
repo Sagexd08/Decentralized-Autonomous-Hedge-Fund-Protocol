@@ -18,6 +18,12 @@ import { WalletButton } from "@/components/wallet-button"
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/dashboard", label: "Dashboard" },
+  // The v2 screens (phases 10-12). Listed first among the feature pages
+  // because they are the ones driven entirely by real rows — the routes below
+  // are the pre-v2 dashboard and still read from the legacy API.
+  { href: "/arena", label: "Arena" },
+  { href: "/observatory", label: "Observatory" },
+  { href: "/ledger", label: "Ledger" },
   { href: "/agents", label: "Agents" },
   { href: "/terminal", label: "Terminal" },
   { href: "/risk-pools", label: "Risk Pools" },

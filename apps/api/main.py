@@ -35,6 +35,7 @@ from api import ws_trading
 from api import ws_prices
 from api import ws_social
 from api import ws_events
+from api import protocol as protocol_api
 from services import event_stream
 
 _MODEL_BUCKET = "models"
@@ -199,6 +200,7 @@ app.include_router(ws_trading.router, tags=["websocket"])
 app.include_router(ws_prices.router, tags=["prices"])
 app.include_router(ws_social.router, tags=["social"])
 app.include_router(ws_events.router, tags=["events"])
+app.include_router(protocol_api.router, prefix="/api/protocol", tags=["protocol"])
 
 
 @app.exception_handler(StarletteHTTPException)
