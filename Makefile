@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test verify-all warm settle feed score allocate risk cycle devnet-build devnet-deploy devnet-address clean
+.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test verify-all warm settle feed score allocate risk events cycle devnet-build devnet-deploy devnet-address clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -31,6 +31,7 @@ db-migrate: ## Apply migrations to a running database
 	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0001_init.sql
 	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0002_settlement.sql
 	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0003_risk.sql
+	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0004_events.sql
 
 db-seed: ## Load development seed data
 	$(COMPOSE) exec -T db psql -U iris -d iris < db/seed/0001_seed.sql
@@ -47,6 +48,7 @@ verify-all: ## Run every phase gate in order
 	python scripts/verify_phase6.py
 	python scripts/verify_phase7.py
 	python scripts/verify_phase8.py
+	python scripts/verify_phase9.py
 
 devnet-build: ## Build the Solana devnet toolchain image (solana 4.2.2 + SBF)
 	docker build -f docker/devnet.Dockerfile -t iris-devnet .
@@ -57,6 +59,9 @@ devnet-deploy: devnet-build ## Build and deploy both programs to devnet
 
 devnet-address: ## Print the devnet deployer address (fund this to deploy)
 	MSYS_NO_PATHCONV=1 docker run --rm -v iris-devnet-keys:/keys 	  --entrypoint sh iris-devnet -c 	  'solana config set --url https://api.devnet.solana.com >/dev/null; 	   solana config set --keypair /keys/deployer.json >/dev/null; 	   echo "deployer $$(solana address)  balance $$(solana balance)"'
+
+events: ## Tail the protocol event stream (ctrl-c to stop)
+	$(COMPOSE) exec -T api python -m services.event_stream
 
 risk: ## Run one risk sweep: breach -> freeze -> slash
 	$(COMPOSE) exec -T api python -m agents.risk.engine

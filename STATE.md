@@ -5,14 +5,15 @@
 
 ## Current phase
 
-**Phase 8 — risk + slashing. COMPLETE and checkpointed.**
-`python scripts/verify_phase8.py` → 25/25.
+**Phase 9 — WebSocket infrastructure. COMPLETE and checkpointed.**
+`python scripts/verify_phase9.py` → 12/12.
 
-All eight gates pass: `make verify-all`. Both test suites pass:
-**264** in the §4 root tree (`/repo/tests`) and **61** in the legacy
+All nine gates pass: `make verify-all`. Both test suites pass:
+**284** in the §4 root tree (`/repo/tests`) and **61** in the legacy
 `apps/api/tests`.
 
 `make cycle` runs the whole loop: feed → settle → score → risk → allocate.
+`make events` tails what that loop emits.
 
 **Phase 2 is now half-closed.** The Solana toolchain exists
 (`make devnet-build`, Agave 4.2.2 + platform-tools v1.54), both programs build
@@ -23,6 +24,17 @@ faucet rate-limits per IP. See *Known blockers* 6.
 Phase 2's security gate passed (17/17) but the phase is **not fully
 checkpointed** — its DoD also says the instructions work "on devnet" and
 nothing is deployed. See *Known blockers* 6.
+
+### Phase 9 Definition of Done (§27)
+
+| Requirement | Status |
+|---|---|
+| real events from phases 3-8 | **verified** — 71 frames, every one traced to an existing row |
+| reach a connected client | **verified** — client connects *first*, then the protocol runs |
+
+The gate connects a real WebSocket client, then makes the protocol do things —
+runs an agent, settles, scores, allocates, sweeps risk — and reads every frame's
+`source_table`/`source_id` back out of the database. A phantom event fails it.
 
 ### Phase 8 Definition of Done (§27)
 
@@ -206,6 +218,31 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
       `(UNTRAINED)`; a model that fails to load makes the agent abstain rather
       than trade on a guess.
 - [x] Evaluation leads with the direction confusion matrix, not MSE.
+
+### Phase 9
+
+- [x] `db/migrations/0004_events.sql` — an **outbox**. Triggers on the eight
+      tables phases 3-8 write append to `protocol_events`, so the event *is* a
+      row and the socket is only a reader. An event with no row behind it
+      cannot be produced — not because the streaming code is careful, but
+      because there is nowhere for it to come from.
+- [x] One log rather than eight pollers, so `seq` is monotonic across every
+      source: a prediction can never arrive before the run that produced it,
+      and a reconnecting client resumes losslessly with `?since=`.
+- [x] The log is **append-only** — it is what the Observatory renders and what
+      a settled prediction is defended with.
+- [x] `apps/api/services/event_stream.py` — one database tail feeding every
+      client, with bounded per-subscriber queues. A client that stops reading is
+      dropped rather than buffered forever; it reconnects with a watermark and
+      loses nothing.
+- [x] `apps/api/api/ws_events.py` — `/ws/events` with `agent`, `kinds`, `since`
+      and `replay` filters, plus `/api/events` (same data over HTTP, so the
+      socket is checkable) and `/api/events/health` (reports **lag**, because a
+      stream that is up but stalled looks identical to a working one).
+- [x] **Provenance never leaves the frame.** Every message carries
+      `data_source`; a frame without it hands the UI a number it cannot qualify.
+- [x] `python -m services.event_stream` / `make events`.
+- [x] `scripts/verify_phase9.py` (12 checks) and 20 integration tests.
 
 ### Phase 8
 
@@ -607,42 +644,48 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Next phase
 
-**Phase 9 — WebSocket infrastructure.** DoD: real events from phases 3-8 reach
-a connected client.
+**Phases 10-12 — Agent Arena, AI Observatory, Prediction Ledger.** DoD for each:
+driven by real rows, not fixtures.
 
-The emphasis is on *real*. Phases 3-8 now produce a genuine event stream —
-`agent_runs`, `graph_checkpoints`, `predictions`, `prediction_outcomes`,
-`reputation_scores`, `allocation_history`, `risk_events`, `slash_events` — and
-the gate has to show a client receiving those rows, not a generator emitting
-plausible-looking traffic on a timer. That distinction is the whole phase: a
-WebSocket that invents its own events is indistinguishable from a working one
-until somebody checks the database.
+Phase 9 makes that checkable. Every screen can now be built on `/ws/events` and
+`/api/events`, and every frame names the `source_table` and `source_id` it came
+from — so a gate for these phases can compare what the UI renders against the
+rows behind it, rather than against a screenshot.
 
-What exists: `apps/api/api/ws_trading.py` and the legacy `market_stream`
-service, both from the pre-v2 runtime, which broadcast simulated ticks. They
-predate every table above.
+The three screens map onto data that already exists:
 
-Two things Phase 9 must not do:
+  * **Arena** (§15) — `reputation_scores` + `allocation_history`. The
+    leaderboard is `agents.reputation.score.leaderboard`. Note that agents with
+    no settled record return `None`, not 0: they must render as *unranked*, not
+    as bottom of the table.
+  * **Observatory** (§15) — `agent_runs` + `graph_checkpoints`. Eleven
+    `NODE_COMPLETED` events per run, each with its latency and output hash, so
+    the graph can be replayed node by node rather than reconstructed.
+  * **Ledger** (§15) — `predictions` + `prediction_outcomes`. The
+    commit-before-outcome primitive is the thing to show: hash, `committed_at`,
+    `horizon_end`, then the settlement. `WAITING_FOR_OUTCOME` needs its own
+    treatment — it is not "pending", it is *the protocol declining to score
+    something it has no evidence for*, and flattening that into a spinner would
+    hide the most honest thing the system does.
 
-  * **Emit an event that has no row behind it.** Every message should be
-    traceable to a primary key, so the Observatory (§15) can be checked against
-    the database rather than believed.
-  * **Drop the provenance label.** `data_source` and `execution_mode` exist on
-    the rows; a socket frame that omits them hands the UI a number with no way
-    to know it is simulated (§0c).
+Two constraints carry over:
 
-Then phases 10-12 (Arena, Observatory, Ledger) render what this streams, and
-§27 requires each to be driven by real rows rather than fixtures.
+  * **§0c is still outstanding in the UI.** Everything is labelled in the data
+    layer and nothing is labelled on screen. These are the phases that fix it,
+    and every one of the three screens shows numbers derived from a simulated
+    tape.
+  * **The Vercel Root Directory is still `frontend`** — see *Known blockers* 1.
+    Anything built here will not deploy until that setting changes.
 
 `agent_performance` is still empty — nothing computes windowed pnl / sharpe /
-sortino. Phase 8 computes drawdown and volatility per sweep but does not
-persist a window.
+sortino. Phase 8 measures drawdown and volatility per sweep but does not
+persist a window, and the Observatory will want one.
 
 `REGIME_ANALYSIS` still uses threshold stand-ins; the HMM classifier in
 `ml/regime/classifier.py` is merged but not wired into the graph.
 
 ## Last verified commit
 
-`628e7ed` — feat(phase-7): MWU allocation, with the four invariants proved as properties
+`1726a67` — feat(phase-8): risk and slashing as one causal chain, and two dead strategies revived
 
-Phase 8 is committed on top of it.
+Phase 9 is committed on top of it.

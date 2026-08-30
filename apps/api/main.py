@@ -34,6 +34,8 @@ from api import trading as trading_api
 from api import ws_trading
 from api import ws_prices
 from api import ws_social
+from api import ws_events
+from services import event_stream
 
 _MODEL_BUCKET = "models"
 _MODEL_OBJECT_PATH = "model.pkl"
@@ -128,6 +130,22 @@ async def lifespan(app: FastAPI):
     )
     app.state.trading_engine = engine
 
+    # The protocol event stream (Phase 9). Started before the chain listener
+    # because it is the one that carries phases 3-8: it tails `protocol_events`,
+    # which triggers append to whenever an agent runs, a prediction settles, a
+    # score is computed, capital is reallocated or an agent is frozen.
+    #
+    # Failing to start it must not take the API down. The events are already
+    # durable in the table — the stream only decides whether anyone is
+    # watching, and a dashboard that has to be refreshed is better than an API
+    # that will not boot.
+    try:
+        await event_stream.stream.start()
+        logger.info("Protocol event stream started at seq %s.",
+                    event_stream.stream.watermark)
+    except Exception as exc:
+        logger.warning("Protocol event stream did not start: %s", exc)
+
     # WebSocket event listener for on-chain events
     listener_task = None
     if solana is not None:
@@ -137,6 +155,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    await event_stream.stream.stop()
     market_stream.stop()
     price_engine.stop()
     if listener_task is not None:
@@ -179,6 +198,7 @@ app.include_router(trading_api.router, prefix="/api/agents", tags=["trading"])
 app.include_router(ws_trading.router, tags=["websocket"])
 app.include_router(ws_prices.router, tags=["prices"])
 app.include_router(ws_social.router, tags=["social"])
+app.include_router(ws_events.router, tags=["events"])
 
 
 @app.exception_handler(StarletteHTTPException)
