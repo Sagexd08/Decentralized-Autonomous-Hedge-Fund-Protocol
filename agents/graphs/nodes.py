@@ -22,8 +22,6 @@ Two rules from the spec are load-bearing here and are not stylistic:
     independently (see db/migrations/0001_init.sql).
 
 What is deliberately *not* here, because it belongs to a later phase:
-  * real ML inference — Phase 4. MODEL_INFERENCE uses a seeded deterministic
-    stand-in and labels itself SIMULATION.
   * settlement and scoring — Phase 5. OUTCOME_TRACKING records what to watch
     and stops.
   * pgvector retrieval — Phase 12. HISTORICAL_RETRIEVAL returns an empty,
@@ -173,14 +171,29 @@ def historical_retrieval(state: AgentState) -> dict[str, Any]:
 
 # ── 5. MODEL_INFERENCE ──────────────────────────────────────────────────────
 
+# Each strategy is backed by a different model class, so two agents on the same
+# tape genuinely disagree rather than being palette-swaps of one formula
+# (v2 section 10).
+STRATEGY_MODELS = {
+    "momentum": "cnn_lstm",
+    "mean_reversion": "gradient_boosting",
+    "breakout": "baseline",
+    "adaptive": "transformer",
+}
+
+
 def model_inference(state: AgentState) -> dict[str, Any]:
     """
-    Produce a predicted return.
+    Run the agent's model over the observed window.
 
-    Phase 4 swaps in the four real model classes behind a common interface.
-    Until then this is a deterministic function of the extracted features —
-    not random, so a replay is reproducible — and it labels its output
-    SIMULATION so nothing downstream can mistake it for a trained model.
+    The model classes live in `ml/` behind one interface (v2 section 11); this
+    node only picks which one the strategy uses and records its identity, so
+    a prediction can always be traced back to the exact model version and
+    weight hash that produced it.
+
+    An untrained model is still a real forward pass, not a random number — but
+    it is labelled `UNTRAINED` so nothing downstream mistakes it for a fitted
+    one. Phase 13 loads trained weights.
     """
     started = _now()
     f = state.features
@@ -190,26 +203,40 @@ def model_inference(state: AgentState) -> dict[str, Any]:
             **_timed(Node.MODEL_INFERENCE, started),
         }
 
-    momentum = f.get("momentum", 0.0)
-    z = f.get("z_score", 0.0)
+    try:
+        import numpy as np
 
-    if state.strategy == "mean_reversion":
-        signal = -z * 0.002
-    elif state.strategy == "breakout":
-        signal = momentum * 1.5 if abs(momentum) > 0.01 else 0.0
-    else:  # momentum
-        signal = momentum * 0.8
+        from ml.inference.registry import TABULAR, all_models
+        from ml.features.extract import extract
 
-    # confidence rises with signal strength and falls with volatility
-    vol = max(f.get("volatility", 1e-6), 1e-6)
-    confidence = min(0.95, abs(signal) / (vol * 4) if vol else 0.0)
+        name = STRATEGY_MODELS.get(state.strategy, "cnn_lstm")
+        model = all_models(seed=state.seed)[name]
+        payload = (
+            extract(np.asarray(state.prices))
+            if name in TABULAR
+            else np.asarray(state.prices)
+        )
+        prediction = model.predict(payload)
 
-    return {
-        "predicted_return": round(signal, 8),
-        "model_confidence": round(confidence, 4),
-        "inference_source": "SIMULATION",
-        **_timed(Node.MODEL_INFERENCE, started),
-    }
+        return {
+            "predicted_return": round(float(prediction.expected_return), 8),
+            "model_confidence": round(float(prediction.confidence), 4),
+            "inference_source": (
+                f"{prediction.model_version}"
+                f"{'' if getattr(model, 'fitted', False) else ' (UNTRAINED)'}"
+            ),
+            **_timed(Node.MODEL_INFERENCE, started),
+        }
+    except Exception as exc:
+        # A model that will not load must not take the run down: the agent
+        # abstains on low confidence instead of trading on a guess.
+        return {
+            "predicted_return": 0.0,
+            "model_confidence": 0.0,
+            "inference_source": f"UNAVAILABLE ({exc})",
+            "errors": [*state.errors, f"MODEL_INFERENCE: {exc}"],
+            **_timed(Node.MODEL_INFERENCE, started),
+        }
 
 
 # ── 6. RISK_ANALYSIS — deterministic, never a model call ────────────────────

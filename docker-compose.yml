@@ -47,6 +47,7 @@ services:
       # rather than a rebuild. The image stays self-contained for deployment.
       - ./apps/api:/app
       - ./agents:/app/agents
+      - ./ml:/app/ml
     depends_on:
       db:
         condition: service_healthy

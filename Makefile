@@ -40,6 +40,7 @@ verify-all: ## Run every phase gate in order
 	python scripts/verify_phase1.py
 	python scripts/verify_phase2.py
 	python scripts/verify_phase3.py
+	python scripts/verify_phase4.py
 
 anchor-test: ## Phase 2 gate: Anchor program tests (Linux container)
 	docker build -f docker/anchor.Dockerfile -t iris-anchor-test .

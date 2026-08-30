@@ -18,9 +18,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix, mean_squared_error, mean_absolute_error
 
 from core.supabase import download_storage_file, upload_storage_file
-from ml.hybrid_model import CNNLSTMModel
-from ml.regime_classifier import RegimeClassifier, rolling_volatility
-from ml.monte_carlo import gbm_paths, var_cvar
+from ml.models.hybrid_legacy import CNNLSTMModel
+from ml.regime.classifier import RegimeClassifier, rolling_volatility
+from ml.risk.monte_carlo import gbm_paths, var_cvar
 
 warnings.filterwarnings("ignore")
 

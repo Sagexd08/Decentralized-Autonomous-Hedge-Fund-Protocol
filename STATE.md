@@ -5,13 +5,23 @@
 
 ## Current phase
 
-**Phase 3 — agent runtime + LangGraph. COMPLETE and checkpointed.**
-`python scripts/verify_phase3.py` → 12/12, plus 18/18 in
-`tests/integration/test_agent_graph.py`.
+**Phase 4 — ML models + inference. COMPLETE and checkpointed.**
+`python scripts/verify_phase4.py` → 8/8, plus 27/27 in `tests/ml/test_models.py`.
+Phase 3 complete (12/12 + 18/18).
 
 Phase 1 complete. Phase 2's security gate passed (17/17) but the phase is **not
 fully checkpointed** — its DoD also says the instructions work "on devnet" and
 nothing is deployed. See *Known blockers* 6. `make verify-all` runs all three.
+
+### Phase 4 Definition of Done (§27)
+
+| Requirement | Status |
+|---|---|
+| 4 model classes via one interface | **verified** — baseline, GBDT, CNN-LSTM, transformer |
+| baseline comparison logged | **verified** — printed with a per-model verdict |
+
+Latest run: `gradient_boosting` 0.640 and `transformer` 0.623 beat the baseline's
+0.422; `cnn_lstm` 0.408 **loses to it**, and is reported as losing.
 
 ### Phase 3 Definition of Done (§27)
 
@@ -111,6 +121,24 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 - [x] `scripts/verify_phase2.py` asserts each required test passed **by name**,
       not just that the suite exited 0.
 
+### Phase 4
+
+- [x] `ml/` package per §4: `models/`, `features/`, `inference/`, `regime/`,
+      `risk/`, `training/`. The legacy `apps/api/ml/` modules were merged in
+      (monte_carlo → `risk/`, regime_classifier → `regime/`, hybrid_model →
+      `models/hybrid_legacy.py`) rather than renamed away.
+- [x] Four model classes behind one `BaseModel` protocol. `model_hash` is a
+      real sha256 over parameters or trained weights (rounded to 6dp so float
+      noise cannot forge a new identity), because invariant 3 and the on-chain
+      `update_model` check depend on it.
+- [x] Both torch models are real forward passes — conv+LSTM and a pre-norm
+      encoder — reading two channels: returns and the z-scored price level.
+- [x] `MODEL_INFERENCE` now runs real models, one per strategy, and records the
+      model version in `inference_source`. Untrained models are labelled
+      `(UNTRAINED)`; a model that fails to load makes the agent abstain rather
+      than trade on a guess.
+- [x] Evaluation leads with the direction confusion matrix, not MSE.
+
 ### Phase 3
 
 - [x] `agents/` package per §4: `state.py`, `graphs/{nodes,trading_graph}.py`,
@@ -195,6 +223,17 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Bugs found by the gates (not written by them)
 
+-2. **Double normalisation in the sequence models.** `build_dataset` returned
+   pre-normalised return windows, which `predict()` then normalised *again* —
+   differencing values already near zero. Predicted returns came out at ~3600
+   (360,000%) while every type check passed. `build_dataset` now returns raw
+   price windows and `fit()` normalises exactly as `predict()` does.
+-1. **The evaluation called a degenerate model a winner.** A transformer
+   predicting BUY for 100% of samples, MSE 1.96e+11, was reported as BEATS
+   BASELINE on accuracy alone. The verdict now disqualifies a model that
+   answers one class ≥90% of the time, or whose MSE is >10x the baseline's,
+   *before* accuracy is consulted. Also fixed the underlying divergence
+   (standardised targets, gradient clipping, cosine schedule).
 0. **`apps/api/agents/` collided with the new `agents/` package** and shadowed
    it, crashing the API on boot. Four of its five modules (price_engine,
    market_stream, crypto_news, gemini_social) are data services, not agents, so
@@ -212,11 +251,13 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Next phase
 
-**Phase 4 — ML models + inference.** DoD: all 4 model classes (rule-based
-baseline, gradient boosting, CNN-LSTM, transformer) return predictions through
-one common interface, with the baseline comparison logged rather than buried.
-`MODEL_INFERENCE` and `REGIME_ANALYSIS` currently hold seeded deterministic
-stand-ins labelled SIMULATION; Phase 4 replaces them.
+**Phase 5 — prediction commitment + evaluation.** DoD: hash committed
+pre-horizon, settled post-horizon, error and score computed and stored. The
+commit half already exists from Phase 3 (`PREDICTION_COMMIT`, the `predictions`
+table, the `committed_at <= horizon_end` constraint). Phase 5 adds the
+settlement sweep that reads `horizon_end`, writes `prediction_outcomes`, and
+scores. `REGIME_ANALYSIS` still uses threshold stand-ins; the HMM classifier in
+`ml/regime/classifier.py` is merged but not yet wired into the graph.
 
 ## Last verified commit
 

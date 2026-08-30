@@ -55,7 +55,7 @@ def _sync_ml_model_from_supabase() -> bool:
 def _load_ml_artifacts():
     """Load the local model artifact into app state when available."""
     try:
-        from ml.train_hybrid import load_model
+        from ml.training.train_hybrid import load_model
         model, scaler = load_model(_LOCAL_MODEL_PATH)
         logger.info("ML model loaded from %s", _LOCAL_MODEL_PATH)
         return model, scaler

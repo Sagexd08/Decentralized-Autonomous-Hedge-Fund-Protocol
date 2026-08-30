@@ -13,8 +13,8 @@ from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 
-from ml.monte_carlo import gbm_paths, var_cvar
-from ml.regime_classifier import rolling_volatility
+from ml.risk.monte_carlo import gbm_paths, var_cvar
+from ml.regime.classifier import rolling_volatility
 from core.allocation import mwu_update, risk_adjusted_return
 
 def normalized_weights(n):

@@ -16,6 +16,7 @@ COPY apps/api/ ./
 # The agent runtime lives at the repo root per v2 section 4, but runs inside
 # the api process. Copied alongside so `import agents...` resolves.
 COPY agents/ ./agents/
+COPY ml/ ./ml/
 
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

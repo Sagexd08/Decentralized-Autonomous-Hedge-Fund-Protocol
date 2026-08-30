@@ -18,7 +18,7 @@ import numpy as np
 
 if TYPE_CHECKING:
     from sklearn.preprocessing import StandardScaler
-    from ml.hybrid_model import CNNLSTMModel
+    from ml.models.hybrid_legacy import CNNLSTMModel
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +148,7 @@ def ml_decision(
     Falls back to momentum signal if the model or history is unavailable.
     """
     import torch
-    from ml.train_hybrid import decision as _decision_label
+    from ml.training.train_hybrid import decision as _decision_label
 
     window = build_feature_window(prices)
     if window is None or model is None or scaler is None:
