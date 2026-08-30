@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test verify-all warm settle feed score clean
+.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test verify-all warm settle feed score allocate cycle clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -44,6 +44,7 @@ verify-all: ## Run every phase gate in order
 	python scripts/verify_phase4.py
 	python scripts/verify_phase5.py
 	python scripts/verify_phase6.py
+	python scripts/verify_phase7.py
 
 anchor-test: ## Phase 2 gate: Anchor program tests (Linux container)
 	docker build -f docker/anchor.Dockerfile -t iris-anchor-test .
@@ -64,6 +65,15 @@ feed: ## Write a labelled simulated price tape (gap-filling, idempotent)
 
 score: ## Compute and store the IRIS Score for every agent
 	$(COMPOSE) exec -T api python -m agents.reputation.score
+
+allocate: ## Run one MWU allocation step
+	$(COMPOSE) exec -T api python -m agents.allocation.allocator
+
+cycle: ## The full loop: feed -> settle -> score -> allocate
+	@$(MAKE) --no-print-directory feed
+	@$(MAKE) --no-print-directory settle
+	@$(MAKE) --no-print-directory score
+	@$(MAKE) --no-print-directory allocate
 
 clean: ## Stop the stack and DROP the database volume
 	$(COMPOSE) down -v

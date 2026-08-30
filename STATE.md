@@ -5,16 +5,32 @@
 
 ## Current phase
 
-**Phase 6 — reputation engine. COMPLETE and checkpointed.**
-`python scripts/verify_phase6.py` → 22/22.
+**Phase 7 — MWU allocation. COMPLETE and checkpointed.**
+`python scripts/verify_phase7.py` → 17/17, over **4,696 randomised rounds**.
 
-All six gates pass: `make verify-all`. Both test suites pass:
-**154** in the §4 root tree (`/repo/tests`) and **61** in the legacy
+All seven gates pass: `make verify-all`. Both test suites pass:
+**206** in the §4 root tree (`/repo/tests`) and **61** in the legacy
 `apps/api/tests`.
+
+`make cycle` runs the whole loop end to end: feed → settle → score → allocate.
 
 Phase 2's security gate passed (17/17) but the phase is **not fully
 checkpointed** — its DoD also says the instructions work "on devnet" and
 nothing is deployed. See *Known blockers* 6.
+
+### Phase 7 Definition of Done (§27)
+
+| Invariant | Status |
+|---|---|
+| 1. weights always sum to 1 | **verified** — worst deviation 2.2e-16 |
+| 2. weights never negative or non-finite | **verified** |
+| 3. a better score never loses weight to a worse one | **verified** |
+| 4. the update is bounded — no weight reaches 0 or 1 | **verified** — range [0.005, 0.5] |
+
+Checked as *properties over randomised inputs* — 1 to 150 agents, eta 0.01 to
+5.0, chains up to 50 steps, and degenerate shapes (identical scores, all-zero
+scores, one agent winning every round). Three of the four hold trivially on a
+hand-picked example.
 
 ### Phase 6 Definition of Done (§27)
 
@@ -169,6 +185,33 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
       `(UNTRAINED)`; a model that fails to load makes the agent abstain rather
       than trade on a guess.
 - [x] Evaluation leads with the direction confusion matrix, not MSE.
+
+### Phase 7
+
+- [x] `agents/allocation/`: `mwu.py` (the update rule, the bounds, and
+      `check_invariants`) and `allocator.py` (driving it from real reputation).
+- [x] **Invariant 4 is not automatic** and is where the work is. A floor
+      (0.005) because zero is *absorbing* under a multiplicative update — an
+      agent that reaches it can never recover, which turns a bad month into an
+      execution. A cap (0.40) because a single agent at weight 1 means the
+      protocol *is* that agent, and its next mistake is the vault's.
+- [x] The bounds are projected onto the simplex by **bisection on a single
+      scale factor**, not by clamp-then-renormalise. See *Bugs found by the
+      gates* 15 and 16.
+- [x] **An unscored agent contributes no reward — absent, not zero.** Its
+      weight is left untouched, so a quiet week is not punished as hard as a
+      wrong one.
+- [x] **FROZEN / SLASHED / RETIRED agents are excluded.** An allocator that
+      ignored agent status would make Phase 8's risk engine advisory.
+- [x] The score is already evidence-discounted (Phase 6), so the allocator
+      applies no further sample-size correction — that would penalise a short
+      record twice.
+- [x] `allocation_history` stores the weight, the score and the `eta` in force;
+      `UNIQUE (agent_id, step)` means a completed step cannot be rewritten. A
+      corrected allocation is a new step.
+- [x] `python -m agents.allocation.allocator` / `make allocate`, and
+      `make cycle` for the full loop.
+- [x] `scripts/verify_phase7.py` (17 checks), 34 unit tests, 18 database tests.
 
 ### Phase 6
 
@@ -399,6 +442,22 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
     healthcheck used `wget http://localhost:3000`, which resolves to `::1`
     first; `next dev --hostname 0.0.0.0` binds IPv4 only. Now `127.0.0.1`.
 
+### Found in Phase 7
+
+15. **The floor and cap were jointly infeasible.** Two agents cannot both hold
+    at most 0.40 and still sum to 1; one agent must hold exactly 1. The gate
+    caught it by running the invariants over 1, 2, 3, 8, 40 and 150 agents —
+    on a hand-picked eight-agent example nothing looks wrong. `_bounds(n)` now
+    relaxes the policy to what is achievable, so `n*lo <= 1 <= n*hi` always
+    holds and the projection is always solvable.
+
+16. **Clamp-then-renormalise put weights back through the bound.**
+    Renormalising *after* clamping scales the clamped values too — the gate saw
+    0.0044 against a floor of 0.005. Replaced with bisection on a single scale
+    factor: find theta with `sum(clamp(w_i*theta, lo, hi)) = 1`. Provably
+    correct, and it preserves invariant 3 for free, because clamping a
+    uniformly-scaled value is monotone.
+
 ### Found in Phase 6
 
 14. **A single lucky prediction scored 79.2 out of 100.** `experience` was one
@@ -422,48 +481,41 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Next phase
 
-**Phase 7 — MWU allocation.** DoD: four mathematical invariants pass as tests.
+**Phase 8 — risk + slashing.** DoD: a breach leads to freeze, then slash, then
+reduced allocation — demonstrated as one causal chain, not three features.
 
-The multiplicative-weights update from §7:
+Phase 7 supplies the last link already: `allocatable_agents` excludes FROZEN,
+SLASHED and RETIRED, and the Phase 7 gate proves a frozen agent receives no
+allocation and that the vault is fully reallocated around it. So Phase 8 owns
+the first two links and the evidence that they connect.
 
-    w_i(t+1) = w_i(t) * exp(eta * R_i(t)) / Z
+What exists: `risk_events` and `slash_events` tables; `agents.status` with a
+CHECK admitting FROZEN and SLASHED; on-chain `freeze_agent` / `unfreeze_agent`
+in the registry (Phase 2, tested against solana-program-test, not deployed);
+`RISK_ANALYSIS` in the graph with `MAX_VOLATILITY_BPS`, `MAX_DRAWDOWN_BPS` and
+`exposure_ok`, which today can only make a single run abstain.
 
-The four invariants the gate has to prove, stated as properties rather than as
-"the function returns numbers":
+What is missing is the part that persists: a breach in one run leaves no
+record, so nothing accumulates and nothing can be slashed for it.
 
-  1. **Weights always sum to 1.** After any update, from any starting point.
-  2. **Weights are never negative.** The exponential guarantees it in theory;
-     underflow and normalisation by a near-zero Z are how it fails in practice.
-  3. **A better score never loses weight relative to a worse one.** Monotonicity
-     is the entire claim of the algorithm — if it can be violated, the mechanism
-     is decorative.
-  4. **The update is bounded.** One catastrophic round must not take an agent's
-     weight to exactly 0 or 1; recovery has to remain possible, and no single
-     agent may capture the vault in one step.
+Two things Phase 8 must not do:
 
-Phase 6 leaves the input in place: `reputation_scores.iris_score` on 0-100, and
-`allocation_history` with `(agent_id, step)` UNIQUE, a `weight` CHECK of
-[0, 1], and `eta` stored per row so a historical allocation can be replayed.
+  * **Slash on simulated evidence as though it were real.** `data_source` is on
+    every outcome and `trades.execution_mode` is a SIMULATION/TESTNET/LIVE
+    enum. A slash recorded against a synthetic tape must say so, or the Model
+    Cemetery in §15 becomes a list of agents punished for a simulation.
+  * **Make freezing recoverable only by hand.** The MWU floor exists so an
+    agent can earn its way back; a freeze with no defined exit is a different
+    penalty from the one the allocator was designed around.
 
-Two things Phase 7 must get right, both of which Phase 6 set up deliberately:
-
-  * **An agent with no score cannot be allocated to.** `score_agent` returns
-    None rather than a default precisely so this decision has to be made
-    explicitly. A neutral 50 would let an untested agent take capital from a
-    proven one on its first cycle.
-  * **The score is already evidence-discounted**, so the allocator must not
-    apply its own sample-size correction on top — that would penalise a short
-    record twice.
-
-`agent_performance` is still empty; nothing computes windowed pnl / sharpe /
-sortino yet. The IRIS Score does not currently read it, so Phase 7 is not
-blocked on it, but §15's Observatory will be.
+`agent_performance` is still empty — nothing computes windowed pnl / sharpe /
+sortino. Phase 8's drawdown breach is the natural place for it.
 
 `REGIME_ANALYSIS` still uses threshold stand-ins; the HMM classifier in
 `ml/regime/classifier.py` is merged but not wired into the graph.
 
 ## Last verified commit
 
-`5610290` — feat(phase-5): settlement, scoring, and invariant 2 enforced by the database
+`9a82221` — feat(phase-6): the IRIS Score, six dimensions discounted by evidence
 
-Phase 6 is committed on top of it.
+Phase 7 is committed on top of it.
