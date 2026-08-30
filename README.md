@@ -1,365 +1,247 @@
-# IRIS Protocol — Decentralized Autonomous Capital Allocation Protocol
+# IRIS Protocol — Autonomous Intelligence Market
 
-IRIS Protocol is a full-stack, research-grade protocol for autonomous on-chain capital allocation. It combines cryptoeconomic enforcement on Stellar Soroban and Solana with off-chain ML-driven agent intelligence, a real-time FastAPI backend, and a Next.js operator dashboard.
+> **Where intelligence competes for capital.**
 
----
-
-## What it does
-
-Capital sits in on-chain vaults. Autonomous agents compete for allocation by generating trading signals. A Multiplicative Weights Update (MWU) algorithm continuously reweights capital toward better-performing agents. Agents that breach drawdown limits are automatically slashed. Governance proposals can tune every protocol parameter in real time.
-
-No agent ever directly controls investor funds. All enforcement is on-chain.
-
----
-
-## Deployed Contracts
-
-### Stellar Soroban — Testnet
-
-| Contract | Address |
-|---|---|
-| AgentRegistry | `CDJD33R7ZVT7YZD2T6ROK2MPK2XRYJCKSM4AQOXPKCGMIQCAN7R6RTVJ` |
-| AllocationEngine | `CBBXJBG5Y74XBO7NSWUXNOZVEBWTBCEL6ZAPEXULASBIM3FSEZBRPPUV` |
-| CapitalVault | `CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6` |
-| SlashingModule | `CAHJFZI7IZSPAZK35LZLYNG564F3LPQZFDRRFXFUENVWGY7Q6OHE3U5I` |
-
-Deployer: `GCLZ64XJEQJO6JXYVXULSRUDHSBM3WWGKO2AILWJSED5G4FSBIJEZMBL`
-
-### Solana — Testnet
-
-| Program | ID |
-|---|---|
-| AgentRegistry | `F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN` |
-| AllocationEngine | `2MKzNfzPkEvsj6BKSrEEc9d4hdXmZnkyYQgTEtFZqbvR` |
-| CapitalVault | `4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2` |
-| SlashingModule | `AC6xZSbeD6fMRafNVGbnuN4vt94py7heNKyepp7KqBUv` |
-
-Deployer wallet: `9cNCsgFCoutgvftQTdV9YigxSrFXWqd5v7Zjnmw8beqB`
-
----
-
-## Architecture
+IRIS is a protocol where autonomous ML agents compete for capital based on
+measurable, verifiable performance:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        INVESTOR / OPERATOR                       │
-│                    Next.js Dashboard (port 3000)                 │
-└────────────────────────────┬────────────────────────────────────┘
-                             │ REST + WebSocket
-┌────────────────────────────▼────────────────────────────────────┐
-│                    FastAPI Backend (port 8000)                    │
-│                                                                   │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────┐   │
-│  │ AgentTrading │  │  PriceEngine │  │   ML Inference       │   │
-│  │   Engine     │  │  (O-U sim)   │  │  CNN-LSTM + fallback  │   │
-│  └──────┬───────┘  └──────────────┘  └──────────────────────┘   │
-│         │                                                         │
-│  ┌──────▼──────────────────────────────────────────────────┐    │
-│  │              MWU Allocation Engine (Python)              │    │
-│  │   w_i(t+1) = w_i(t) · exp(η · R_i(t))  / Σ w_j(t+1)   │    │
-│  └──────┬──────────────────────────────────────────────────┘    │
-└─────────┼───────────────────────────────────────────────────────┘
-          │  submit_update / report_performance / slash
-    ┌─────┴──────────────────────────────────────────┐
-    │                                                  │
-┌───▼──────────────┐                    ┌─────────────▼──────────┐
-│  Stellar Soroban │                    │   Solana (Anchor)       │
-│  (Testnet)       │                    │   (Testnet)             │
-│                  │                    │                         │
-│  AgentRegistry   │                    │  AgentRegistry          │
-│  AllocationEngine│                    │  AllocationEngine       │
-│  CapitalVault    │                    │  CapitalVault           │
-│  SlashingModule  │                    │  SlashingModule         │
-└──────────────────┘                    └─────────────────────────┘
+prediction → verifiable outcome → reputation → capital reallocation → economic consequence
 ```
+
+Capital sits in on-chain vaults on Solana. Agents publish trading signals and
+are scored on what actually happened. A Multiplicative Weights Update rule
+continuously shifts allocation toward whoever is earning it, and agents that
+breach drawdown limits are slashed automatically.
+
+**No agent ever custodies investor capital.** Allocation authority is not wallet
+control, and the vault enforces that at the contract level.
 
 ---
 
-## Repository Layout
+## Build status
+
+This repository is mid-migration to
+[`IRIS_BUILD_PROMPT v2.0`](#build-phases). Read
+[`STATE.md`](STATE.md) before starting work — it records which phase is
+current, what is stubbed, and what is deferred. It is the resumable memory for
+the build loop, and it is more current than this file.
+
+| | |
+|---|---|
+| Current phase | **Phase 1** — repo, Docker, database, skeleton |
+| Canonical chain | Solana (Stellar was removed in `a72d3ed`) |
+| Market data | **Simulated** — see [Limitations](#limitations) |
+
+---
+
+## Quick start
+
+```bash
+git clone <repo> && cd iris
+cp .env.example .env
+docker compose up -d --build
+```
+
+Every value in `.env.example` is optional. Each unset secret degrades its
+subsystem to a labelled simulation path rather than failing the boot.
+
+Then verify the stack:
+
+```bash
+make verify
+```
+
+which asserts the Phase 1 gate — that `web`, `api` and `db` all answer:
+
+| Service | Check |
+|---|---|
+| web | `GET http://localhost:3000/health` → 200 |
+| api | `GET http://localhost:8000/health` → 200 |
+| api → db | `GET http://localhost:8000/health/db` → 200 |
+| db | all 21 tables present |
+
+`make help` lists the rest.
+
+---
+
+## Repository layout
 
 ```
 .
-├── backend/
-│   ├── main.py                  # FastAPI app, lifespan, chain init
-│   ├── api/
-│   │   ├── agents.py            # Agent CRUD, register, stake, chain/active
-│   │   ├── pools.py             # Pool list, deposit (Stellar + Solana)
-│   │   ├── trading.py           # start/stop trading, portfolio
-│   │   ├── analytics.py         # Monte Carlo, regime, MWU weights
-│   │   ├── governance.py        # Proposals, voting, veto, params
-│   │   ├── intelligence.py      # Loop state, leaderboard, demo
-│   │   ├── contracts.py         # Contract metadata + addresses
-│   │   ├── news.py              # Crypto news + signals
-│   │   ├── integrations.py      # Supabase status + table rows
-│   │   ├── ws_trading.py        # WebSocket /ws/trading + chain event listener
-│   │   ├── ws_prices.py         # WebSocket /ws/prices + /ws/market
-│   │   └── ws_social.py         # WebSocket /ws/social (Gemini AI feed)
-│   ├── agents/
-│   │   ├── trading_engine.py    # Per-agent async trading loops, MWU push, auto-slash
-│   │   ├── price_engine.py      # Ornstein-Uhlenbeck price simulation
-│   │   ├── market_stream.py     # Normalized market event stream
-│   │   ├── crypto_news.py       # CryptoPanic / GDELT news fetcher
-│   │   └── gemini_social.py     # Gemini-powered AI social feed
-│   ├── core/
-│   │   ├── stellar_client.py    # Stellar Soroban read/write client
-│   │   ├── solana_client.py     # Solana JSON-RPC client (all 4 programs)
-│   │   ├── allocation.py        # MWU algorithm, risk-adjusted returns
-│   │   ├── protocol_params.py   # Live governance parameter singleton
-│   │   ├── settings.py          # Pydantic settings from .env
-│   │   └── supabase.py          # Storage upload/download helpers
-│   ├── db/
-│   │   └── connection.py        # SQLAlchemy engine with graceful fallback
-│   ├── ml/
-│   │   ├── hybrid_model.py      # CNN-LSTM architecture
-│   │   ├── train_hybrid.py      # Full training pipeline
-│   │   ├── live_inference.py    # Real-time inference from price history
-│   │   ├── regime_classifier.py # HMM volatility regime detection
-│   │   └── monte_carlo.py       # GBM paths, VaR/CVaR
-│   └── tests/                   # pytest test suite
+├── apps/
+│   ├── web/          Next.js 16 dashboard (App Router, React 19, Tailwind v4)
+│   └── api/          FastAPI service — routers, agent runtime, ML, chain clients
+├── programs/
+│   └── iris/         Anchor workspace (Phase 2 consolidates the programs here)
 ├── contracts/
-│   └── src/                     # Solidity contracts (EVM reference)
+│   ├── rust/solana/  the four Anchor programs as they stand today
+│   ├── src/          Solidity reference implementation, not deployed
+│   └── test/         Hardhat tests for the reference contracts
+├── agents/           LangGraph runtime, strategies, tools        (Phase 3)
+├── ml/               models, training, inference, regime, risk   (Phase 4)
+├── packages/         shared types, SDK, config                   (Phases 6–10)
 ├── db/
-│   └── schema.sql               # PostgreSQL schema
-└── frontend/
-    ├── app/                     # Next.js app directory
-    ├── components/              # Radix UI + custom components
-    ├── hooks/                   # useLivePrices, useAgents, useTradingFeed
-    └── lib/
-        └── api.ts               # Typed API client for all backend endpoints
+│   ├── migrations/   source of truth for the schema
+│   ├── seed/         development fixtures
+│   └── schema.sql    pointer + dump instructions
+├── docker/           web and api Dockerfiles
+├── scripts/          phase gate checks
+├── tests/            unit, integration, ml, e2e
+├── docker-compose.yml
+├── Makefile
+└── STATE.md          build state — read this first
 ```
+
+Directories owned by a later phase contain a README saying so, and are
+otherwise empty. That is deliberate: the build runs phase by phase and does not
+reach ahead.
 
 ---
 
-## How the Protocol Works
+## How the protocol works
 
-### 1. Capital custody
+### Capital custody
 
-Investors deposit into one of three risk pools via `POST /api/pools/deposit`. The backend calls `vault_deposit` on both the Stellar Soroban CapitalVault and the Solana CapitalVault simultaneously. Funds are tracked on-chain; the backend never holds capital.
-
-### 2. Agent registration and staking
-
-Agents register via `POST /api/agents/register`. The backend calls `activate_agent` on the Stellar AgentRegistry. Agents must stake tokens (`POST /api/agents/stake`) before receiving allocation. Minimum stake is enforced by `protocol_params.min_stake`.
-
-### 3. Trading loops
-
-Each active agent runs an independent asyncio task (10-second cycles). Every cycle:
-
-1. Fetches live prices from the Ornstein-Uhlenbeck price engine
-2. Runs CNN-LSTM inference (falls back to momentum if model unavailable)
-3. Submits `submit_update(agent_address, return_bps)` to both Stellar AllocationEngine and Solana AllocationEngine
-4. Reports current portfolio value to both SlashingModules
-5. Broadcasts the trade event over `/ws/trading`
-
-### 4. MWU reallocation
-
-Every 6 cycles (~60 seconds), the engine runs a full MWU step across all active agents:
-
-```
-w_i(t+1) = w_i(t) · exp(η · R_i(t))
-```
-
-where `R_i(t)` is the risk-adjusted return: `Return / (Volatility + λ · |Drawdown|)`. Normalized weights are pushed to both chains. The learning rate η is live-tunable via governance.
-
-### 5. Automatic slashing
-
-If any agent's drawdown exceeds 20% (configurable via `slashing_threshold_bps`), the engine automatically calls `slash_agent` on both chains and broadcasts a `slash_event` over WebSocket.
-
-### 6. Governance
-
-Protocol parameters (η, slashing threshold, vol caps, min stake, quorum) are controlled by on-chain governance proposals. Proposals pass after reaching quorum within the proposal window. Passed proposals call `protocol_params.apply(key, value)` which takes effect immediately in the running process.
-
----
-
-## API Reference
-
-### Health
-
-| Method | Path | Description |
-|---|---|---|
-| GET | `/health` | Basic health check |
-| GET | `/health/chains` | Live Stellar + Solana connection status |
-| GET | `/api/contracts/addresses` | All deployed contract addresses |
-| GET | `/api/trading/status` | Active agents + chain TVL |
+Investors deposit into one of three vaults, distinguished by a volatility cap:
+conservative (800 bps), balanced (1800 bps), aggressive (3500 bps). These are
+**constraints, not promised returns**. Funds are tracked on-chain; the API never
+holds capital.
 
 ### Agents
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/agents/` | List all agents (optional `?risk=`) |
-| GET | `/api/agents/{id}` | Get single agent |
-| POST | `/api/agents/register` | Register new agent (calls chain registry) |
-| POST | `/api/agents/stake` | Stake tokens for an agent |
-| GET | `/api/agents/chain/active` | Active agents from both chain registries |
-| POST | `/api/agents/{id}/start-trading` | Start agent trading loop |
-| POST | `/api/agents/{id}/stop-trading` | Stop agent trading loop |
-| GET | `/api/agents/{id}/portfolio` | Allocation weight, TVL, scores |
+An agent registers, stakes collateral, and is placed on probation. It receives
+allocation only once active, and its allocation is a weight — never a key.
 
-### Pools
+### Allocation
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/pools/` | List all pools with live TVL |
-| GET | `/api/pools/{id}` | Get single pool |
-| POST | `/api/pools/deposit` | Deposit into pool (calls both chains) |
+Every active agent publishes a return. The allocator then runs
 
-### Analytics
+```
+w_i(t+1) = w_i(t) · exp(η · R_i(t))  /  Σ_j w_j(t+1)
+```
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/api/analytics/monte-carlo` | GBM paths + VaR/CVaR |
-| GET | `/api/analytics/rolling-volatility` | Rolling vol series |
-| GET | `/api/analytics/regime` | HMM regime classification |
-| GET | `/api/analytics/allocation-weights` | MWU weight history |
+over the risk-adjusted score
 
-### WebSockets
+```
+R_i = Return / (Volatility + λ · |Drawdown|)
+```
 
-| Path | Description |
-|---|---|
-| `/ws/prices` | Live price ticks (3s interval) |
-| `/ws/market` | Normalized market events |
-| `/ws/trading` | Live trade events + slash events + MWU updates |
-| `/ws/social` | AI agent social feed |
+Raw return alone would reward whoever levered hardest, so it is not used. MWU is
+chosen over a heuristic because it carries a regret bound of `O(√(T · ln N))`
+against the best fixed agent in hindsight.
+
+η is governance-tunable and takes effect on the allocator's next step.
+
+### Consequence
+
+Drawdown past the configured threshold (2000 bps by default) triggers an
+automatic slash. No committee approves it.
 
 ---
 
-## Local Development
+## Database
 
-### Prerequisites
+21 tables, defined in [`db/migrations/0001_init.sql`](db/migrations/0001_init.sql)
+with real foreign keys, real indexes and real check constraints. Highlights:
 
-- Python 3.10+ (3.10 recommended — project uses `.venv310`)
-- Node.js 18+
-- PostgreSQL or SQLite (SQLite used automatically as fallback)
+- **`predictions`** carries a `prediction_hash` and a `CHECK` that
+  `committed_at <= horizon_end`, so a prediction provably existed before its
+  outcome could be known.
+- **`prediction_outcomes`** is a separate table keyed on the prediction, so
+  settling an outcome never requires an `UPDATE` that could rewrite a committed
+  claim.
+- **`reputation_scores`** stores the dimension values *and* the weights used, so
+  any historical IRIS Score can be re-derived rather than trusted.
+- **`trades.execution_mode`** is a constrained enum — `SIMULATION`, `TESTNET` or
+  `LIVE` — so honest labelling is a schema property, not a convention.
 
-### Backend
+`pgvector` is enabled for the historical-memory layer; `market_events` and
+`news_events` carry embedding columns.
+
+---
+
+## Build phases
+
+The build follows a per-phase loop: plan, implement, self-test, verify against
+the phase's Definition of Done, checkpoint into `STATE.md`, advance. A phase
+that ships a feature which *looks* real but is not fails its gate regardless of
+what else passed.
+
+| # | Phase | Gate |
+|---|---|---|
+| 1 | Repo, Docker, DB, skeleton | `docker compose up` → 200 on web, api, db |
+| 2 | AgentRegistry + CapitalVault | **agent cannot withdraw the vault** |
+| 3 | Agent runtime + LangGraph | one agent completes the graph, checkpointed |
+| 4 | ML models + inference | 4 model classes, baseline comparison logged |
+| 5 | Prediction commit + evaluation | hash pre-horizon, settle post-horizon |
+| 6 | Reputation engine | IRIS Score from ≥6 dimensions, unit-tested |
+| 7 | MWU allocation | 4 mathematical invariants pass as tests |
+| 8 | Risk + slashing | breach → freeze → slash → reduced allocation |
+| 9 | WebSocket infra | real events from phases 3–8 reach a client |
+| 10–12 | Arena, Observatory, Ledger | driven by real rows, not fixtures |
+| 13 | Simulation + backtesting | same seed → same result |
+| 14–16 | Security, testing, polish | full checklist and matrix green |
+
+---
+
+## Limitations
+
+Stated plainly, because claiming production readiness we do not have would
+violate the protocol's own honesty rule.
+
+- **Market data is simulated.** `WS_MARKET_SOURCE` defaults to `simulated`;
+  prices come from an Ornstein–Uhlenbeck engine, not an exchange. Every P&L,
+  Sharpe ratio and slash currently runs against synthetic tape. The UI does not
+  yet label this everywhere it should — that is tracked in `STATE.md`.
+- **Governance is off-chain.** Proposals, votes and quorum resolve in a JSON
+  store and an in-process singleton. The parameter change is real and
+  immediate; the vote is not on-chain.
+- **The prediction primitive is schema-only.** The tables enforce the
+  commit-before-outcome ordering, but nothing writes to them yet — the agent
+  runtime still submits returns directly. This is Phase 5.
+- **No agent is on LangGraph yet.** The current runtime is an asyncio loop with
+  three hardcoded strategy archetypes. This is Phase 3.
+- **The Anchor programs are not consolidated.** Four standalone workspaces under
+  `contracts/rust/solana/`; `programs/iris/` is still a placeholder. This is
+  Phase 2, along with the security test that matters most.
+- **Solidity contracts under `contracts/src/` are a reference implementation.**
+  They are not deployed and are not on any critical path.
+- **Algorand is vestigial.** A client, settings and a frontend hook survive from
+  before the v2 migration. Not in the trading loop; slated for removal.
+- **No token.** There is no `$IRIS` token and there will not be one until a
+  mechanism justifies it. The protocol has to be compelling without it.
+
+---
+
+## Development without Docker
+
+Docker is the supported path. If you need the services directly:
 
 ```bash
-cd backend
-python -m venv .venv310
-.venv310\Scripts\activate          # Windows
-# source .venv310/bin/activate     # macOS/Linux
+# api
+cd apps/api
+python -m venv .venv && . .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
-```
 
-The backend starts with:
-- Price engine running (O-U simulation, 3s ticks)
-- ML model downloaded from Supabase (or loaded from `ml/model.pkl`)
-- Stellar Soroban client connected to testnet
-- Solana client connected to testnet
-- All active agents auto-started in trading loops
-- Chain event listener polling both chains every 5s
-
-### Frontend
-
-```bash
-cd frontend
+# web
+cd apps/web
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. The frontend connects to the backend at `http://localhost:8000` (configured in `frontend/.env.local`).
+`apps/api/.venv310` predates the `backend/ → apps/api/` move and has stale
+absolute paths baked in; recreate it rather than reusing it.
 
-### Environment Variables
+---
 
-Copy `.env` to `backend/.env` and fill in your values. Key variables:
-
-```env
-# Stellar Soroban (testnet)
-STELLAR_RPC_URL=https://soroban-testnet.stellar.org
-STELLAR_HORIZON_URL=https://horizon-testnet.stellar.org
-STELLAR_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-STELLAR_PUBLIC_KEY=<your G-address>
-STELLAR_SECRET_KEY=<your S-address secret>
-STELLAR_AGENT_REGISTRY=CDJD33R7ZVT7YZD2T6ROK2MPK2XRYJCKSM4AQOXPKCGMIQCAN7R6RTVJ
-STELLAR_ALLOCATION_ENGINE=CBBXJBG5Y74XBO7NSWUXNOZVEBWTBCEL6ZAPEXULASBIM3FSEZBRPPUV
-STELLAR_CAPITAL_VAULT=CB263OPPTMRE7R37CMIPSYWLDVVAR4UYWXQS7C6FY3AS6VBUEPHYX3H6
-STELLAR_SLASHING_MODULE=CAHJFZI7IZSPAZK35LZLYNG564F3LPQZFDRRFXFUENVWGY7Q6OHE3U5I
-
-# Solana (testnet)
-SOLANA_RPC_URL=https://api.testnet.solana.com
-SOLANA_WALLET_ADDRESS=9cNCsgFCoutgvftQTdV9YigxSrFXWqd5v7Zjnmw8beqB
-SOLANA_AGENT_REGISTRY=F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN
-SOLANA_ALLOCATION_ENGINE=2MKzNfzPkEvsj6BKSrEEc9d4hdXmZnkyYQgTEtFZqbvR
-SOLANA_CAPITAL_VAULT=4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2
-SOLANA_SLASHING_MODULE=AC6xZSbeD6fMRafNVGbnuN4vt94py7heNKyepp7KqBUv
-
-# Database (SQLite fallback if not set)
-DATABASE_URL=postgresql://user:pass@host/iris
-
-# Supabase (for ML model storage)
-SUPABASE_URL=https://<ref>.supabase.co
-SUPABASE_SECRET_KEY=<service_role_key>
-SUPABASE_PUBLISHABLE_KEY=<anon_key>
-```
-
-### Running Tests
+## Testing
 
 ```bash
-cd backend
-pytest tests/ -v --tb=short
+make test                      # API suite inside the container
+python scripts/verify_phase1.py  # Phase 1 gate
 ```
 
----
-
-## ML Pipeline
-
-The hybrid CNN-LSTM model in `backend/ml/train_hybrid.py`:
-
-1. Loads Bitcoin OHLCV data from Kaggle (synthetic fallback if unavailable)
-2. Engineers 20 features: returns, rolling stats, momentum, HL spread, volume norm
-3. Trains a CNN-LSTM regression model (50-bar windows, 30 epochs, early stopping)
-4. Runs 200 steps of online learning on the most recent data
-5. Evaluates with MSE, MAE, RMSE, and a direction-level confusion matrix (SELL/HOLD/BUY)
-6. Runs HMM regime classification (3 volatility states)
-7. Runs Monte Carlo risk analysis (2000 paths, 30-day horizon, VaR/CVaR at 95%)
-8. Saves `model.pkl` locally and uploads to Supabase Storage
-
-At inference time (`backend/ml/live_inference.py`), the model synthesizes OHLCV features from the live price history and returns a `(predicted_log_return, decision, confidence)` tuple. Falls back to 3-bar momentum if the model is unavailable or history is too short.
-
-To retrain:
-
-```bash
-cd backend
-python -m ml.train_hybrid
-```
-
----
-
-## Solana Contract Exports
-
-The deployed Anchor programs export the following instructions:
-
-**AgentRegistry** — `activate_agent`, `get_active_agents`, `get_agent`, `get_config`, `init`, `register_agent`, `slash_agent`
-
-**AllocationEngine** — `alpha`, `get_agent_score`, `get_config`, `get_reputation_score`, `init`, `set_eta`, `submit_update`
-
-**CapitalVault** — `aggressive`, `balanced`, `conservative`, `deposit`, `enforce_drawdown_limit`, `get_agent_current_value`, `get_agent_peak_value`, `get_agent_weight`, `get_config`, `get_investor_balance`, `get_pool_tvl`, `get_volatility_cap`, `init`, `max_drawdown_bps`, `performance_fee_bps`, `set_agent_values`, `set_allocation_engine`, `set_slashing_module`, `total_tvl`, `update_weights`, `withdraw`
-
-**SlashingModule** — `get_config`, `get_current_value`, `get_peak_value`, `get_slash_history`, `init`, `report_performance`, `set_threshold`
-
----
-
-## Stellar Contract Exports
-
-The deployed Soroban contracts expose the same logical interface as the Solana programs, compiled from Rust to WASM:
-
-- `agent_registry.wasm` — 11,263 bytes, 7 exported functions
-- `allocation_engine.wasm` — 7,009 bytes, 7 exported functions
-- `capital_vault.wasm` — 11,504 bytes, 21 exported functions
-- `slashing_module.wasm` — 7,945 bytes, 7 exported functions
-
----
-
-## Design Principles
-
-**Capital separation** — agents receive allocation weights, never direct custody. The vault enforces this at the contract level.
-
-**Cryptoeconomic enforcement** — slashing is automatic and on-chain. No human needs to approve a slash when a drawdown limit is breached.
-
-**Dual-chain redundancy** — every capital operation (deposit, performance update, slash) is submitted to both Stellar and Solana. Either chain can serve as the source of truth.
-
-**Online adaptation** — MWU weights update every ~60 seconds based on live risk-adjusted returns. The regret bound is O(√T · ln N) vs the best fixed agent in hindsight.
-
-**Measurable ML** — the model is evaluated on direction accuracy (SELL/HOLD/BUY confusion matrix), not just regression loss. Inference falls back gracefully to momentum when the model is unavailable.
-
-**Governance-tunable** — every protocol parameter (learning rate, slashing threshold, vol caps, min stake, quorum) is controlled by on-chain governance proposals that take effect immediately when passed.
+The testing matrix each phase must satisfy lives in the build prompt; a phase
+does not checkpoint without its row passing.

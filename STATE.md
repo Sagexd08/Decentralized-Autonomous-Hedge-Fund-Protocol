@@ -5,71 +5,115 @@
 
 ## Current phase
 
-**Phase 0 — scoping.** Blocked on one decision (see *Known blockers*). No v2 phase has
-started; nothing below claims v2 conformance.
+**Phase 1 — repo, Docker, database, skeleton.**
+Implementation complete; **gate not yet verified**. `docker compose up -d --build`
+is running for the first time against the new compose file. Phase 1 may not
+checkpoint, and Phase 2 may not start, until `python scripts/verify_phase1.py`
+exits 0.
 
-## Where the repo actually is today
+### Phase 1 Definition of Done (§27)
 
-The existing codebase predates v2.0 and does **not** match the v2 target architecture.
-Recording the delta honestly rather than pretending Phase 1 is partly done:
+| Requirement | Status |
+|---|---|
+| Repo restructured to §4 | done |
+| Stellar removed (§2 single-chain) | done |
+| 21 tables, real FKs and indexes (§13) | done — `db/migrations/0001_init.sql` |
+| `docker compose up` boots web + api + db | **unverified** |
+| health route returns 200 on all three | **unverified** |
 
-| v2 target | Repo today | Delta |
-|---|---|---|
-| Solana only, no Stellar (§2) | Stellar Soroban **and** Solana, both deployed to testnet, both called every trading cycle | Spec deletes a working, deployed chain |
-| `iris/apps/{web,api}` + `programs/` + `agents/` + `ml/` + `packages/` (§4) | `frontend/` + `backend/` + `contracts/` + `db/` | Full re-layout |
-| LangGraph state machine per agent (§10) | `backend/agents/trading_engine.py` — asyncio loop, 3 hardcoded strategy archetypes | No graph, no checkpointer, no tool layer |
-| LangChain tool surface (§10) | none | Not started |
-| Neon Postgres + pgvector (§2, §12) | SQLAlchemy → Postgres w/ SQLite fallback, no vector store | No embeddings, no retrieval |
-| 21 tables (§13) | 10 tables in `db/schema.sql` | Missing model_versions, predictions, prediction_outcomes, reputation_scores, agent_runs, graph_checkpoints, news_events, risk_events (partial), governance_* (partial) |
-| Prediction commit → settle → evaluate (§5) | Agents submit `return_bps` directly; no prediction record, no pre-horizon hash | **The core Web3×ML primitive does not exist yet** |
-| IRIS Score, ≥6 dimensions (§9) | Reputation decay helper only (`core/allocation.py`) | Not implemented |
-| MWU allocation (§9) | Implemented and pushing weights on-chain | Closest thing to done; invariant tests missing |
-| Risk engine, freeze → slash (§8) | Auto-slash on 20% drawdown, both chains | No freeze state, no VaR/CVaR gate in the loop |
-| Governance on-chain (§21) | `governance_store.json` + in-process singleton | Off-chain despite the framing |
-| 16 routes (§15) | 12 routes | Missing /arena, /predictions, /models, /model-cemetery, /observatory |
-| Docker Compose (§24) | `docker-compose.yml` exists, unverified against §27 Phase 1 DoD | Untested |
+## Decisions taken
 
-## Done (this session, outside the phase loop)
+1. **Migration strategy: rewrite in place, drop Stellar.** Chosen over building a
+   parallel `iris/` tree. Four deployed Soroban testnet contracts and the
+   dual-chain settlement path were deleted, not archived — they remain in git
+   history at `43298fd` if ever needed.
+2. **Start at Phase 1** rather than jumping to the prediction primitive.
 
-- [x] **Brand assets.** Extracted transparent-background PNGs from the supplied lockup
-      screenshot: `frontend/public/iris-mark.png` (95×95 aperture glyph),
-      `iris-logo.png` (147×172 full stacked lockup), `iris-wordmark.png`.
-      Source screenshot retained.
-- [x] **Favicon** wired to `public/favicon.ico` in `app/layout.tsx` metadata, replacing
-      the `icon-light/dark-32x32.png` + `icon.svg` set. Added OG image (`iris-logo.png`).
-- [x] **Navbar logo** — `components/global-navbar.tsx` now leads with the aperture mark
-      beside the IRIS / PROTOCOL text lockup.
-- [x] **Vercel build unblocked** (commit `8ff62ae`) — `thread-stream` aliased to a stub so
-      Turbopack stops widening it into a context module; `envDir` replaced with a real
-      root-`.env` reader; `turbopack.root` pinned; lockfile resynced.
+## Done
+
+### Phase 1 (commits `a72d3ed`, pending)
+
+- [x] `frontend/` → `apps/web/`, `backend/` → `apps/api/`.
+- [x] Stellar removed end to end: 4 Soroban crates, the client, settings, every
+      `STELLAR_*` read, dual-chain writes in the trading engine, Stellar
+      branches in 5 routers, the Freighter XDR build/submit endpoints, the
+      `use-freighter` hook, the two-chain stake selector, `STELLAR_META`,
+      `stellar-sdk` and `@stellar/freighter-api`.
+- [x] `ws_trading.stellar_event_listener` → `chain_event_listener`, Solana only.
+- [x] Wallet button falls back to a disabled "Wallet unavailable" state instead
+      of Freighter when Privy is unconfigured.
+- [x] **21-table schema** in `db/migrations/0001_init.sql`. Notable constraints:
+      `predictions` has `CHECK (committed_at <= horizon_end)` and a unique
+      `prediction_hash`; outcomes live in a separate table so settling never
+      `UPDATE`s a committed claim; `reputation_scores` stores dimensions *and*
+      weights so historical scores are re-derivable; `trades.execution_mode` is
+      a `SIMULATION | TESTNET | LIVE` enum, making honest labelling a schema
+      property. pgvector enabled for `market_events` / `news_events`.
+- [x] Seed: 8 named agents (Axiom, Vector, Helix, Quanta, Meridian, Pulse,
+      Nexus, Sigma), 4 model families, 3 vaults. No placeholder names.
+- [x] `docker/{web,api}.Dockerfile`, rewritten `docker-compose.yml` on
+      `pgvector/pgvector:pg16`, `.env.example` documenting every variable,
+      `Makefile`.
+- [x] Health routes: `GET /health` and `GET /health/db` (503 when the Postgres
+      round trip fails) on the API; `GET /health` on the web app.
+- [x] `scripts/verify_phase1.py` — asserts the gate, including that all 21
+      tables exist. This is the phase's automated test.
+- [x] §4 skeleton dirs (`agents/`, `ml/`, `packages/*`, `tests/*`,
+      `programs/iris/`), each with a README naming the phase that owns it.
+- [x] README rewritten: accurate layout, honest Limitations section.
+
+### Outside the phase loop
+
+- [x] Brand assets extracted from the supplied lockup screenshot →
+      `apps/web/public/iris-{mark,logo,wordmark}.png`; favicon wired to
+      `favicon.ico`; navbar leads with the mark. (`b28e012`)
+- [x] Vercel Turbopack build unblocked. (`8ff62ae`)
 
 ## Stubbed / SIMULATION-labeled
 
-- **Price data is simulated.** `WS_MARKET_SOURCE` defaults to `simulated`; prices come from
-  an Ornstein–Uhlenbeck engine over WBTC/USDC/LINK/UNI. All P&L, Sharpe and slashing run
-  against synthetic tape. **Not currently labeled `SIMULATION` in the UI** — this violates
-  v2 §0c and must be fixed in whichever phase touches those screens first.
-- **Governance is off-chain** (`governance_store.json`). Parameter changes are real and
-  immediate; the vote is not on-chain.
-- **Algorand** — algod client, settings, deploy script and a `use-algorand` hook exist but
-  are not in the trading loop. v2 drops it; decide whether to delete or park.
+- **Price data is simulated** (`WS_MARKET_SOURCE=simulated`, Ornstein–Uhlenbeck
+  engine). Not yet labeled in the UI — **violates §0c**, must be fixed by
+  whichever phase next touches those screens.
+- **Governance is off-chain** (`governance_store.json` + in-process singleton).
+- **Prediction primitive is schema-only.** Tables enforce commit-before-outcome,
+  but nothing writes to them; the runtime still submits returns directly.
+- **Algorand** client, settings and `use-algorand` hook survive; not in the
+  trading loop. Slated for removal.
 
 ## Deferred
 
-- Nothing yet — no phase has run.
+- Anchor workspace consolidation into `programs/iris/programs/` → **Phase 2**,
+  with the agent-cannot-withdraw-vault test.
+- Full §25 README (Mermaid diagrams, security model, testnet deploy) → Phase 16.
+- Production multi-stage web Dockerfile → Phase 16. The current one runs
+  `next dev`, which is all Phase 1's gate requires.
 
 ## Known blockers
 
-1. **Migration strategy is undecided, and it gates every phase.** v2 §2 says
-   "single chain, no dual-chain abstraction, no Stellar", but four Soroban contracts are
-   live on testnet and referenced throughout the README, the backend and the dashboard.
-   Removing them destroys working deployed work. Options: rewrite in place, build the v2
-   tree alongside the current app, or amend the spec to keep Stellar. Awaiting the call.
-2. **Local `frontend/node_modules` is corrupt** — individual `.js` files missing from
-   `@noble/hashes`, `ws`, `@scure/base`, `@heroicons/react` while their `.d.ts`/`.map`
-   siblings survive. A clean reinstall hung at 352 packages. Vercel is unaffected (fresh
-   container), but local `next build` cannot go green until this is repaired.
+1. **Vercel will 404 until its Root Directory is changed** from `frontend` to
+   `apps/web`. The deploy at `8ff62ae` was green; the next push breaks it until
+   that project setting is updated. Nothing in the repo can fix this.
+2. **`apps/web/node_modules` is gone.** Deleted during the move because a
+   concurrent `npm install` had corrupted it (individual `.js` files missing
+   from `@noble/hashes`, `ws`, `@scure/base`, `@heroicons/react`). Run
+   `npm install` in `apps/web`, or just use Docker.
+3. **`apps/api/.venv310` has stale absolute paths** after the move. Recreate it
+   or use Docker.
+4. **`tests/test_agent_trading_engine.py` is stale** — it constructs
+   `AgentTradingEngine(w3=…, vault_contract=…, price_feed_contract=…, accounts=…)`,
+   none of which are parameters any more, and asserts lowercase decisions
+   against an engine that returns uppercase. Pre-existing, not caused by the
+   Stellar removal. Belongs to Phase 3's rewrite of the runtime.
+5. **Stale containers from the old compose file** (`backend`, `frontend`,
+   `postgres`) are still on the machine, plus an 8.6 GB `hacktropica-backend`
+   image. Safe to `docker rm` / `docker image prune` once the new stack is up.
+
+## Local edit outside the repo
+
+`.env` lines 53–58 were pasted CLI output (`Deployer balance OK: …`,
+`Algorand deploy failed: …`), which is not valid dotenv and made
+`docker compose config` fail. They are now commented out; all values preserved.
 
 ## Last verified commit
 
-`8ff62ae` — fix(frontend): unblock Turbopack production build
+`a72d3ed` — refactor: restructure to apps/ layout and drop Stellar

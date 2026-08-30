@@ -208,7 +208,36 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "version": "2.2.0"}
+    return {"status": "ok", "service": "iris-api", "version": "2.2.0"}
+
+
+@app.get("/health/db")
+def health_db():
+    """
+    Liveness probe for the Postgres connection.
+
+    Returns 200 with status "ok" only when a round trip to the database
+    succeeds; 503 otherwise, so `docker compose` and any orchestrator can gate
+    on it rather than on the process merely being up.
+    """
+    from db.connection import engine
+    from sqlalchemy import text as _text
+
+    if engine is None:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "error": "no database engine"},
+        )
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(_text("select 1"))
+        return {"status": "ok", "dialect": engine.dialect.name}
+    except Exception as exc:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unavailable", "error": str(exc)},
+        )
 
 
 @app.get("/api/trading/status")
