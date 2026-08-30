@@ -1,0 +1,23 @@
+[toolchain]
+anchor_version = "0.31.1"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+agent_registry = "F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN"
+capital_vault  = "4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2"
+
+[programs.devnet]
+agent_registry = "F4s8zTom7KLNLXAhRpbgwJ2dYSNg2hi4M1Rn4m9t71NN"
+capital_vault  = "4AdNiFej3xrBh5t5NziiMMTMs1YK7qMUxgTNBwo4tcf2"
+
+[provider]
+cluster = "Devnet"
+wallet = "~/.config/solana/id.json"
+
+[scripts]
+# The security-critical tests are Rust, not TypeScript, so they run without a
+# validator and without the SBF toolchain. See programs/*/tests/.
+test = "cargo test --workspace"

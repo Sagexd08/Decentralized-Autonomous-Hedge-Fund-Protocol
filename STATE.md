@@ -5,10 +5,20 @@
 
 ## Current phase
 
-**Phase 1 — repo, Docker, database, skeleton. COMPLETE and checkpointed.**
-Gate verified: `python scripts/verify_phase1.py` exits 0 with all four checks
-green. Phase 2 (AgentRegistry + CapitalVault, gated on the
-agent-cannot-withdraw-vault test) is cleared to start.
+**Phase 2 — AgentRegistry + CapitalVault.** Security gate PASSED; the phase is
+**not fully checkpointed**, because the DoD also says these instructions work
+"on devnet" and nothing has been deployed. See *Known blockers* 6.
+
+`python scripts/verify_phase2.py` → 17/17 green (5 custody + 12 lifecycle).
+Phase 1 remains complete (`verify_phase1.py` → 0).
+
+### Phase 2 Definition of Done (§27)
+
+| Requirement | Status |
+|---|---|
+| `agent-cannot-withdraw-vault` test passes | **verified** |
+| register / stake / unstake work | verified against solana-program-test |
+| …on devnet | **NOT DONE** — no toolchain, no funded keypair |
 
 ### Phase 1 Definition of Done (§27)
 
@@ -70,6 +80,28 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
       `programs/iris/`), each with a README naming the phase that owns it.
 - [x] README rewritten: accurate layout, honest Limitations section.
 
+### Phase 2
+
+- [x] `programs/iris/` Anchor workspace: `agent_registry` and `capital_vault`
+      moved out of their standalone workspaces under `contracts/rust/solana/`.
+- [x] Registry extended to the full §5 surface — added `update_model`, `stake`,
+      `unstake`, `deactivate_agent`, `freeze_agent`, `unfreeze_agent`.
+      `AgentAccount` gained `agent_id`, `model_hash`, `model_version`,
+      `reputation`, `allocation_weight`; `AgentStatus` gained `Frozen`.
+- [x] **5 custody tests** in `capital_vault/tests/vault_custody.rs`, including
+      the §5 gate. They assert the agent PDA is off-curve *and* that the runtime
+      rejects the withdrawal, plus a control test proving the withdrawal path
+      works for the actual depositor — a path that rejected everyone would pass
+      the other four while proving nothing.
+- [x] **12 lifecycle tests** in `agent_registry/tests/registry_lifecycle.rs`.
+- [x] `docker/anchor.Dockerfile` + `make anchor-test`: the tests use
+      `solana-program-test` with `processor!()`, so they need neither a
+      validator nor the SBF toolchain — but `solana-runtime` pulls OpenSSL,
+      whose vendored build fails under Git Bash on Windows, so they run in
+      Linux.
+- [x] `scripts/verify_phase2.py` asserts each required test passed **by name**,
+      not just that the suite exited 0.
+
 ### Outside the phase loop
 
 - [x] Brand assets extracted from the supplied lockup screenshot →
@@ -119,21 +151,37 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
    Stale `hacktropica-frontend`/`-backend` images (1.5 GB + 8.6 GB) remain and
    can be pruned.
 
+6. **Nothing is deployed to devnet.** Needs the `solana` and `anchor` CLIs
+   (neither installed; Anchor has no first-class Windows support and wants WSL)
+   and a funded devnet keypair. The program IDs in `Anchor.toml` are inherited
+   from the pre-v2 deployment and have not been re-verified against the
+   modified programs — `agent_registry` changed shape this phase, so its
+   deployed bytecode no longer matches this source.
+
 ## Local edit outside the repo
 
 `.env` lines 53–58 were pasted CLI output (`Deployer balance OK: …`,
 `Algorand deploy failed: …`), which is not valid dotenv and made
 `docker compose config` fail. They are now commented out; all values preserved.
 
+## Bugs found by the gates (not written by them)
+
+1. **`AgentList` was unallocatable.** `#[max_len(5000)]` on `Vec<Pubkey>` asks
+   for ~160KB, but the runtime caps a program-created account at 10,240 bytes.
+   `initialize` failed with `InvalidRealloc` — on devnet exactly as in the
+   harness, so the registry could never have been initialised as written.
+   Capped at 300 (ceiling is 319). Growing past that needs a different shape,
+   not a bigger number.
+2. **Migrations never ran** (Phase 1) — a stale `pgdata` volume.
+3. **torch pulled the CUDA wheel** (Phase 1) — 8.63GB → 3.24GB.
+
 ## Next phase
 
-**Phase 2 — AgentRegistry + CapitalVault (Anchor).** DoD: register/stake/unstake
-work on devnet, and the **agent-cannot-withdraw-vault test passes** — the single
-highest-priority security test in the repo (§5). Needs the `anchor` and `solana`
-CLIs, neither of which is installed on this machine. Work also includes
-consolidating the four standalone workspaces under `contracts/rust/solana/`
-into the `programs/iris/` Anchor workspace.
+**Phase 3 — agent runtime + LangGraph.** DoD: one agent completes the full graph
+end to end on synthetic data, checkpointed in Neon. Note that
+`apps/api/tests/test_agent_trading_engine.py` is stale and belongs to this
+phase's rewrite (blocker 4).
 
 ## Last verified commit
 
-`b01115e` — fix(phase-1): migrate API queries onto the v2 schema
+`d1b9d2a` — chore(phase-1): checkpoint — gate passed

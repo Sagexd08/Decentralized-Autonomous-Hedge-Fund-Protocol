@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test clean
+.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -35,6 +35,10 @@ db-seed: ## Load development seed data
 
 db-shell: ## Open a psql shell
 	$(COMPOSE) exec db psql -U iris -d iris
+
+anchor-test: ## Phase 2 gate: Anchor program tests (Linux container)
+	docker build -f docker/anchor.Dockerfile -t iris-anchor-test .
+	docker run --rm 	  -v "$(CURDIR)/programs/iris":/work 	  -v iris-cargo-registry:/usr/local/cargo/registry 	  -v iris-cargo-target:/work/target 	  iris-anchor-test
 
 test: ## Run the API test suite
 	$(COMPOSE) exec api pytest tests/ -v --tb=short

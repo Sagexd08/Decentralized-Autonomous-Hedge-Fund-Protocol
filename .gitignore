@@ -84,3 +84,7 @@ out/
 # -----------------------------
 *.tmp
 *.temp
+
+# Rust build output
+programs/iris/target/
+contracts/rust/**/target/
