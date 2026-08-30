@@ -13,14 +13,12 @@ import numpy as np
 from sklearn.ensemble import HistGradientBoostingRegressor
 
 from ml.models.base import (
-    BUY,
-    HOLD,
-    SELL,
     Prediction,
+    confidence_for,
     direction_from_return,
+    direction_probabilities,
     hash_params,
     hash_weights,
-    softmax,
 )
 
 
@@ -79,11 +77,13 @@ class GradientBoostingModel:
         expected_return = (
             float(self.model.predict(f)[0]) if self.fitted else 0.0
         )
+        direction = direction_from_return(expected_return, self.threshold)
         proba = self.predict_proba(features)
         return Prediction(
-            direction=direction_from_return(expected_return, self.threshold),
+            direction=direction,
             expected_return=expected_return,
-            confidence=float(proba.max()),
+            # The probability of *this* call, not of the likeliest class.
+            confidence=confidence_for(direction, proba),
             model_version=self.model_version,
             model_hash=self.model_hash,
             features_used=f.size,
@@ -92,11 +92,7 @@ class GradientBoostingModel:
     def predict_proba(self, features: np.ndarray) -> np.ndarray:
         f = np.asarray(features, dtype=np.float64).reshape(1, -1)
         expected_return = float(self.model.predict(f)[0]) if self.fitted else 0.0
-
-        # Scale the predicted move by the model's own error spread.
-        snr = expected_return / (self._residual_scale * 2.0)
-        logits = np.zeros(3)
-        logits[BUY] = snr
-        logits[SELL] = -snr
-        logits[HOLD] = 0.35
-        return softmax(logits)
+        # The residual spread measured at fit time is this model's uncertainty.
+        return direction_probabilities(
+            expected_return, self._residual_scale * 2.0, self.threshold
+        )

@@ -24,4 +24,8 @@ def test_deposit_with_valid_data_returns_200(client):
     data = response.json()
     assert data["pool"] == "balanced"
     assert data["amount"] == 1000.0
-    assert data["status"] == "pending"
+    # "confirmed" only when a real Solana signature came back. The test client
+    # runs against a stubbed chain client that returns one, so this asserts the
+    # honest-labelling rule rather than a fixed string: the status must match
+    # whether `solana_tx` is actually present.
+    assert data["status"] == ("confirmed" if data.get("solana_tx") else "simulated")

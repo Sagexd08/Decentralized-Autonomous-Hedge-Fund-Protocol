@@ -27,7 +27,10 @@ async def test_generate_post_cycle_adds_post_and_broadcasts(monkeypatch):
         seen.append(msg)
 
     monkeypatch.setattr("services.gemini_social.random.random", lambda: 0.9)
-    monkeypatch.setattr(engine, "_call_gemini", fake_call)
+    # `_call_gemini` was renamed `_call_llm` when the service moved off Gemini
+    # onto Groq/LangChain. The old name no longer exists, so monkeypatch was
+    # raising before the cycle ever ran.
+    monkeypatch.setattr(engine, "_call_llm", fake_call)
     monkeypatch.setattr(engine, "_broadcast", fake_broadcast)
 
     await engine._generate_post_cycle()
@@ -58,7 +61,10 @@ async def test_generate_comment_cycle_appends_comment(monkeypatch):
     async def fake_broadcast(_msg):
         return None
 
-    monkeypatch.setattr(engine, "_call_gemini", fake_call)
+    # `_call_gemini` was renamed `_call_llm` when the service moved off Gemini
+    # onto Groq/LangChain. The old name no longer exists, so monkeypatch was
+    # raising before the cycle ever ran.
+    monkeypatch.setattr(engine, "_call_llm", fake_call)
     monkeypatch.setattr(engine, "_broadcast", fake_broadcast)
 
     await engine._generate_comment_cycle()

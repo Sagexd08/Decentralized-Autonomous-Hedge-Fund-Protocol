@@ -119,3 +119,66 @@ def softmax(logits: np.ndarray) -> np.ndarray:
     shifted = logits - np.max(logits)
     exp = np.exp(shifted)
     return exp / exp.sum()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Confidence
+# ─────────────────────────────────────────────────────────────────────────────
+# Two bugs lived in the previous version of this, and both were invisible to
+# the type checker and to Phase 4's evaluation, which never looked at
+# confidence at all.
+#
+#   1. `confidence` was `max(proba)` — the probability of the *most likely*
+#      class, which is not necessarily the class being predicted. A model
+#      proposing BUY could report the probability it assigned to HOLD. The
+#      validation floor in the agent graph then compared that number against a
+#      threshold as though it meant "how sure are you about this trade".
+#
+#   2. The HOLD logit was a hardcoded 0.35, so `max(proba)` had a floor near
+#      0.415 and a ceiling that depended on a magic constant rather than on
+#      anything the model knew. Confidence was not comparable between models,
+#      which made a shared validation floor meaningless — and in practice
+#      pinned every CNN-LSTM agent below it, so that strategy could never
+#      commit a prediction at all.
+#
+# The fix is to derive both from quantities the model actually has: its own
+# error spread, and the size of the move that would be worth trading.
+
+
+def direction_probabilities(
+    expected_return: float, spread: float, threshold: float
+) -> np.ndarray:
+    """
+    A distribution over (SELL, HOLD, BUY) from a predicted move and its spread.
+
+    Everything is measured in units of the model's own uncertainty:
+
+      * `snr` — how many spreads the predicted move is worth. This is the case
+        for taking a side.
+      * the HOLD logit — how many spreads away the tradeable band sits. This is
+        the case for standing still, and it rises when the model is precise
+        enough to be sure the move is too small to trade.
+
+    So a model with wide errors reports low confidence in either direction, and
+    a precise model predicting nothing reports *high* confidence in HOLD. Both
+    are true statements, which the fixed constant this replaced could not make.
+    """
+    scale = max(float(spread), 1e-9)
+    snr = float(expected_return) / scale
+    hold = abs(float(threshold)) / scale
+
+    logits = np.empty(3, dtype=np.float64)
+    logits[SELL] = -snr
+    logits[HOLD] = hold
+    logits[BUY] = snr
+    return softmax(logits)
+
+
+def confidence_for(direction: Direction, proba: np.ndarray) -> float:
+    """
+    The probability the model assigned to the call it actually made.
+
+    Not `max(proba)`. A BUY carrying HOLD's probability is a number that reads
+    like confidence and isn't one.
+    """
+    return float(proba[CLASSES.index(direction)])
+

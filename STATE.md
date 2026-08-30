@@ -5,13 +5,29 @@
 
 ## Current phase
 
-**Phase 4 — ML models + inference. COMPLETE and checkpointed.**
-`python scripts/verify_phase4.py` → 8/8, plus 27/27 in `tests/ml/test_models.py`.
-Phase 3 complete (12/12 + 18/18).
+**Phase 5 — prediction commitment + evaluation. COMPLETE and checkpointed.**
+`python scripts/verify_phase5.py` → 17/17.
 
-Phase 1 complete. Phase 2's security gate passed (17/17) but the phase is **not
-fully checkpointed** — its DoD also says the instructions work "on devnet" and
-nothing is deployed. See *Known blockers* 6. `make verify-all` runs all three.
+All five gates pass: `make verify-all`. Both test suites pass:
+**105** in the §4 root tree (`/repo/tests`) and **61** in the legacy
+`apps/api/tests`.
+
+Phase 2's security gate passed (17/17) but the phase is **not fully
+checkpointed** — its DoD also says the instructions work "on devnet" and
+nothing is deployed. See *Known blockers* 6.
+
+### Phase 5 Definition of Done (§27)
+
+| Requirement | Status |
+|---|---|
+| hash committed pre-horizon | **verified** — trigger rejects an outcome whose `settled_at < horizon_end` |
+| settled post-horizon | **verified** — sweep selects on `horizon_end <= now()`, clamped to the real clock |
+| error computed and stored | **verified** — `prediction_outcomes.error` |
+| score computed and stored | **verified** — `prediction_outcomes.evaluation_score`, 0-100 |
+
+Lifecycle: `COMMITTED → WAITING_FOR_OUTCOME → SETTLED → EVALUATED`, enforced
+monotonic by trigger. `WAITING_FOR_OUTCOME` means *due but no price evidence* —
+the state that keeps the sweep from inventing ground truth.
 
 ### Phase 4 Definition of Done (§27)
 
@@ -139,6 +155,32 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
       than trade on a guess.
 - [x] Evaluation leads with the direction confusion matrix, not MSE.
 
+### Phase 5
+
+- [x] `agents/evaluation/`: `prices.py` (the reference price, and the refusal to
+      invent one), `scoring.py` (the 0-100 rule), `settlement.py` (the sweep).
+- [x] `db/migrations/0002_settlement.sql` — **invariant 2 enforced by the
+      database, not by convention.** Triggers reject: rewriting any field of a
+      committed claim, deleting a committed prediction, moving the lifecycle
+      backwards, restating a measured outcome, and writing an outcome before
+      its horizon closes. A `prediction_hash` that is UNIQUE but mutable
+      protects nothing — the bytes it names can be edited underneath it.
+- [x] `prediction_outcomes.data_source` — an outcome inherits the *weakest*
+      provenance of its two price endpoints, so a return measured from one live
+      and one simulated price is not reported as a live result (§0c).
+- [x] Two passes, deliberately. Measurement is a fact about the market; scoring
+      is a policy about what that fact is worth. `evaluation_score` is nullable
+      so Phase 6 can re-score without re-measuring.
+- [x] Scoring: direction 0.60, magnitude 0.40, confidence as a two-way
+      multiplier. **Being confidently wrong scores below being hedged and
+      wrong** — otherwise a model rewarded only for correctness learns to be
+      confident always, and §12's calibration dimension measures nothing.
+- [x] `python -m agents.evaluation.prices` — the simulated feed, gap-filling
+      and idempotent. `python -m agents.evaluation.settlement` — the sweep,
+      with `--dry-run` and a backfill-only `--as-of`.
+- [x] `scripts/verify_phase5.py` (17 checks) and 38 tests in
+      `tests/integration/test_settlement.py`.
+
 ### Phase 3
 
 - [x] `agents/` package per §4: `state.py`, `graphs/{nodes,trading_graph}.py`,
@@ -172,8 +214,15 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
   engine). Not yet labeled in the UI — **violates §0c**, must be fixed by
   whichever phase next touches those screens.
 - **Governance is off-chain** (`governance_store.json` + in-process singleton).
-- **Prediction primitive is schema-only.** Tables enforce commit-before-outcome,
-  but nothing writes to them; the runtime still submits returns directly.
+- ~~**Prediction primitive is schema-only.**~~ **Closed in Phase 5.** The
+  runtime commits, the sweep settles and scores, and the ordering is enforced
+  by triggers rather than by the code that happens to call them.
+- **The market is simulated and says so.** `python -m agents.evaluation.prices`
+  writes an Ornstein-Uhlenbeck tape stamped `SIMULATION`, and that label rides
+  through settlement into `prediction_outcomes.data_source`. A real feed
+  replaces the writer; nothing else changes.
+- **Models train on a synthetic series.** `ml/inference/artifacts.training_series`
+  — seeded, reproducible, and not evidence of live performance.
 - **Algorand** client, settings and `use-algorand` hook survive; not in the
   trading loop. Slated for removal.
 
@@ -196,11 +245,8 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
    `npm install` in `apps/web`, or just use Docker.
 3. **`apps/api/.venv310` has stale absolute paths** after the move. Recreate it
    or use Docker.
-4. **`tests/test_agent_trading_engine.py` is stale** — it constructs
-   `AgentTradingEngine(w3=…, vault_contract=…, price_feed_contract=…, accounts=…)`,
-   none of which are parameters any more, and asserts lowercase decisions
-   against an engine that returns uppercase. Pre-existing, not caused by the
-   Stellar removal. Belongs to Phase 3's rewrite of the runtime.
+4. ~~`tests/test_agent_trading_engine.py` is stale~~ — **fixed in Phase 5.**
+   Rewritten against the engine that exists. See *Bugs found by the gates* 13.
 5. **The 4-month-old `pgdata` volume was destroyed.** It had to be: Postgres
    saw an existing data directory, skipped initialisation entirely, and the
    volume contained neither an `iris` nor a `postgres` role — an aborted init
@@ -249,16 +295,106 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 2. **Migrations never ran** (Phase 1) — a stale `pgdata` volume.
 3. **torch pulled the CUDA wheel** (Phase 1) — 8.63GB → 3.24GB.
 
+### Found in Phase 5
+
+4. **No agent had committed a prediction since Phase 4.** Phase 4 wired real
+   models into `MODEL_INFERENCE`, but built them *untrained* on every run. An
+   untrained network's confidence is arbitrary; every one sat below the 0.55
+   validation floor, so every agent abstained, always. The graph ran perfectly
+   and traded nothing. Phase 3's gate caught it because it asserts a *commit*,
+   not just a traversal — nothing type-checked wrong and nothing crashed.
+   Fixed by `ml/inference/artifacts.py`: trained models, cached on disk
+   (37.5s cold → 0.21s warm).
+
+5. **Model identity moved with the run.** `all_models(seed=state.seed)` seeded
+   the model from the *market tape's* seed, so the same agent produced a
+   different `model_hash` on every invocation — precisely the version history
+   invariant 3 forbids. The seed now derives from the agent id.
+
+6. **`confidence` was the probability of a different class.** It was
+   `max(proba)` — the likeliest class — while `direction` came from
+   thresholding the predicted return. A model proposing BUY could report the
+   probability it had assigned to HOLD, and the validation floor gated on that
+   number. Now `confidence_for(direction, proba)`.
+
+7. **The HOLD logit was a magic 0.35**, which pinned `max(proba)` near 0.415
+   whenever the predicted move was small. Confidence was not comparable across
+   models, so a shared floor was meaningless, and **no CNN-LSTM agent could
+   ever clear it** — that strategy structurally could not trade. Both are now
+   derived from quantities the model has: its own error spread, and the size of
+   a move worth trading.
+
+8. **The agent was writing the evidence it would be judged on.** *(Mine.)* To
+   give settlement an entry price, `persist_prediction` wrote `state.prices[-1]`
+   into `market_events`. But `market_observation` generates a private tape
+   seeded from the run, unrelated to the shared feed — every agent wrote the
+   identical `98.372476`, and settlement measured the disagreement between two
+   price universes as a +2.6% return. The narrow bug was the mismatched series;
+   the reason it stays removed is structural: an agent that records its own
+   entry price is grading its own exam.
+
+9. **The feed refused to extend a tape whose tail was missing.** A coverage
+   check ("does this range already have observations?") counted the agents'
+   sparse entry prices as a tape and wrote nothing — leaving exactly the tail
+   gap where open predictions' horizons land. Replaced with gap-filling, which
+   is also idempotent; duplicate ticks make `price_at` pick arbitrarily and
+   settlement stop being reproducible.
+
+10. **`--as-of` could ask for an early settlement.** A future timestamp would
+    select predictions whose horizon had not closed; the database would reject
+    the outcome and abort the sweep. `now` is now clamped to the real clock, so
+    the flag can only look backwards — settling early is impossible rather than
+    merely refused.
+
+11. **The deposit endpoint reported `confirmed` for a simulated transaction.**
+    When the Solana call failed, `tx_hash` fell back to `"0xsimulated..."` and
+    the response still said `confirmed` — the dashboard would have shown a
+    confirmed on-chain deposit that never happened (§0c). Status is now
+    `confirmed` only with a real signature, and the response carries
+    `persisted` so a memory-only fallback is distinguishable.
+
+12. **The web container was unhealthy for hours while serving 200s.** The
+    healthcheck used `wget http://localhost:3000`, which resolves to `::1`
+    first; `next dev --hostname 0.0.0.0` binds IPv4 only. Now `127.0.0.1`.
+
+13. **Two test files asserted the behaviour of deleted code.**
+    `test_agent_trading_engine.py` constructed the engine with Ethereum-era
+    parameters and monkeypatched four methods the Solana migration removed —
+    `monkeypatch.setattr` was failing on missing attributes, not on anything
+    the engine did. `test_agent_gemini_social.py` patched `_call_gemini`, renamed
+    `_call_llm` when the service moved to Groq. Both rewritten against the code
+    that exists.
+
 ## Next phase
 
-**Phase 5 — prediction commitment + evaluation.** DoD: hash committed
-pre-horizon, settled post-horizon, error and score computed and stored. The
-commit half already exists from Phase 3 (`PREDICTION_COMMIT`, the `predictions`
-table, the `committed_at <= horizon_end` constraint). Phase 5 adds the
-settlement sweep that reads `horizon_end`, writes `prediction_outcomes`, and
-scores. `REGIME_ANALYSIS` still uses threshold stand-ins; the HMM classifier in
-`ml/regime/classifier.py` is merged but not yet wired into the graph.
+**Phase 6 — reputation engine.** DoD: an IRIS Score computed from at least six
+dimensions with configurable weights.
+
+Phase 5 leaves the inputs in place. `prediction_outcomes` now carries
+`direction_correct`, `error` and `evaluation_score` per prediction, and
+`reputation_scores` already stores `dimensions` *and* `weights` as JSONB so a
+historical score can be re-derived after a weighting change — which is the
+whole reason the schema keeps them side by side.
+
+Two things Phase 6 must not do, both of which Phase 5 made easy to get wrong:
+
+  * **Score across provenance.** An agent with 40 SIMULATION outcomes and 2 LIVE
+    ones does not have a reputation. `data_source` is on every outcome; the
+    aggregate has to respect it or the IRIS Score becomes a number about a
+    simulation wearing a live label.
+  * **Count unsettled predictions.** `WAITING_FOR_OUTCOME` exists precisely so
+    that predictions with no evidence stay out of every reputation number.
+    Including them as neutral would let an agent dilute a bad record by
+    predicting on assets with no feed.
+
+`agent_performance` is still empty — nothing computes windowed pnl/sharpe/
+sortino yet, and four of the six dimensions will come from there.
+
+`REGIME_ANALYSIS` still uses threshold stand-ins; the HMM classifier in
+`ml/regime/classifier.py` is merged but not wired into the graph.
 
 ## Last verified commit
 
-`d8ea4ad` — feat(phase-2): AgentRegistry + CapitalVault, custody gate passing
+`9391565` — feat(phase-4): four model classes, one interface, an honest baseline
+
+Phase 5 is committed on top of it.

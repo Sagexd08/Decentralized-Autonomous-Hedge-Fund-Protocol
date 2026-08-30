@@ -149,6 +149,22 @@ def persist_prediction(
         return None
 
     prediction_id = str(uuid.uuid4())
+
+    # Deliberately NOT writing the agent's observed price into `market_events`.
+    #
+    # An earlier version did, so settlement would have an entry price. Two
+    # things were wrong with it. The narrow one: `market_observation` generates
+    # a private tape seeded from the run, unrelated to the shared feed, so the
+    # entry and exit legs came from two different price universes and produced
+    # returns that measured nothing (every agent wrote the identical 98.372476,
+    # and settlement read +2.6% off the disagreement between the series).
+    #
+    # The broad one is the reason it stays out: an agent that records the price
+    # it will later be settled against is an agent grading its own exam. The
+    # feed writes the market; the agent observes it; settlement measures it.
+    # What the agent saw is preserved in `graph_checkpoints` as what the agent
+    # saw, which is the honest place for it.
+
     conn.execute(
         """
         insert into predictions

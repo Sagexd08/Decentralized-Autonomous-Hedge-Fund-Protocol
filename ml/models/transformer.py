@@ -19,13 +19,11 @@ import torch
 import torch.nn as nn
 
 from ml.models.base import (
-    BUY,
-    HOLD,
-    SELL,
     Prediction,
+    confidence_for,
     direction_from_return,
+    direction_probabilities,
     hash_weights,
-    softmax,
 )
 
 WINDOW = 32
@@ -158,12 +156,14 @@ class TransformerModel:
         )
 
     def predict(self, features: np.ndarray) -> Prediction:
-        expected_return, _ = self._forward(features)
-        proba = self.predict_proba(features)
+        expected_return, spread = self._forward(features)
+        direction = direction_from_return(expected_return, self.threshold)
+        proba = direction_probabilities(expected_return, spread, self.threshold)
         return Prediction(
-            direction=direction_from_return(expected_return, self.threshold),
+            direction=direction,
             expected_return=expected_return,
-            confidence=float(proba.max()),
+            # The probability of *this* call, not of the likeliest class.
+            confidence=confidence_for(direction, proba),
             model_version=self.model_version,
             model_hash=self.model_hash,
             features_used=WINDOW,
@@ -171,9 +171,4 @@ class TransformerModel:
 
     def predict_proba(self, features: np.ndarray) -> np.ndarray:
         expected_return, spread = self._forward(features)
-        snr = expected_return / max(spread, 1e-6)
-        logits = np.zeros(3)
-        logits[BUY] = snr
-        logits[SELL] = -snr
-        logits[HOLD] = 0.35
-        return softmax(logits)
+        return direction_probabilities(expected_return, spread, self.threshold)

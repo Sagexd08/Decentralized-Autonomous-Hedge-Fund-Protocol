@@ -16,13 +16,11 @@ from __future__ import annotations
 import numpy as np
 
 from ml.models.base import (
-    BUY,
-    HOLD,
-    SELL,
     Prediction,
+    confidence_for,
     direction_from_return,
+    direction_probabilities,
     hash_params,
-    softmax,
 )
 
 # Index into the feature vector produced by ml.features.
@@ -52,11 +50,13 @@ class BaselineModel:
         scale = 1.0 / (1.0 + self.damping * volatility * 100.0)
         expected_return = momentum * scale
 
-        proba = self.predict_proba(f)
+        direction = direction_from_return(expected_return, self.threshold)
+        proba = self._proba(expected_return, volatility)
         return Prediction(
-            direction=direction_from_return(expected_return, self.threshold),
+            direction=direction,
             expected_return=float(expected_return),
-            confidence=float(proba.max()),
+            # The probability of *this* call, not of the likeliest class.
+            confidence=confidence_for(direction, proba),
             model_version=self.model_version,
             model_hash=self.model_hash,
             features_used=f.size,
@@ -65,13 +65,22 @@ class BaselineModel:
     def predict_proba(self, features: np.ndarray) -> np.ndarray:
         f = np.asarray(features, dtype=np.float64).ravel()
         momentum = float(f[F_MOMENTUM])
-        volatility = max(float(f[F_VOLATILITY]), 1e-9)
+        volatility = float(f[F_VOLATILITY])
+        scale = 1.0 / (1.0 + self.damping * volatility * 100.0)
+        return self._proba(momentum * scale, volatility)
 
-        # Signal-to-noise ratio as a logit; HOLD is the default the others
-        # must out-argue.
-        snr = momentum / (volatility * 4.0)
-        logits = np.zeros(3)
-        logits[BUY] = snr
-        logits[SELL] = -snr
-        logits[HOLD] = 0.35
-        return softmax(logits)
+    def _proba(self, expected_return: float, volatility: float) -> np.ndarray:
+        """
+        Realised volatility is this model's error spread.
+
+        It has no residuals to measure — it never fits anything — so the
+        honest stand-in for "how wrong could I be" is how much the tape is
+        moving.
+
+        Fed the *damped* return, the same quantity `predict` thresholds to
+        pick a direction. Feeding it raw momentum instead — which is what this
+        did — let the distribution and the direction disagree, which is the
+        bug `confidence_for` exists to prevent.
+        """
+        spread = max(volatility, 1e-9) * 4.0
+        return direction_probabilities(expected_return, spread, self.threshold)

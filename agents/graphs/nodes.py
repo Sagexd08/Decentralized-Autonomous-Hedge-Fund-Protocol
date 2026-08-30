@@ -191,9 +191,19 @@ def model_inference(state: AgentState) -> dict[str, Any]:
     a prediction can always be traced back to the exact model version and
     weight hash that produced it.
 
-    An untrained model is still a real forward pass, not a random number — but
-    it is labelled `UNTRAINED` so nothing downstream mistakes it for a fitted
-    one. Phase 13 loads trained weights.
+    The model is **trained**, loaded from the artifact cache, and seeded from
+    the agent id rather than from the run. Both of those are corrections, not
+    polish:
+
+      * An untrained network reports arbitrary confidence. Every one sat below
+        the 0.55 validation floor, so no agent ever committed a prediction —
+        the graph ran perfectly and traded nothing. See `ml/inference/artifacts`.
+      * Seeding the model from `state.seed` — the *market tape's* seed — gave
+        the same agent a different `model_hash` every run, which is exactly the
+        version history invariant 3 forbids.
+
+    A model that cannot be fitted still produces a real forward pass and is
+    labelled `UNTRAINED`, so nothing downstream mistakes it for a fitted one.
     """
     started = _now()
     f = state.features
@@ -206,11 +216,12 @@ def model_inference(state: AgentState) -> dict[str, Any]:
     try:
         import numpy as np
 
-        from ml.inference.registry import TABULAR, all_models
+        from ml.inference.registry import TABULAR
+        from ml.inference.artifacts import fitted_model, model_seed_for
         from ml.features.extract import extract
 
         name = STRATEGY_MODELS.get(state.strategy, "cnn_lstm")
-        model = all_models(seed=state.seed)[name]
+        model = fitted_model(name, model_seed_for(state.agent_id))
         payload = (
             extract(np.asarray(state.prices))
             if name in TABULAR

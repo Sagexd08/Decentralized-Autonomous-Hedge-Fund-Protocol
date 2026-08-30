@@ -112,6 +112,12 @@ async def deposit(data: Deposit, request: Request):
 
     tx_hash = solana_tx or "0xsimulated..."
 
+    # The status has to describe what actually happened. Reporting "confirmed"
+    # when the Solana call failed and `tx_hash` fell back to "0xsimulated..."
+    # is precisely the failure section 0c forbids: the dashboard would show a
+    # confirmed on-chain deposit for a transaction that never happened.
+    status = "confirmed" if solana_tx else "simulated"
+
     try:
         pool_row = fetch_one_dict(
             "select id from vaults where id = :pool_id", {"pool_id": data.pool_id}
@@ -136,7 +142,8 @@ async def deposit(data: Deposit, request: Request):
                 {"amount": data.amount, "pool_id": data.pool_id},
             )
             return {"tx_hash": tx_hash, "solana_tx": solana_tx,
-                    "pool": data.pool_id, "amount": data.amount, "status": "confirmed"}
+                    "pool": data.pool_id, "amount": data.amount, "status": status,
+                    "persisted": True}
     except Exception as exc:
         logger.warning("DB deposit persist failed: %s", exc)
 
@@ -144,5 +151,9 @@ async def deposit(data: Deposit, request: Request):
     if not pool:
         raise HTTPException(status_code=404, detail="Pool not found")
     pool["tvl"] += data.amount
+    # This branch did not reach the database at all, so the deposit exists only
+    # in this process's memory. `persisted` says so rather than letting the
+    # response look identical to one that landed.
     return {"tx_hash": tx_hash, "solana_tx": solana_tx,
-            "pool": data.pool_id, "amount": data.amount, "status": "confirmed"}
+            "pool": data.pool_id, "amount": data.amount, "status": status,
+            "persisted": False}

@@ -232,3 +232,72 @@ def test_models_disagree_on_the_same_input(data):
         for name, model in all_models(seed=0).items()
     }
     assert len(set(round(v, 10) for v in predictions.values())) > 1
+
+
+# ── confidence means what it says ───────────────────────────────────────────
+# These lock down two bugs that Phase 4's evaluation could not see, because it
+# scored direction and magnitude and never looked at confidence at all. Both
+# were found by the Phase 3 gate after the models were wired into the agent
+# graph, where confidence is what the validation floor gates on.
+
+@pytest.mark.parametrize("name", ["baseline", "gradient_boosting", "cnn_lstm", "transformer"])
+def test_confidence_is_the_probability_of_the_predicted_direction(name, data):
+    """
+    Bug 1: `confidence` was `max(proba)` — the probability of the *likeliest*
+    class, which is not necessarily the class being predicted. A model
+    proposing BUY could report the probability it had assigned to HOLD, and the
+    agent graph's 0.55 validation floor then gated on that number as though it
+    meant "how sure are you about this trade".
+    """
+    X_features, X_windows, _ = data
+    model = all_models(seed=0)[name]
+    if hasattr(model, "fit"):
+        payload_train = X_features if name in TABULAR else X_windows
+        model.fit(payload_train[:200], _train_targets(data)[:200])
+
+    for i in range(0, 120, 9):
+        payload = X_features[i] if name in TABULAR else X_windows[i]
+        prediction = model.predict(payload)
+        proba = model.predict_proba(payload)
+        expected = float(proba[CLASSES.index(prediction.direction)])
+        assert prediction.confidence == pytest.approx(expected, abs=1e-9), (
+            f"{name} reported confidence {prediction.confidence:.4f} for "
+            f"{prediction.direction} but assigned it {expected:.4f}"
+        )
+
+
+@pytest.mark.parametrize("name", ["baseline", "gradient_boosting", "cnn_lstm", "transformer"])
+def test_confidence_can_span_a_usable_range(name, data):
+    """
+    Bug 2: the HOLD logit was a hardcoded 0.35, which put a floor near 0.29 and
+    a ceiling near 0.415 on `max(proba)` whenever the predicted move was small.
+    Confidence was therefore not comparable between models, and no CNN-LSTM
+    agent could ever clear the graph's validation floor — that whole strategy
+    silently never traded.
+
+    This asserts the *mechanism* is unpinned, not that any given model is
+    confident: a genuinely uncertain model should still report low confidence.
+    """
+    from ml.models.base import direction_probabilities
+
+    tight = direction_probabilities(0.05, spread=0.001, threshold=0.0005)
+    assert tight.max() > 0.9, "a strong signal must be able to reach high confidence"
+
+    wide = direction_probabilities(0.0005, spread=0.05, threshold=0.0005)
+    assert wide.max() < 0.5, "a signal buried in noise must not look confident"
+
+
+def test_a_precise_model_predicting_no_move_is_confident_about_it(data):
+    """
+    HOLD is a claim, not an absence of one. A model whose errors are far
+    smaller than the tradeable band is genuinely sure nothing is happening, and
+    the distribution should say so.
+    """
+    from ml.models.base import HOLD, direction_probabilities
+
+    proba = direction_probabilities(0.0, spread=0.00001, threshold=0.0005)
+    assert proba.argmax() == HOLD and proba[HOLD] > 0.9
+
+
+def _train_targets(data):
+    return data[2]

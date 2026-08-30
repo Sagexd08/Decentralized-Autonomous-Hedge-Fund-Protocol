@@ -23,6 +23,17 @@ import sys
 
 GREEN, RED, DIM, RESET = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
 
+# Which agent runs each branch. This is not cosmetic: a model must be able to
+# clear the 0.55 validation floor before it can commit anything, and the
+# CNN-LSTM behind the `momentum` strategy cannot — it lost to the baseline in
+# Phase 4 and its confidence tops out around 0.48. Running the commit branch on
+# AGT-AXIOM meant the gate was asserting a traversal the system could not
+# perform. The transformer agents can, so they run the commit branch; AGT-AXIOM
+# stays on the abstain branch, where its behaviour is correct and worth
+# checking.
+AGENT_COMMITS = "AGT-QUANTA"    # adaptive -> transformer
+AGENT_ABSTAINS = "AGT-AXIOM"    # momentum -> cnn_lstm, confidence below the floor
+
 SEED_COMMITS = 7    # exercises PREDICTION_COMMIT -> EXECUTION -> OUTCOME_TRACKING
 SEED_ABSTAINS = 0   # exercises the ABSTAIN branch
 
@@ -61,10 +72,10 @@ def bad(label: str, detail: str = "") -> bool:
     return False
 
 
-def run_agent(seed: int) -> dict:
+def run_agent(seed: int, agent: str) -> dict:
     out = compose(
         "python", "-m", "agents.runtime.runner",
-        "--agent", "AGT-AXIOM", "--asset", "BTC", "--seed", str(seed), "--json",
+        "--agent", agent, "--asset", "BTC", "--seed", str(seed), "--json",
     )
     match = re.search(r"\{.*\}", out, re.S)
     if not match:
@@ -79,7 +90,7 @@ def main() -> int:
 
     # ── the full path ───────────────────────────────────────────────────────
     print("Full graph traversal")
-    committed = run_agent(SEED_COMMITS)
+    committed = run_agent(SEED_COMMITS, agent=AGENT_COMMITS)
     run_id = committed["agent_run_id"]
 
     results.append(
@@ -163,7 +174,7 @@ def main() -> int:
 
     # ── the other branch ────────────────────────────────────────────────────
     print("\nAbstain branch")
-    abstained = run_agent(SEED_ABSTAINS)
+    abstained = run_agent(SEED_ABSTAINS, agent=AGENT_ABSTAINS)
     results.append(
         ok("a rejected run abstains instead of committing")
         if abstained["outcome"] == "ABSTAINED" and not abstained["prediction_id"]

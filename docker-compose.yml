@@ -24,7 +24,10 @@ services:
       api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/health || exit 1"]
+      # 127.0.0.1, not localhost: `next dev --hostname 0.0.0.0` binds IPv4
+      # only, and wget resolves localhost to ::1 first — the container reported
+      # unhealthy for hours while serving 200s to the host.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -48,6 +51,13 @@ services:
       - ./apps/api:/app
       - ./agents:/app/agents
       - ./ml:/app/ml
+      # The §4 tree lives at the repo root, but /app is apps/api. Mounting the
+      # root-level suites under /repo keeps both importable without one
+      # shadowing the other, and lets the phase gates run inside the container
+      # where psycopg and torch actually are.
+      - ./tests:/repo/tests
+      - ./scripts:/repo/scripts
+      - ./db:/repo/db
     depends_on:
       db:
         condition: service_healthy

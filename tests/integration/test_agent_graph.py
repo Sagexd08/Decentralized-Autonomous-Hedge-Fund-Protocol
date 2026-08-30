@@ -40,6 +40,25 @@ DSN = os.getenv("DATABASE_URL", "postgresql://iris:iris@localhost:5432/iris")
 
 # Found by scanning seeds: these are the two branches, pinned so the tests are
 # deterministic rather than hoping a random seed lands on the path they need.
+# Which strategy runs each branch, and on which seed.
+#
+# This is load-bearing, not arbitrary. A model must clear the 0.55 validation
+# floor before anything can be committed, and the CNN-LSTM behind `momentum`
+# cannot — it lost to the baseline in Phase 4 and its confidence tops out near
+# 0.48. These tests previously ran the commit branch on `momentum` and passed
+# only because confidence was `max(proba)`, a number that had nothing to do
+# with the direction being proposed. Once that was corrected the commit branch
+# stopped committing, which is the truthful result.
+#
+# So the commit branch runs on `adaptive` (the transformer), which can clear
+# the floor, and `momentum` runs the abstain branch, where declining to trade
+# is the correct behaviour and worth asserting.
+STRATEGY_COMMITS = "adaptive"
+STRATEGY_ABSTAINS = "momentum"
+
+AGENT_COMMITS = "AGT-QUANTA"    # adaptive -> transformer
+AGENT_ABSTAINS = "AGT-AXIOM"    # momentum -> cnn_lstm
+
 SEED_COMMITS = 7
 SEED_ABSTAINS = 0
 
@@ -55,7 +74,7 @@ SPEC_ORDER = [
 ]
 
 
-def run_graph(seed: int, strategy: str = "momentum") -> tuple[AgentState, list[str]]:
+def run_graph(seed: int, strategy: str = STRATEGY_COMMITS) -> tuple[AgentState, list[str]]:
     """Run the graph in-process with no database, recording the node order."""
     visited: list[str] = []
     graph = build_graph(on_node=lambda name, _state: visited.append(name))
@@ -75,7 +94,7 @@ def run_graph(seed: int, strategy: str = "momentum") -> tuple[AgentState, list[s
 # ── the graph itself ────────────────────────────────────────────────────────
 
 def test_graph_walks_the_specified_node_order():
-    _, visited = run_graph(SEED_COMMITS)
+    _, visited = run_graph(SEED_COMMITS, STRATEGY_COMMITS)
     prefix = [n.value for n in SPEC_ORDER]
     assert visited[: len(prefix)] == prefix, (
         "the linear section must follow section 10's order exactly"
@@ -84,7 +103,7 @@ def test_graph_walks_the_specified_node_order():
 
 def test_committing_run_executes_all_eleven_nodes():
     """Phase 3 DoD: one agent completes the full graph end to end."""
-    final, visited = run_graph(SEED_COMMITS)
+    final, visited = run_graph(SEED_COMMITS, STRATEGY_COMMITS)
     assert not final.abstained, f"seed {SEED_COMMITS} should commit"
     assert not final.errors, final.errors
 
@@ -99,7 +118,7 @@ def test_committing_run_executes_all_eleven_nodes():
 
 
 def test_abstaining_run_skips_commit_and_execution():
-    final, visited = run_graph(SEED_ABSTAINS)
+    final, visited = run_graph(SEED_ABSTAINS, STRATEGY_ABSTAINS)
     assert final.abstained is True
     assert final.abstain_reason
     assert Node.PREDICTION_COMMIT.value not in visited
@@ -112,8 +131,8 @@ def test_the_graph_can_do_both_things():
     A validator that approved everything would pass every other test here while
     providing no protection at all. Both branches must be reachable.
     """
-    committed, _ = run_graph(SEED_COMMITS)
-    abstained, _ = run_graph(SEED_ABSTAINS)
+    committed, _ = run_graph(SEED_COMMITS, STRATEGY_COMMITS)
+    abstained, _ = run_graph(SEED_ABSTAINS, STRATEGY_ABSTAINS)
     assert not committed.abstained and abstained.abstained
 
 
@@ -230,7 +249,7 @@ def test_commit_precedes_the_horizon_it_is_judged_against():
     outcome can. The database enforces this too — belt and braces, because the
     two could drift independently.
     """
-    final, _ = run_graph(SEED_COMMITS)
+    final, _ = run_graph(SEED_COMMITS, STRATEGY_COMMITS)
     assert final.prediction_hash and len(final.prediction_hash) == 64
     committed = datetime.fromisoformat(final.committed_at)
     horizon = datetime.fromisoformat(final.horizon_end)
@@ -240,8 +259,8 @@ def test_commit_precedes_the_horizon_it_is_judged_against():
 # ── reproducibility (section 18) ────────────────────────────────────────────
 
 def test_same_seed_produces_the_same_run():
-    a, _ = run_graph(SEED_COMMITS)
-    b, _ = run_graph(SEED_COMMITS)
+    a, _ = run_graph(SEED_COMMITS, STRATEGY_COMMITS)
+    b, _ = run_graph(SEED_COMMITS, STRATEGY_COMMITS)
     assert a.prices == b.prices
     assert a.features == b.features
     assert a.decision == b.decision
@@ -282,7 +301,7 @@ def test_a_run_is_checkpointed_node_by_node(db):
     from agents.runtime.runner import run_agent
 
     result = run_agent(
-        agent_id="AGT-AXIOM", asset="BTC", seed=SEED_COMMITS, dsn=DSN,
+        agent_id=AGENT_COMMITS, asset="BTC", seed=SEED_COMMITS, dsn=DSN,
         use_langgraph_checkpointer=False,
     )
     assert result.outcome == "COMPLETED"
@@ -308,7 +327,7 @@ def test_a_committed_run_writes_a_prediction_row(db):
     from agents.runtime.runner import run_agent
 
     result = run_agent(
-        agent_id="AGT-AXIOM", asset="BTC", seed=SEED_COMMITS, dsn=DSN,
+        agent_id=AGENT_COMMITS, asset="BTC", seed=SEED_COMMITS, dsn=DSN,
         use_langgraph_checkpointer=False,
     )
     assert result.prediction_id
@@ -328,7 +347,7 @@ def test_an_abstaining_run_is_recorded_as_abstained_not_failed(db):
     from agents.runtime.runner import run_agent
 
     result = run_agent(
-        agent_id="AGT-AXIOM", asset="BTC", seed=SEED_ABSTAINS, dsn=DSN,
+        agent_id=AGENT_ABSTAINS, asset="BTC", seed=SEED_ABSTAINS, dsn=DSN,
         use_langgraph_checkpointer=False,
     )
     assert result.outcome == "ABSTAINED"
@@ -341,3 +360,47 @@ def test_an_abstaining_run_is_recorded_as_abstained_not_failed(db):
     assert row[0] == "ABSTAINED"
     assert row[1] is None, "an abstention is not an error"
     assert row[2] is None
+
+
+# ── the agent does not write the evidence it is judged on ───────────────────
+
+def test_a_committing_run_writes_no_market_price():
+    """
+    An agent that records the price it will later be settled against is an
+    agent grading its own exam.
+
+    This was briefly true: `persist_prediction` wrote `state.prices[-1]` into
+    `market_events` so settlement would have an entry price. Two things were
+    wrong. `market_observation` generates a private tape seeded from the run
+    and unrelated to the shared feed, so entry and exit legs came from
+    different price universes — every agent wrote the identical 98.372476 and
+    settlement measured the disagreement between the series rather than the
+    market. And structurally, the agent must not be able to choose its own
+    entry price at all.
+    """
+    import psycopg
+
+    from agents.runtime.runner import run_agent
+
+    with psycopg.connect(DSN) as probe:
+        before = probe.execute(
+            "select count(*) from market_events where kind = 'PRICE' and asset = %s",
+            ("BTC",),
+        ).fetchone()[0]
+
+    result = run_agent(
+        agent_id=AGENT_COMMITS, asset="BTC", seed=SEED_COMMITS, dsn=DSN,
+        use_langgraph_checkpointer=False,
+    )
+    assert result.prediction_id, "this test needs a run that actually commits"
+
+    with psycopg.connect(DSN) as probe:
+        after = probe.execute(
+            "select count(*) from market_events where kind = 'PRICE' and asset = %s",
+            ("BTC",),
+        ).fetchone()[0]
+
+    assert after == before, (
+        "a committing run wrote a price observation; settlement evidence must "
+        "come from the feed, not from the agent being settled"
+    )
