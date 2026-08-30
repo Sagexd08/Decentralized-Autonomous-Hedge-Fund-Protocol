@@ -1,5 +1,6 @@
 "use client"
 
+import Image from "next/image"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
@@ -46,12 +47,22 @@ export function GlobalNavbar() {
       <div className="max-w-[1800px] mx-auto px-4 md:px-6">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2">
-            <span className="text-xl font-bold tracking-tight text-foreground">
-              IRIS
-            </span>
-            <span className="text-[10px] font-mono tracking-[0.2em] text-muted-foreground uppercase">
-              Protocol
+          <Link href="/" className="flex items-center gap-2.5" aria-label="IRIS Protocol — home">
+            <Image
+              src="/iris-mark.png"
+              alt=""
+              width={95}
+              height={95}
+              priority
+              className="h-8 w-8 shrink-0"
+            />
+            <span className="flex items-baseline gap-2">
+              <span className="text-xl font-bold tracking-tight text-foreground">
+                IRIS
+              </span>
+              <span className="text-[10px] font-mono tracking-[0.2em] text-muted-foreground uppercase">
+                Protocol
+              </span>
             </span>
           </Link>
 
