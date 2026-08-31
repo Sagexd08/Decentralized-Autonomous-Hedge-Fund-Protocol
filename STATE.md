@@ -53,15 +53,21 @@ surface.
 live, mixed, simulated or unconfirmed from what is actually true at request
 time, rather than a hardcoded string. See *Stubbed / SIMULATION-labeled*.
 
-**Phase 2 is now half-closed.** The Solana toolchain exists
-(`make devnet-build`, Agave 4.2.2 + platform-tools v1.54), both programs build
-to real BPF objects (350KB / 374KB), and `declare_id!` and `Anchor.toml` are
-synced to keypairs we hold. The deploy is blocked only on **devnet SOL** — the
-faucet rate-limits per IP. See *Known blockers* 6.
+**Phase 2 is COMPLETE.** Custody gate 17/17 and both programs live on devnet:
 
-Phase 2's security gate passed (17/17) but the phase is **not fully
-checkpointed** — its DoD also says the instructions work "on devnet" and
-nothing is deployed. See *Known blockers* 6.
+| program | id | size |
+|---|---|---|
+| `agent_registry` | `6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy` | 350,896 bytes |
+| `capital_vault` | `HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj` | 374,360 bytes |
+
+Both verified by reading the accounts back off-chain through the public RPC —
+`executable: true`, owner `BPFLoaderUpgradeab1e...`, upgrade authority the
+deployer we hold. `declare_id!` and `Anchor.toml` are synced to those ids, so
+the source and the chain agree. Deployer `8t2C5qDCgw…` has 4.94 SOL left.
+
+`.env` and `.env.example` now point at devnet and at these ids; they were
+pointing at **testnet** and at two stale program ids that no longer correspond
+to anything in this source.
 
 ### Phase 13 Definition of Done
 
@@ -398,7 +404,15 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
       `capital_vault.so` 374,360 bytes.
 - [x] `scripts/verify_phase2.py` now queries devnet directly and reports
       DEPLOYED / NOT DEPLOYED per program.
-- [ ] **Not deployed.** The faucet is rate-limited; see *Known blockers* 6.
+- [x] **Deployed to devnet and verified on chain.**
+      `agent_registry` `6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy`,
+      `capital_vault` `HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj`. Both read
+      back through the public RPC as `executable`, owned by the upgradeable
+      loader, with the upgrade authority we hold.
+- [x] `.env` and `.env.example` repointed. They named **testnet** and two stale
+      program ids belonging to nothing in this source, so the API was
+      configured to talk to programs that do not correspond to these
+      contracts.
 
 ### Phase 7
 
@@ -568,27 +582,20 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
    Stale `hacktropica-frontend`/`-backend` images (1.5 GB + 8.6 GB) remain and
    can be pruned.
 
-6. **Nothing is deployed to devnet — blocked on faucet SOL only.**
-   Everything else is now in place:
+6. ~~**Nothing is deployed to devnet.**~~ **Cleared.** Both programs are live
+   and verified on chain; `verify_phase2.py` reports DEPLOYED. The deployer
+   `8t2C5qDCgwJr3arDbdYnf6AjaEYCoa1h42qcysdXL7bo` holds 4.94 SOL, enough for a
+   redeploy of both.
 
-   - toolchain: `make devnet-build` (Agave 4.2.2, platform-tools v1.54)
-   - both programs compile to real BPF objects (350KB / 374KB)
-   - `declare_id!` and `Anchor.toml` are synced to keypairs in the
-     `iris-devnet-keys` volume, and the 17 Rust tests still pass against them
-   - `make devnet-deploy` builds, deploys and verifies by reading the account
-     back off-chain
+   The keypairs live in the `iris-devnet-keys` Docker volume and nowhere else.
+   **Losing that volume loses the upgrade authority** — the programs stay on
+   chain and become permanently unupgradeable at those ids. Back it up before
+   relying on it:
 
-   The devnet faucet rate-limits per IP and is currently refusing. Fund the
-   deployer and re-run — the keypairs persist, so the programs land on the same
-   ids:
+       docker run --rm -v iris-devnet-keys:/keys -v "$PWD":/out alpine          tar czf /out/iris-devnet-keys.tgz -C /keys .
 
-       8t2C5qDCgwJr3arDbdYnf6AjaEYCoa1h42qcysdXL7bo    (needs ~6 SOL)
-
-       agent_registry  6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy
-       capital_vault   HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj
-
-   `make devnet-address` prints the address and balance; `verify_phase2.py`
-   queries the chain and will report DEPLOYED on its own once it lands.
+   Keep that archive out of the repo. It is the upgrade authority for both
+   programs and §0 forbids keys in source.
 
 ## Local edit outside the repo
 
@@ -597,6 +604,28 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 `docker compose config` fail. They are now commented out; all values preserved.
 
 ## Bugs found by the gates (not written by them)
+
+### Found deploying to devnet
+
+41. **The balance guard had never once run.** It compared with
+    `(( $(echo "$have < $MIN_SOL" | bc -l) ))`, and `bc` is not in the devnet
+    image. Both comparisons errored to false, so the deploy proceeded
+    regardless of balance — the guard added specifically to stop a half-funded
+    run from stranding its lamports in an orphaned buffer was inert. It only
+    ever looked fine because the balance happened to be sufficient the one time
+    it mattered. Now compared in lamports as integers, with no external tool.
+
+42. **The orphaned-buffer reclamation never found a buffer.**
+    `solana program show --buffers --output json` answers
+    `{"buffers": [...]}`, not a bare array, so `.[]?.bufferAddress` raised
+    "Cannot index array with string" on every run. The other half of the same
+    guard, also silently doing nothing.
+
+43. **`.env` pointed at testnet and at two dead program ids.** The API was
+    configured to talk to `F4s8zTom…` and `4AdNiFej…`, which correspond to
+    nothing in this source, on a cluster the programs were never deployed to.
+    Deploying is only half of "it works on devnet"; the client has to be
+    pointed at what was deployed.
 
 ### Found in Phase 13
 

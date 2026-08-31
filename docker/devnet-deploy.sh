@@ -50,7 +50,18 @@ solana config set --keypair "$WALLET" >/dev/null
 DEPLOYER="$(solana address)"
 blue "Deployer: $DEPLOYER"
 
-balance_sol() { solana balance | awk '{print $1}'; }
+balance_sol()      { solana balance | awk '{print $1}'; }
+balance_lamports() { solana balance --lamports | awk '{print $1}'; }
+
+# Compared in lamports, as integers, in the shell.
+#
+# This was `(( $(echo "$have < $MIN_SOL" | bc -l) ))`, and `bc` is not in the
+# image. Both comparisons errored, both evaluated false, and the deploy went
+# ahead regardless of balance — so the guard added specifically to stop a
+# half-funded run from stranding its own lamports in an orphaned buffer had
+# never once executed. It only looked fine because the balance happened to be
+# sufficient the first time it mattered.
+MIN_LAMPORTS=$(( MIN_SOL * 1000000000 ))
 
 have="$(balance_sol)"
 dim "Balance: $have SOL"
@@ -58,7 +69,7 @@ dim "Balance: $have SOL"
 # The devnet faucet rate-limits hard. Ask a few times, then stop and say so
 # rather than looping forever or pretending the deploy can proceed.
 attempts=0
-while (( $(echo "$have < $MIN_SOL" | bc -l) )) && [ "$attempts" -lt 6 ]; do
+while [ "$(balance_lamports)" -lt "$MIN_LAMPORTS" ] && [ "$attempts" -lt 6 ]; do
   attempts=$((attempts + 1))
   dim "Requesting an airdrop (attempt $attempts)…"
   solana airdrop 2 >/dev/null 2>&1 || true
@@ -66,7 +77,7 @@ while (( $(echo "$have < $MIN_SOL" | bc -l) )) && [ "$attempts" -lt 6 ]; do
   have="$(balance_sol)"
 done
 
-if (( $(echo "$have < $MIN_SOL" | bc -l) )); then
+if [ "$(balance_lamports)" -lt "$MIN_LAMPORTS" ]; then
   red "Balance is $have SOL; deploying both programs needs about $MIN_SOL."
   red ""
   red "The devnet faucet rate-limits per IP and is currently refusing. Fund"
@@ -90,7 +101,12 @@ green "Funded: $have SOL"
 # the lamports it needed to finish — so the retry is poorer than the attempt
 # that failed, and every retry makes it worse. Reclaim them first.
 
-buffers="$(solana program show --buffers --output json 2>/dev/null | jq -r '.[]?.bufferAddress // empty' || true)"
+# `solana program show --buffers --output json` answers {"buffers": [...]},
+# not a bare array — so `.[]?.bufferAddress` raised "Cannot index array with
+# string" on every run and reclaimed nothing. The element key has also moved
+# between releases, so both spellings are accepted rather than pinned to the
+# one this image happens to ship.
+buffers="$(solana program show --buffers --output json 2>/dev/null   | jq -r '(.buffers // .)[]? | (.address // .bufferAddress) // empty'   2>/dev/null || true)"
 if [ -n "$buffers" ]; then
   blue "Reclaiming lamports from orphaned deploy buffers"
   for b in $buffers; do

@@ -29,8 +29,9 @@ the build loop, and it is more current than this file.
 
 | | |
 |---|---|
-| Phases complete | **1, 3–13** — Phase 2's custody gate passes but nothing is deployed to devnet |
+| Phases complete | **1–13** |
 | Canonical chain | Solana (Stellar was removed in `a72d3ed`) |
+| On-chain | **Live on devnet** — `agent_registry` `6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy`, `capital_vault` `HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj` |
 | Market data | **Real.** One-minute bars and live ticks from public exchanges, written to `market_events` under the `LIVE` label with the venue recorded |
 | Model weights | Fitted on a **frozen snapshot of real market data** (`make dataset` shows which) |
 | Capital | **None.** Allocations are weights, not transfers. No live funds are deployed |
