@@ -30,6 +30,17 @@ N_FEATURES = len(FEATURE_NAMES)
 
 SHORT = 8
 
+# How many steps ahead a training target looks.
+#
+# Ten, because the protocol commits to a ten-minute horizon and the feed ticks
+# once a minute. It defaulted to one, so every model was fitted to answer
+# "where is the price in one minute" while its answer was recorded as a claim
+# about ten — see ml/inference/artifacts.TRAINING_HORIZON_STEPS. The constant
+# lives here because this is the module that builds the target, and both the
+# artifact cache and the Phase 4 evaluation have to agree with it or they are
+# measuring different problems.
+DEFAULT_HORIZON = 10
+
 
 def extract(prices: np.ndarray) -> np.ndarray:
     """Turn a price window into the shared feature vector."""
@@ -74,7 +85,7 @@ def extract(prices: np.ndarray) -> np.ndarray:
 
 
 def build_dataset(
-    prices: np.ndarray, window: int = 40, horizon: int = 1
+    prices: np.ndarray, window: int = 40, horizon: int = DEFAULT_HORIZON
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Build (feature vectors, raw price windows, next-horizon returns).

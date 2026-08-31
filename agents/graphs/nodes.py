@@ -37,7 +37,7 @@ import random
 import statistics
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional
 
 from agents.state import (
     AgentState,
@@ -55,6 +55,10 @@ MAX_DRAWDOWN_BPS = 2000
 MIN_CONFIDENCE = 0.55
 MAX_EXPECTED_RETURN = 0.25  # a model claiming >25% over one horizon is broken
 DEFAULT_HORIZON_SECONDS = 600
+# One observation per minute. `ml.inference.artifacts.FEED_STEP_SECONDS` must
+# agree, or the models are fitted to a different horizon than the one the
+# protocol judges them over; tests/unit/test_training_contract.py asserts it.
+FEED_STEP_SECONDS = 60
 
 
 def _now() -> float:
@@ -71,26 +75,120 @@ def market_observation(state: AgentState) -> dict[str, Any]:
     """
     Pull the price window the rest of the graph reasons over.
 
-    Synthetic and labelled as such. The series is seeded from the run so a
-    replay of the same run produces the same tape — section 18 requires
-    simulation to be reproducible, and that has to hold at the source.
+    Read from `market_events` — the same table settlement measures outcomes
+    against, restricted to a single source and venue. That is the whole point
+    of this node reaching the database instead of generating its own series.
+
+    An earlier version produced a private Ornstein-Uhlenbeck tape seeded from
+    the run. It was reproducible and honestly labelled, and it still broke the
+    system twice, because an agent that observes one price series and is graded
+    against another is not being graded on anything. There is now one series,
+    and both ends of the protocol read it.
+
+    The synthetic tape survives as a **fallback**, not as the default: an empty
+    or too-short feed leaves the agent with nothing to compute a feature over,
+    and a graph that cannot run at all is a worse failure than a graph running
+    on data it says is synthetic. Whichever path is taken, `data_source` and
+    `observation_note` say so, and that label rides through to the UI.
     """
     started = _now()
-    rng = random.Random(state.seed)
 
-    price = 100.0
-    prices: list[float] = []
-    for _ in range(64):
-        # Ornstein-Uhlenbeck-ish: mean-reverting with noise
-        price += 0.02 * (100.0 - price) + rng.gauss(0, 0.6)
-        prices.append(round(price, 6))
+    observed, note = _observed_window(state.asset)
+    if observed is not None:
+        prices, source, provider = observed
+        return {
+            "prices": prices,
+            "observed_at": _now(),
+            "data_source": source,
+            "price_provider": provider,
+            "observation_note": note,
+            **_timed(Node.MARKET_OBSERVATION, started),
+        }
 
     return {
-        "prices": prices,
+        "prices": _synthetic_window(state.seed),
         "observed_at": _now(),
         "data_source": "SIMULATION",
+        "price_provider": None,
+        "observation_note": note,
         **_timed(Node.MARKET_OBSERVATION, started),
     }
+
+
+OBSERVATION_WINDOW = 64
+
+# The shortest window the rest of the graph can work with. `ml.features.extract`
+# pads below SHORT + 1, and the sequence models want 33 points — a window
+# shorter than this produces features made mostly of padding, which is a
+# confident-looking number computed from nothing.
+MIN_OBSERVATIONS = 33
+
+# How stale the newest tick may be before the window is treated as unusable.
+# A feed that stopped an hour ago still returns 64 rows; the prices are simply
+# not a description of the market the agent is about to predict.
+MAX_OBSERVATION_AGE = timedelta(minutes=90)
+
+
+def _observed_window(
+    asset: str,
+) -> tuple[Optional[tuple[list[float], str, Optional[str]]], str]:
+    """
+    The real window and a note describing it, or (None, why not).
+
+    The reason is returned rather than stashed, because two agents run
+    concurrently under the API and a module-level scratch variable would let
+    one run's explanation appear in the other's audit trail.
+
+    Imported locally so the node functions stay unit-testable without a
+    database — the property that let every one of them be tested in isolation
+    in Phase 3.
+    """
+    try:
+        from agents.evaluation.prices import latest_window
+        from agents.runtime.persistence import connection
+
+        with connection() as conn:
+            window = latest_window(
+                conn,
+                asset=asset,
+                size=OBSERVATION_WINDOW,
+                max_age=MAX_OBSERVATION_AGE,
+            )
+    except Exception as exc:  # noqa: BLE001 - the agent must still be able to run
+        return None, f"synthetic fallback: the price feed could not be read ({exc})"
+
+    if len(window) < MIN_OBSERVATIONS:
+        minutes = int(MAX_OBSERVATION_AGE.total_seconds() // 60)
+        return None, (
+            f"synthetic fallback: {asset} has {len(window)} observation(s) in the "
+            f"last {minutes} minutes, below the {MIN_OBSERVATIONS} needed to "
+            f"compute a feature"
+        )
+
+    latest = window[-1]
+    venue = latest.provider or "simulated tape"
+    note = (
+        f"{len(window)} observation(s) from {venue}, "
+        f"{window[0].at:%H:%M} to {latest.at:%H:%M} UTC"
+    )
+    return ([o.price for o in window], latest.source, latest.provider), note
+
+
+def _synthetic_window(seed: int) -> list[float]:
+    """
+    The seeded Ornstein-Uhlenbeck tape, unchanged.
+
+    Kept exactly as it was so a run with no feed is still reproducible from its
+    seed — section 18 — and so the fallback path is the same one every earlier
+    phase was verified against.
+    """
+    rng = random.Random(seed)
+    price = 100.0
+    prices: list[float] = []
+    for _ in range(OBSERVATION_WINDOW):
+        price += 0.02 * (100.0 - price) + rng.gauss(0, 0.6)
+        prices.append(round(price, 6))
+    return prices
 
 
 # ── 2. FEATURE_EXTRACTION ───────────────────────────────────────────────────
@@ -174,12 +272,9 @@ def historical_retrieval(state: AgentState) -> dict[str, Any]:
 # Each strategy is backed by a different model class, so two agents on the same
 # tape genuinely disagree rather than being palette-swaps of one formula
 # (v2 section 10).
-STRATEGY_MODELS = {
-    "momentum": "cnn_lstm",
-    "mean_reversion": "gradient_boosting",
-    "breakout": "baseline",
-    "adaptive": "transformer",
-}
+# Re-exported from the model registry, which owns the mapping. Kept as a
+# module-level name here because several tests and the Observatory read it.
+from ml.inference.registry import STRATEGY_MODELS  # noqa: E402
 
 
 def model_inference(state: AgentState) -> dict[str, Any]:
@@ -216,11 +311,11 @@ def model_inference(state: AgentState) -> dict[str, Any]:
     try:
         import numpy as np
 
-        from ml.inference.registry import TABULAR
+        from ml.inference.registry import TABULAR, family_for_strategy
         from ml.inference.artifacts import fitted_model, model_seed_for
         from ml.features.extract import extract
 
-        name = STRATEGY_MODELS.get(state.strategy, "cnn_lstm")
+        name = family_for_strategy(state.strategy)
         model = fitted_model(name, model_seed_for(state.agent_id))
         payload = (
             extract(np.asarray(state.prices))
@@ -294,6 +389,44 @@ def risk_analysis(state: AgentState) -> dict[str, Any]:
 
 # ── 7. DECISION ─────────────────────────────────────────────────────────────
 
+# How large a predicted move has to be, relative to the noise over the same
+# horizon, to be worth committing a direction to.
+#
+# This used to be a flat 0.0005 — five basis points — which was a sensible bar
+# on the synthetic tape, whose one-minute returns had a standard deviation near
+# 60bps. Real BTC runs nearer 3bps, so the same constant silently became a
+# 1.4-sigma bar and no agent could clear it. The constant was never wrong about
+# conviction; it was wrong to be a constant, because it encoded one market's
+# volatility as a law.
+#
+# 0.15 sigma reproduces roughly the old five-basis-point bar at the volatility
+# actually observed today, and keeps tracking if volatility moves an order of
+# magnitude in either direction.
+THRESHOLD_SIGMA = 0.15
+
+# The floor is `agents.evaluation.scoring.HOLD_BAND`. Scoring treats a realised
+# move smaller than this as flat, so an agent committing a direction below it
+# is claiming something the scorer will not credit either way. Tying the two
+# means the gate and the grader cannot drift apart.
+MIN_DECISION_THRESHOLD = 0.0005
+
+
+def decision_threshold(state: AgentState) -> float:
+    """
+    The magnitude a prediction must exceed before it becomes a direction.
+
+    Scaled by the volatility the agent just observed, over the horizon it is
+    committing to. `volatility` is a per-step figure and the horizon spans
+    several steps, so it is widened by the usual square root of time — crude,
+    but the alternative is comparing a ten-minute forecast against one minute
+    of noise, which understates the bar by a factor of three.
+    """
+    per_step = float(state.features.get("volatility", 0.0) or 0.0)
+    steps = max(1.0, DEFAULT_HORIZON_SECONDS / FEED_STEP_SECONDS)
+    horizon_sigma = per_step * math.sqrt(steps)
+    return max(MIN_DECISION_THRESHOLD, THRESHOLD_SIGMA * horizon_sigma)
+
+
 def decision(state: AgentState) -> dict[str, Any]:
     """
     Turn the prediction into a proposal.
@@ -309,7 +442,7 @@ def decision(state: AgentState) -> dict[str, Any]:
             **_timed(Node.DECISION, started),
         }
 
-    threshold = 0.0005
+    threshold = decision_threshold(state)
     if predicted > threshold:
         direction = "BUY"
     elif predicted < -threshold:

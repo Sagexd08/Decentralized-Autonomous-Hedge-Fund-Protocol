@@ -187,7 +187,8 @@ def test_filling_gaps_does_not_disturb_an_existing_observation(conn, now):
     """An agent's or a real feed's price must not be overwritten by the simulator."""
     asset = unique_asset("keep")
     at = now - timedelta(minutes=15)
-    record_price(conn, asset=asset, price=1234.5, at=at, source="LIVE")
+    record_price(conn, asset=asset, price=1234.5, at=at, source="LIVE",
+                 provider="binance")
     fill_price_gaps(conn, asset=asset, start=now - timedelta(minutes=30),
                     end=now, step=timedelta(minutes=1))
 

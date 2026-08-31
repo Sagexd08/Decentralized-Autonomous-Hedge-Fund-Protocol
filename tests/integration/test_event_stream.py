@@ -227,8 +227,19 @@ def test_provenance_travels_with_the_event(conn, mark):
     events = since(conn, mark)
     assert events
     assert all(e.data_source in ("SIMULATION", "TESTNET", "LIVE") for e in events)
-    settled = [e for e in events if e.kind == "PREDICTION_SETTLED"]
-    assert settled and settled[0].data_source == "SIMULATION"
+
+    # The sweep settles every prediction that is due, not only this test's, and
+    # once a real feed exists some of those carry LIVE evidence. So this asserts
+    # the label on the outcome it created rather than on whichever settled
+    # first — the original form passed only while nothing in the database was
+    # real.
+    settled = [
+        e for e in events
+        if e.kind == "PREDICTION_SETTLED"
+        and (e.payload or {}).get("asset") == asset
+    ]
+    assert settled, "this test's own settlement did not appear on the stream"
+    assert settled[0].data_source == "SIMULATION"
 
 
 # ── ordering and resumability ───────────────────────────────────────────────

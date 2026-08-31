@@ -5,19 +5,53 @@
 
 ## Current phase
 
-**Phases 10-12 — Arena, Observatory, Ledger. COMPLETE and checkpointed.**
-`python scripts/verify_phase10_12.py` → 27/27.
+**Phase 13 — real market data, end to end. COMPLETE.**
+`python scripts/verify_phase13.py`.
 
-All ten gates pass: `make verify-all`. Both test suites pass:
-**284** in the §4 root tree (`/repo/tests`) and **61** in the legacy
-`apps/api/tests`.
+The protocol no longer runs on a simulated tape. `market_events` holds real
+one-minute bars and live ticks from a public exchange, labelled `LIVE` with the
+venue that produced them; agents read that table; settlement measures against
+it; the models are fitted on a frozen snapshot of it; and the three screens say
+so in server-rendered HTML.
 
 `make cycle` runs the whole loop: feed → settle → score → risk → allocate.
-`make events` tails what that loop emits. The three screens render it at
-`/arena`, `/observatory` and `/ledger`.
+`make market` shows feed health and the cross-venue spread. `make train`
+freezes a new training snapshot and refits. `make dataset` says what the models
+are currently fitted on.
 
-**§0c is now satisfied in the UI**, which it had not been since Phase 1. See
-*Stubbed / SIMULATION-labeled*.
+### The Phase 4 gate now fails, and it is right to
+
+Re-pointed at the series the models are actually fitted on, and scored out of
+sample, the honest comparison section 11 asks for returns:
+
+| model | dominant class | trades | verdict |
+|---|---|---|---|
+| baseline | 39% | 1345 / 3009 | BASELINE |
+| gradient_boosting | 98% HOLD | 50 | DEGENERATE |
+| cnn_lstm | **100% HOLD** | 0 | DEGENERATE |
+| transformer | 100% HOLD | 15 | DEGENERATE |
+
+**Beating the baseline: none.** The last check — "at least one model genuinely
+beats the baseline, or the ML layer is not earning its complexity" — fails.
+
+This is left failing. It is not a plumbing bug: the models are fitted
+correctly, on real data, at the right horizon, and scored out of sample. They
+have learned that the most likely ten-minute outcome for BTC is "no move" and
+they say so, which minimises their loss and makes them untradeable. The two
+neural models are insensitive to their input — shown a tape trending
++50bps/minute the CNN-LSTM still predicts −0.91bps.
+
+The previous PASS was earned on a synthetic tape that was predictable by
+construction. Relaxing the check to recover it would be exactly the "fake
+production readiness" §0c forbids, so the check stays and the result is
+reported. **Getting a model to beat the baseline on real data is open research,
+not a build step**, and it is the honest next question for this protocol —
+which is, after all, what an autonomous intelligence market is supposed to
+surface.
+
+**§0c is satisfied in the UI**, and now in both directions: the notice reports
+live, mixed, simulated or unconfirmed from what is actually true at request
+time, rather than a hardcoded string. See *Stubbed / SIMULATION-labeled*.
 
 **Phase 2 is now half-closed.** The Solana toolchain exists
 (`make devnet-build`, Agave 4.2.2 + platform-tools v1.54), both programs build
@@ -28,6 +62,18 @@ faucet rate-limits per IP. See *Known blockers* 6.
 Phase 2's security gate passed (17/17) but the phase is **not fully
 checkpointed** — its DoD also says the instructions work "on devnet" and
 nothing is deployed. See *Known blockers* 6.
+
+### Phase 13 Definition of Done
+
+| Requirement | Status |
+|---|---|
+| Prices come from a real venue | **verified** — 46k one-minute bars per asset from binance, plus a live poller inside the API |
+| The agent observes what it is settled against | **verified** — `MARKET_OBSERVATION` reads `market_events`, the table settlement measures |
+| One asset means one price series | **verified** — window and settlement pin to a single source *and* venue; a cross-venue settlement is refused |
+| The models are fitted on the market they trade | **verified** — frozen snapshot, digest in the artifact cache key |
+| The horizon trained is the horizon judged | **verified** — asserted by `tests/unit/test_training_contract.py` |
+| The evidence cannot be rewritten | **verified** — a LIVE observation cannot be restated or deleted |
+| The product says which of this is true | **verified** — provenance on every response, server-rendered notice on every screen |
 
 ### Phases 10-12 Definition of Done (§27)
 
@@ -235,6 +281,36 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
       than trade on a guess.
 - [x] Evaluation leads with the direction confusion matrix, not MSE.
 
+### Phase 13 — real market data
+
+- [x] `agents/market/providers.py` — Binance, Coinbase and Kraken behind one
+      interface. Public endpoints only: **no API keys anywhere**, which is the
+      cheapest way to guarantee §0's no-credentials-in-source rule.
+- [x] `agents/market/ingest.py` — backfill and stream, idempotent against a
+      partial unique index, reporting failures rather than absorbing them.
+      Never invents a tick: with every venue down it writes nothing, the
+      prediction parks in WAITING_FOR_OUTCOME, and the gap in the record is
+      the correct output.
+- [x] `db/migrations/0005_market.sql` — a real observation is immutable and
+      undeletable; a price must be a usable number; the same tick cannot land
+      twice; claiming LIVE requires naming the venue.
+- [x] `MARKET_OBSERVATION` reads `market_events` — the same table settlement
+      measures. One series, both ends. The seeded tape survives as a labelled
+      fallback.
+- [x] `ml/training/dataset.py` — a **frozen** snapshot of real data, digest in
+      the artifact cache key. Retraining is an explicit act, not a side effect
+      of the clock ticking (invariant 3).
+- [x] `ml/training/schedule.py` — training budgeted in gradient updates, not
+      epochs. A transformer fit went from ~40 minutes back to 88s on the same
+      10,080 samples, and the cost no longer grows with ingested history.
+- [x] `apps/api/services/market_feed.py` — the live poller, inside the API.
+- [x] `apps/api/api/market.py` — `/prices`, `/health`, `/venues`, `/training`,
+      `/summary`. Health reports *reasons*, not a bare boolean.
+- [x] `apps/web/components/iris/provenance-notice.tsx` — server-rendered, and
+      it reports live / mixed / simulated / **unconfirmed** from what is
+      actually true rather than a hardcoded string.
+- [x] `scripts/verify_phase13.py` (32 checks) and 69 new tests.
+
 ### Phases 10-12
 
 - [x] `apps/api/api/protocol.py` — `/api/protocol/{arena,observatory,ledger,risk,summary}`,
@@ -433,21 +509,34 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 
 ## Stubbed / SIMULATION-labeled
 
-- **Price data is simulated** (Ornstein–Uhlenbeck tape), and is now **labelled
-  end to end**: `market_events.source` → `prediction_outcomes.data_source` →
-  the API's `provenance` block → a server-rendered notice on every protocol
-  screen. §0c is satisfied for `/arena`, `/observatory` and `/ledger`.
+- ~~**Price data is simulated.**~~ **Closed in Phase 13.** `market_events`
+  holds real one-minute bars and live ticks from a public exchange under the
+  `LIVE` label, with the venue recorded on every row. The provenance chain the
+  simulated tape needed is unchanged and now carries a real label:
+  `market_events.source` → `prediction_outcomes.data_source` → the API's
+  `provenance` block → a server-rendered notice on every protocol screen.
   The pre-v2 dashboard pages still show unlabelled numbers.
+- **The synthetic tape survives as a fallback, not a default.** With no usable
+  feed, `MARKET_OBSERVATION` falls back to the seeded Ornstein-Uhlenbeck window
+  and says so in `observation_note` and `data_source`; `make feed-sim` still
+  writes one. A graph that cannot run at all is a worse failure than a graph
+  running on data it says is synthetic.
 - **Governance is off-chain** (`governance_store.json` + in-process singleton).
 - ~~**Prediction primitive is schema-only.**~~ **Closed in Phase 5.** The
   runtime commits, the sweep settles and scores, and the ordering is enforced
   by triggers rather than by the code that happens to call them.
-- **The market is simulated and says so.** `python -m agents.evaluation.prices`
-  writes an Ornstein-Uhlenbeck tape stamped `SIMULATION`, and that label rides
-  through settlement into `prediction_outcomes.data_source`. A real feed
-  replaces the writer; nothing else changes.
-- **Models train on a synthetic series.** `ml/inference/artifacts.training_series`
-  — seeded, reproducible, and not evidence of live performance.
+- ~~**Models train on a synthetic series.**~~ **Closed in Phase 13.** They are
+  fitted on a frozen snapshot of real exchange data (`make dataset`), whose
+  digest is part of the artifact cache key. `synthetic_series` remains as the
+  fallback when no snapshot exists, and `/api/market/training` reports which is
+  in force — including a loud warning when it is the synthetic one, because
+  live prices behind a synthetically trained model is the combination that
+  looks best from the outside and is worst.
+- **No model has a demonstrated edge, and the record is short.** Days of
+  one-minute bars is nowhere near enough to establish skill. The Arena is a
+  record of what was claimed and what the market did, not a track record.
+- **No capital moves.** Allocation adjusts weights; it does not transfer funds.
+  Phase 2's custody separation is unchanged.
 - **Algorand** client, settings and `use-algorand` hook survive; not in the
   trading loop. Slated for removal.
 
@@ -508,6 +597,108 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 `docker compose config` fail. They are now commented out; all values preserved.
 
 ## Bugs found by the gates (not written by them)
+
+### Found in Phase 13
+
+27. **Every model predicted moves ~60x too large on real prices.** The models
+    were fitted on a tape whose one-step returns have a standard deviation near
+    60bps; real one-minute BTC is nearer 3.4. The first live run produced
+    BUY +0.83% over ten minutes on a tape with 10bps of realised volatility —
+    a 2.6-sigma call at 88% confidence, and it would have made one every run.
+    Nothing crashed, the hash was honest, the settlement was honest, and the
+    number meant nothing.
+
+28. **The models were trained for a one-minute horizon and judged on ten.**
+    `build_dataset` defaulted to `horizon=1` while DECISION commits to 600
+    seconds against a feed that ticks once a minute. Settlement then measured a
+    ten-minute move against a one-minute forecast and recorded the difference
+    as the agent's error. Invisible on the synthetic tape, because its returns
+    were large enough that a one-step prediction happened to land in the same
+    range as a ten-step real move — two wrong scales cancelling.
+
+29. **The decision threshold was a constant tuned to a market that does not
+    exist.** A flat 5bps bar was reasonable against 60bps synthetic returns and
+    became a 1.4-sigma bar on real BTC, which no model could clear. It now
+    scales with observed volatility, with a floor tied to
+    `scoring.HOLD_BAND` so the gate and the grader cannot drift apart.
+
+30. **`price_at` could measure across two price universes.** It took the
+    nearest observation regardless of source. With a synthetic tape near 100
+    and an exchange near 77,000 covering the same instant, a settlement landing
+    on different sides of that reports a return of roughly 77,000% — which
+    flows straight into an IRIS Score, a risk breach and a slash. Source now
+    outranks proximity, and settlement pins its exit leg to the entry leg's
+    source *and* venue. The plausible version is worse: two exchanges a few
+    basis points apart produce a believable return that is really the spread
+    between two instruments wearing an agent's name.
+
+31. **Postgres defines `NaN = NaN` as TRUE.** The price-validation trigger used
+    the idiomatic `value <> value` to catch NaN, which therefore never fired.
+    `{"price": "NaN"}` is valid JSON, Postgres casts the string to a real NaN
+    without complaint, and it would have propagated through every average
+    computed over it into a reputation score. Caught by a test that asked.
+
+32. **A candle stamped at its open is wrong by exactly one bar.** Every venue
+    keys a one-minute bar by the minute it opened, so filing the close price
+    under that timestamp puts every observation sixty seconds early, in the
+    same direction, forever. Binance additionally reports its close as
+    `openTime + 59_999ms`, one millisecond short of the boundary — enough for
+    the same minute to land on a different key than another venue's and defeat
+    the deduplication index.
+
+33. **`make warm` warmed models nobody uses.** It fitted seed 0; model identity
+    is per agent (invariant 3), so every agent's first run still fitted its own
+    from cold. Tolerable at ninety seconds a fit and the dominant cost once the
+    training set was real. Now `warm_agents()` reads the registry and fits what
+    the registered agents actually use.
+
+34. **Full-batch training made cost grow with ingested history.** 300 passes
+    over the whole set is fine on 600 samples and takes ~40 minutes for a
+    transformer on 10,080 — per agent. Now budgeted in gradient updates.
+    Fixing that introduced its own bug immediately: spending the full budget on
+    a 200-sample set overfitted so hard that the spread head, trained against
+    |residual|, reported an error bar 64x smaller than the target scale, which
+    would have made every prediction look near-certain. Small sets keep the
+    schedule they were validated on.
+
+35. **The Phase 4 evaluation graded fitted models in-sample.** It scored on the
+    whole series after fitting on the first 70%, while the baseline — which
+    fits nothing — was graded on all of it throughout. The comparison Phase 4
+    exists to make is only meaningful if both sides sit the same exam, and the
+    in-sample advantage flattered exactly the models whose value is in
+    question. It also ran on a synthetic tape it generated itself, making its
+    verdicts statements about a market that does not exist.
+
+36. **Reputation, risk and allocation kept reading the empty bucket.** All
+    three are computed per provenance and never across it — correctly. Their
+    CLIs defaulted to SIMULATION, which was right while that was the only
+    bucket and became a silent bug the moment predictions settled against a
+    real market: the outcomes were LIVE, the scorers were reading SIMULATION,
+    and every agent with a real record reported as "no settled predictions".
+
+37. **Three test suites assumed a database nothing real had ever touched.**
+    Tests asserting `data_source="LIVE"` returns nothing, and absolute outcome
+    counts, passed only until the protocol settled its first real prediction.
+    Rewritten to scope to their own fixtures or to use a genuinely empty
+    provenance.
+
+38. **The §0c notice hardcoded "Simulated data".** Correct for twelve phases
+    and a lie the moment the feed became real. A stale honesty label is worse
+    than none, because it is the thing a reader trusts to tell them when to
+    stop trusting. It now reports live / mixed / simulated / unconfirmed from
+    what is true at request time — and an unreachable API renders
+    *unconfirmed*, never *live*.
+
+39. **The server-side fetch fell back to the browser's API URL.**
+    `NEXT_PUBLIC_API_URL` is `http://localhost:8000`, which inside the web
+    container means the web container. Every server-side provenance fetch
+    failed and the page rendered "unconfirmed" over a perfectly healthy stack.
+
+40. **Two phase gates pinned which agent commits.** Both had already been wrong
+    once when Phase 4 wired real models in; Phase 13 moved the answer again.
+    Each time the gate reported "the graph cannot complete" when the truth was
+    "a different agent completes it now". Both now search.
+
 
 -2. **Double normalisation in the sequence models.** `build_dataset` returned
    pre-normalised return windows, which `predict()` then normalised *again* —

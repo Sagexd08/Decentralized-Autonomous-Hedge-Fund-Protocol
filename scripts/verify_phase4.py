@@ -24,17 +24,23 @@ import sys
 GREEN, RED, DIM, RESET = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
 
 PROBE = r"""
-import json, random
+import json
 import numpy as np
+from ml.inference.artifacts import training_set
 from ml.inference.registry import all_models, evaluate_all, format_report
 
-rng = random.Random(11)
-p, prices = 100.0, []
-for _ in range(600):
-    p += 0.02 * (100.0 - p) + rng.gauss(0, 0.6)
-    prices.append(p)
+# Evaluated on the series the models are actually fitted on and actually trade.
+#
+# This probe used to generate its own 600-sample Ornstein-Uhlenbeck tape, which
+# made Phase 4's verdicts statements about a market that does not exist. Once
+# the protocol started reading a real exchange, "beats the baseline" on a
+# synthetic tape stopped being evidence of anything — and the honest comparison
+# section 11 asks for is only honest if it is run against the real thing.
+prices, _key, provenance = training_set()
+print("---DATA---")
+print(provenance)
 
-scores = evaluate_all(np.array(prices), seed=0, train=True)
+scores = evaluate_all(np.asarray(prices), seed=0, train=True)
 report = format_report(scores)
 
 print("---REPORT---")

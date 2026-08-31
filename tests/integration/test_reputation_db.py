@@ -87,9 +87,14 @@ def commit(
 
 def settle(conn, *, now: datetime, at: datetime, asset_name: str,
            entry: float = 100.0, exit_: float = 102.0, source: str = "SIMULATION"):
-    record_price(conn, asset=asset_name, price=entry, at=at, source=source)
+    # A LIVE observation must name the venue it came from — migration 0005
+    # makes that structural, so that relabelling synthetic data as real
+    # requires asserting a specific exchange said so.
+    venue = "binance" if source == "LIVE" else None
+    record_price(conn, asset=asset_name, price=entry, at=at,
+                 source=source, provider=venue)
     record_price(conn, asset=asset_name, price=exit_,
-                 at=at + timedelta(seconds=1800), source=source)
+                 at=at + timedelta(seconds=1800), source=source, provider=venue)
     return run_sweep(conn, now=now)
 
 
@@ -156,6 +161,7 @@ def test_records_are_never_aggregated_across_provenance(conn, now):
     live performance (section 0c).
     """
     at = now - timedelta(hours=2)
+
     sim, live = asset("sim"), asset("live")
     commit(conn, at=at, asset_name=sim)
     commit(conn, at=at, asset_name=live)
@@ -165,19 +171,43 @@ def test_records_are_never_aggregated_across_provenance(conn, now):
     simulated = load_outcomes(conn, AGENT, data_source="SIMULATION")
     real = load_outcomes(conn, AGENT, data_source="LIVE")
 
-    assert len(simulated) == 1 and len(real) == 1
+    # Scoped to the two assets this test created rather than counted in total.
+    # `run_sweep` settles every prediction that is due, not only this test's,
+    # so once the protocol runs against a real feed the agent accumulates
+    # genuine LIVE outcomes and any absolute count here is a race with it.
+    landed = dict(
+        conn.execute(
+            """select p.asset, o.data_source
+                 from prediction_outcomes o
+                 join predictions p on p.id = o.prediction_id
+                where p.asset = any(%s)""",
+            ([sim, live],),
+        ).fetchall()
+    )
+    assert landed == {sim: "SIMULATION", live: "LIVE"}
+
+    # And each bucket stays homogeneous — the property the split exists for.
     assert all(o.data_source == "SIMULATION" for o in simulated)
     assert all(o.data_source == "LIVE" for o in real)
 
 
-def test_an_agent_with_no_live_record_has_no_live_score(conn, now):
+def test_an_agent_with_no_record_under_a_provenance_has_no_score_under_it(conn, now):
+    """
+    A score exists per provenance or not at all — never as a default.
+
+    TESTNET is used as the empty side rather than LIVE, which the agent now
+    genuinely has a record under. The property under test is that an absent
+    record yields None rather than a zero; which label happens to be empty is
+    incidental, and pinning it to LIVE made the test depend on the protocol
+    never having run.
+    """
     at = now - timedelta(hours=2)
     a = asset("simo")
     commit(conn, at=at, asset_name=a)
     settle(conn, now=now, at=at, asset_name=a)
 
     assert score_agent(conn, AGENT, data_source="SIMULATION") is not None
-    assert score_agent(conn, AGENT, data_source="LIVE") is None
+    assert score_agent(conn, AGENT, data_source="TESTNET") is None
 
 
 # ── persistence ─────────────────────────────────────────────────────────────

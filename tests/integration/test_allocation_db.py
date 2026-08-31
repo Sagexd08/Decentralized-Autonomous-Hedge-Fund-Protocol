@@ -116,7 +116,11 @@ def test_rewards_are_read_per_provenance(conn):
     simulated return as live, one step downstream.
     """
     ids = allocatable_agents(conn)
-    assert rewards_from_reputation(conn, ids, data_source="LIVE") == {}
+    # TESTNET rather than LIVE as the empty side. The property under test is
+    # that a bucket with no record yields no reward — not a zero — and pinning
+    # it to LIVE made the test depend on the protocol never having settled a
+    # real prediction, which it now does on every cycle.
+    assert rewards_from_reputation(conn, ids, data_source="TESTNET") == {}
 
 
 def test_rewards_are_on_the_zero_to_one_scale(conn):

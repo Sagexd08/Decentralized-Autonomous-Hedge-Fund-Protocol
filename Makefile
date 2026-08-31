@@ -32,6 +32,7 @@ db-migrate: ## Apply migrations to a running database
 	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0002_settlement.sql
 	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0003_risk.sql
 	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0004_events.sql
+	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0005_market.sql
 
 db-seed: ## Load development seed data
 	$(COMPOSE) exec -T db psql -U iris -d iris < db/seed/0001_seed.sql
@@ -50,6 +51,7 @@ verify-all: ## Run every phase gate in order
 	python scripts/verify_phase8.py
 	python scripts/verify_phase9.py
 	python scripts/verify_phase10_12.py
+	python scripts/verify_phase13.py
 
 devnet-build: ## Build the Solana devnet toolchain image (solana 4.2.2 + SBF)
 	docker build -f docker/devnet.Dockerfile -t iris-devnet .
@@ -75,14 +77,28 @@ test: ## Run both test suites — §4 root tree and the legacy api tree
 	$(COMPOSE) exec -T api python -m pytest /repo/tests -q
 	$(COMPOSE) exec -T api python -m pytest tests/ -q
 
-warm: ## Fit and cache the model artifacts (~40s cold, ~0.2s after)
-	$(COMPOSE) exec -T api python -c "from ml.inference.artifacts import warm; print(warm())"
+warm: ## Fit and cache the models the registered agents actually use
+	$(COMPOSE) exec -T api python -c "from ml.inference.artifacts import warm_agents; [print(f'{a:<14} {h[:16]}') for a, h in warm_agents().items()]"
 
 settle: ## Run the Phase 5 settlement sweep against the live database
 	$(COMPOSE) exec -T api python -m agents.evaluation.settlement
 
-feed: ## Write a labelled simulated price tape (gap-filling, idempotent)
+feed: ## Ingest real market data from a public exchange (idempotent)
+	$(COMPOSE) exec -T api python -m agents.market.ingest --asset BTC --asset ETH --asset SOL --minutes 720
+
+feed-sim: ## Write a labelled SIMULATION tape instead — the fallback, not the default
 	$(COMPOSE) exec -T api python -m agents.evaluation.prices --asset BTC --hours 6
+
+market: ## Feed health, coverage and cross-venue spread
+	$(COMPOSE) exec -T api python -m agents.market.ingest --asset BTC --asset ETH --asset SOL --status
+	$(COMPOSE) exec -T api python -m agents.market.ingest --asset BTC --divergence
+
+train: ## Freeze a training snapshot from real data, then refit the models
+	$(COMPOSE) exec -T api python -m ml.training.dataset --refresh --asset BTC --samples 10080
+	@$(MAKE) --no-print-directory warm
+
+dataset: ## Show what the models are currently trained on
+	$(COMPOSE) exec -T api python -m ml.training.dataset --show
 
 score: ## Compute and store the IRIS Score for every agent
 	$(COMPOSE) exec -T api python -m agents.reputation.score

@@ -185,6 +185,21 @@ def format_round(round_: AllocationRound) -> str:
     return "\n".join(lines)
 
 
+def _resolved_source(conn, requested):
+    """
+    Which provenance bucket to work in.
+
+    `None` means "whichever the protocol actually has evidence in, strongest
+    first". Pinning the default to SIMULATION was right while that was the only
+    bucket and became wrong the moment predictions started settling against a
+    real market — the scorers kept reading an empty bucket and reported every
+    agent with a live record as untested.
+    """
+    from agents.evaluation.prices import strongest_outcome_source
+
+    return requested or strongest_outcome_source(conn)
+
+
 def main(argv: list[str] | None = None) -> int:
     """
         python -m agents.allocation.allocator
@@ -195,8 +210,9 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="Run one MWU allocation step.")
     parser.add_argument("--eta", type=float, default=DEFAULT_ETA)
-    parser.add_argument("--source", default="SIMULATION",
-                        choices=("SIMULATION", "TESTNET", "LIVE"))
+    parser.add_argument("--source", default=None,
+                        choices=("SIMULATION", "TESTNET", "LIVE"),
+                        help="default: the strongest provenance with settled outcomes")
     parser.add_argument("--vault", default=None)
     parser.add_argument("--dry-run", action="store_true",
                         help="compute and print without writing allocation_history")
@@ -204,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
 
     with connection() as conn:
         round_ = allocate(
-            conn, eta=args.eta, data_source=args.source,
+            conn, eta=args.eta, data_source=_resolved_source(conn, args.source),
             persist=not args.dry_run, vault_id=args.vault,
         )
         if args.dry_run:

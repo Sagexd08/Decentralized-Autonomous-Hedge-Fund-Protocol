@@ -18,6 +18,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from ml.training.schedule import plan
+
 from ml.models.base import (
     Prediction,
     confidence_for,
@@ -93,10 +95,6 @@ class CnnLstmModel:
         the same fix was simply never applied here.
         """
         self.net.train()
-        opt = torch.optim.Adam(self.net.parameters(), lr=2e-3)
-        sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
-        loss_fn = nn.SmoothL1Loss()
-
         self._target_scale = float(max(np.std(y), 1e-9))
         # Normalise here, exactly as predict() does, so training and inference
         # cannot drift apart on the representation.
@@ -107,29 +105,49 @@ class CnnLstmModel:
         xb = torch.tensor(normalised, dtype=torch.float32)
         yb = torch.tensor(y / self._target_scale, dtype=torch.float32)
 
+        # Mini-batched against a fixed update budget rather than a fixed number
+        # of full-batch passes. See ml/training/schedule.py: with real market
+        # data the old shape made a single fit cost tens of minutes and grow
+        # with every day of history ingested, and there is one fit per agent.
+        batch_size, steps, epochs = plan(int(xb.shape[0]))
+        opt = torch.optim.Adam(self.net.parameters(), lr=2e-3)
+        sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=epochs)
+        loss_fn = nn.SmoothL1Loss()
+        generator = torch.Generator().manual_seed(self.seed)
+
         for _ in range(epochs):
-            opt.zero_grad()
-            pred, spread = self.net(xb)
-            loss = loss_fn(pred, yb)
-        # The spread head is trained here, against the absolute residual of the
-        # prediction head. It was previously left out of the loss entirely
-        # (`pred, _ = self.net(xb)`), so it received no gradient and reported
-        # whatever its random initialisation produced. Its magnitude looked
-        # plausible only because `_target_scale` multiplies it — and since
-        # `confidence` is derived from `expected_return / spread`, every
-        # confidence this model has ever reported was an arbitrary constant.
-        #
-        # Detached, so learning to be uncertain cannot become a way to reduce
-        # the prediction loss. The two heads share a trunk but must not
-        # negotiate: a model that could widen its error bars to look better
-        # would do exactly that.
-            loss = loss + loss_fn(spread, (yb - pred).abs().detach())
-            loss.backward()
-            # Without clipping a single outlier bar can blow the weights out to
-            # a scale the model never recovers from — the failure that produced
-            # an MSE of 1.96e+11 before this was added.
-            torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1.0)
-            opt.step()
+            # Reshuffled every epoch, from a seeded generator: the batch order
+            # is part of the fitted weights, so it has to be reproducible or
+            # the same agent gets a new model_hash on every fit.
+            order = torch.randperm(xb.shape[0], generator=generator)
+            for step in range(steps):
+                index = order[step * batch_size:(step + 1) * batch_size]
+                if index.numel() == 0:
+                    continue
+                opt.zero_grad()
+                pred, spread = self.net(xb[index])
+                loss = loss_fn(pred, yb[index])
+                # The spread head is trained here, against the absolute
+                # residual of the prediction head. It was previously left out
+                # of the loss entirely (`pred, _ = self.net(xb)`), so it
+                # received no gradient and reported whatever its random
+                # initialisation produced. Its magnitude looked plausible only
+                # because `_target_scale` multiplies it — and since
+                # `confidence` is derived from `expected_return / spread`,
+                # every confidence this model reported was an arbitrary
+                # constant.
+                #
+                # Detached, so learning to be uncertain cannot become a way to
+                # reduce the prediction loss. The two heads share a trunk but
+                # must not negotiate: a model that could widen its error bars
+                # to look better would do exactly that.
+                loss = loss + loss_fn(spread, (yb[index] - pred).abs().detach())
+                loss.backward()
+                # Without clipping a single outlier bar can blow the weights
+                # out to a scale the model never recovers from — the failure
+                # that produced an MSE of 1.96e+11 before this was added.
+                torch.nn.utils.clip_grad_norm_(self.net.parameters(), 1.0)
+                opt.step()
             sched.step()
 
         self.net.eval()

@@ -36,7 +36,9 @@ from api import ws_prices
 from api import ws_social
 from api import ws_events
 from api import protocol as protocol_api
+from api import market as market_api
 from services import event_stream
+from services.market_feed import feed as market_feed
 
 _MODEL_BUCKET = "models"
 _MODEL_OBJECT_PATH = "model.pkl"
@@ -147,6 +149,20 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Protocol event stream did not start: %s", exc)
 
+    # The live market feed (Phase 13). Everything downstream — settlement,
+    # the IRIS Score, the risk engine, the allocator — reads `market_events`,
+    # so this loop is what makes those numbers descriptions of a real market
+    # rather than of a seeded tape.
+    #
+    # Like the event stream, a failure here must not take the API down. Without
+    # it the tape simply stops advancing, `price_at` finds no evidence, and
+    # predictions park in WAITING_FOR_OUTCOME — visibly unscored rather than
+    # quietly scored against stale data.
+    try:
+        await market_feed.start()
+    except Exception as exc:
+        logger.warning("Live market feed did not start: %s", exc)
+
     # WebSocket event listener for on-chain events
     listener_task = None
     if solana is not None:
@@ -156,6 +172,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
+    await market_feed.stop()
     await event_stream.stream.stop()
     market_stream.stop()
     price_engine.stop()
@@ -201,6 +218,7 @@ app.include_router(ws_prices.router, tags=["prices"])
 app.include_router(ws_social.router, tags=["social"])
 app.include_router(ws_events.router, tags=["events"])
 app.include_router(protocol_api.router, prefix="/api/protocol", tags=["protocol"])
+app.include_router(market_api.router, prefix="/api/market", tags=["market"])
 
 
 @app.exception_handler(StarletteHTTPException)

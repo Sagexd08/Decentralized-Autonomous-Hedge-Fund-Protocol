@@ -333,6 +333,21 @@ def format_leaderboard(scores: dict[str, Optional[IrisScore]]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _resolved_source(conn, requested):
+    """
+    Which provenance bucket to work in.
+
+    `None` means "whichever the protocol actually has evidence in, strongest
+    first". Pinning the default to SIMULATION was right while that was the only
+    bucket and became wrong the moment predictions started settling against a
+    real market — the scorers kept reading an empty bucket and reported every
+    agent with a live record as untested.
+    """
+    from agents.evaluation.prices import strongest_outcome_source
+
+    return requested or strongest_outcome_source(conn)
+
+
 def main(argv: list[str] | None = None) -> int:
     """
         python -m agents.reputation.score
@@ -342,13 +357,15 @@ def main(argv: list[str] | None = None) -> int:
     from agents.runtime.persistence import connection
 
     parser = argparse.ArgumentParser(description="Compute the IRIS Score for every agent.")
-    parser.add_argument("--source", default="SIMULATION", choices=PROVENANCE)
+    parser.add_argument("--source", default=None, choices=PROVENANCE,
+                        help="default: the strongest provenance with settled outcomes")
     parser.add_argument("--dry-run", action="store_true",
                         help="compute and print without writing reputation_scores")
     args = parser.parse_args(argv)
 
     with connection() as conn:
-        scores = score_all(conn, data_source=args.source, persist=not args.dry_run)
+        source = _resolved_source(conn, args.source)
+        scores = score_all(conn, data_source=source, persist=not args.dry_run)
         if args.dry_run:
             conn.rollback()
 

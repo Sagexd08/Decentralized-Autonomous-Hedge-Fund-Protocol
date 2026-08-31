@@ -41,14 +41,36 @@ def provenance(sources: list[str], *, note: str = "") -> dict[str, Any]:
     would let one live row launder a screen full of simulated ones.
     """
     clean = sorted({s for s in sources if s})
-    return {
-        "sources": clean or ["SIMULATION"],
-        "live": bool(clean) and clean == ["LIVE"],
-        "note": note or (
+    live = bool(clean) and clean == ["LIVE"]
+
+    if note:
+        message = note
+    elif live:
+        # True only once every contributing row came from a real venue. The
+        # claim is deliberately narrow: real prices, measured honestly. It says
+        # nothing about capital, because none is deployed — Phase 2's custody
+        # gate keeps allocation authority and wallet control apart, and the
+        # allocator moves weights, not funds.
+        message = (
+            "Real market data. Prices come from a public exchange and every "
+            "outcome below was measured against it. No live capital is "
+            "deployed; allocations are weights, not transfers."
+        )
+    elif clean == ["SIMULATION"] or not clean:
+        message = (
             "Simulated market data and synthetically trained models. "
             "Not evidence of live performance."
-        ),
-    }
+        )
+    else:
+        # The mixed case is the one worth naming out loud. It happens when the
+        # feed was down for part of a settlement window, and it means some
+        # rows here rest on a synthetic tape.
+        message = (
+            f"Mixed provenance ({', '.join(clean)}). Treated as the weakest: "
+            f"some rows below were measured against simulated prices."
+        )
+
+    return {"sources": clean or ["SIMULATION"], "live": live, "note": message}
 
 
 def _sources(rows: list[dict], key: str = "data_source") -> list[str]:

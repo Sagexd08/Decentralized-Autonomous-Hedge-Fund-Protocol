@@ -29,10 +29,11 @@ the build loop, and it is more current than this file.
 
 | | |
 |---|---|
-| Phases complete | **1, 3, 4, 5** — Phase 2's security gate passes but nothing is deployed to devnet |
+| Phases complete | **1, 3–13** — Phase 2's custody gate passes but nothing is deployed to devnet |
 | Canonical chain | Solana (Stellar was removed in `a72d3ed`) |
-| Market data | **Simulated**, and labelled as such end to end — see [Limitations](#limitations) |
-| Model weights | Trained on a **synthetic** seeded series |
+| Market data | **Real.** One-minute bars and live ticks from public exchanges, written to `market_events` under the `LIVE` label with the venue recorded |
+| Model weights | Fitted on a **frozen snapshot of real market data** (`make dataset` shows which) |
+| Capital | **None.** Allocations are weights, not transfers. No live funds are deployed |
 
 ---
 
@@ -214,37 +215,35 @@ what else passed.
 Stated plainly, because claiming production readiness we do not have would
 violate the protocol's own honesty rule.
 
-- **Market data is simulated.** `WS_MARKET_SOURCE` defaults to `simulated`;
-  prices come from an Ornstein–Uhlenbeck engine, not an exchange. Every P&L,
-  Sharpe ratio and slash currently runs against synthetic tape. The UI does not
-  yet label this everywhere it should — that is tracked in `STATE.md`.
+- **No capital is deployed, and no model here has a demonstrated edge.** The
+  prices are real; the trading is not. Allocation moves weights between agents,
+  never funds, and the models are fitted on a few days of one-minute bars — a
+  sample far too small to establish skill at anything. Read the Arena as a
+  record of what these models claimed and what the market then did, not as a
+  track record.
 
-  In the data layer it *is* labelled: every observation carries
-  `market_events.source`, and a settled prediction inherits the **weakest**
-  provenance of its two price endpoints into
-  `prediction_outcomes.data_source`. A return measured from one live and one
-  simulated price is not recorded as a live result.
+- **Predictions are only as good as their horizon.** Agents commit to a
+  ten-minute view of BTC. One-minute returns have a standard deviation near
+  three basis points, so the honest expectation is that most runs produce no
+  view at all — and most do abstain. A cycle in which every agent trades would
+  be evidence of a bug, not of skill.
 
-- **Model weights are trained on a synthetic series** — seeded and
-  reproducible (`ml/inference/artifacts.training_series`), and not evidence
-  that any model would work on a real tape. The Phase 4 evaluation says which
-  models beat the baseline *on that series* and says plainly that `cnn_lstm`
-  does not.
+- **The tape never mixes venues.** BTCUSDT on Binance, BTC-USD on Coinbase and
+  XBTUSD on Kraken are three instruments a few basis points apart. Settlement
+  pins both of its legs to one source *and* one venue, and refuses to measure
+  across them — a return taken from two exchanges is the spread between them
+  wearing an agent's name. `make market` prints the current gap.
 
-- **One strategy currently cannot trade.** `momentum` maps to `cnn_lstm`, which
-  lost to the baseline in Phase 4 and whose confidence does not reach the 0.55
-  validation floor, so those agents abstain every cycle. This is left as-is
-  rather than tuned around: an agent whose model cannot distinguish signal from
-  its own noise *should* decline, and Phases 6–7 are where reputation and
-  allocation are supposed to route capital away from it.
+- **Provenance is carried, not assumed.** Every observation records
+  `market_events.source` and the venue that produced it; a settled prediction
+  inherits the **weakest** provenance of its two price endpoints into
+  `prediction_outcomes.data_source`; the API puts that on every response; and
+  the three protocol screens render it server-side. If the feed stops, those
+  screens say "simulated" or "unconfirmed" rather than continuing to claim
+  live.
 - **Governance is off-chain.** Proposals, votes and quorum resolve in a JSON
   store and an in-process singleton. The parameter change is real and
   immediate; the vote is not on-chain.
-- **The prediction primitive is schema-only.** The tables enforce the
-  commit-before-outcome ordering, but nothing writes to them yet — the agent
-  runtime still submits returns directly. This is Phase 5.
-- **No agent is on LangGraph yet.** The current runtime is an asyncio loop with
-  three hardcoded strategy archetypes. This is Phase 3.
 - **The Anchor programs are not consolidated.** Four standalone workspaces under
   `contracts/rust/solana/`; `programs/iris/` is still a placeholder. This is
   Phase 2, along with the security test that matters most.

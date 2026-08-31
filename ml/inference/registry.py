@@ -31,6 +31,25 @@ from ml.models.transformer import TransformerModel
 # Models that read the shared feature vector vs. the raw price window.
 TABULAR = {"baseline", "gradient_boosting"}
 
+# Which model class backs which strategy.
+#
+# Lives here rather than in the graph because it is a fact about the model
+# registry, not about the node that looks it up — and `ml` must not import
+# `agents` to find out which models it is expected to have fitted.
+STRATEGY_MODELS = {
+    "momentum": "cnn_lstm",
+    "mean_reversion": "gradient_boosting",
+    "breakout": "baseline",
+    "adaptive": "transformer",
+}
+
+DEFAULT_FAMILY = "cnn_lstm"
+
+
+def family_for_strategy(strategy: str) -> str:
+    """The model family a strategy runs on."""
+    return STRATEGY_MODELS.get(strategy, DEFAULT_FAMILY)
+
 # A model emitting one class for this share of samples is not predicting.
 DEGENERATE_SHARE = 0.90
 
@@ -177,18 +196,32 @@ def compare_to_baseline(scores: dict[str, ModelScore], margin: float = 0.01) -> 
 
 
 def evaluate_all(prices: np.ndarray, seed: int = 0, train: bool = True) -> dict[str, ModelScore]:
-    """Fit (optionally) and score all four models on one series."""
+    """
+    Fit (optionally) and score all four models on one series.
+
+    Scored **out of sample**. When this fits, it fits on the first 70% and
+    scores on the remaining 30%; scoring on the whole series would let a fitted
+    model be graded partly on data it had already seen, while the baseline —
+    which fits nothing — was graded on all of it throughout. The comparison
+    that Phase 4 exists to make is only meaningful if both sides face the same
+    exam, and an in-sample advantage flatters exactly the models whose value is
+    most in question.
+    """
     X_features, X_windows, y = build_dataset(prices)
     models = all_models(seed=seed)
 
+    start = 0
     if train:
         split = int(len(y) * 0.7)
         models["gradient_boosting"].fit(X_features[:split], y[:split])
         models["cnn_lstm"].fit(X_windows[:split], y[:split])
         models["transformer"].fit(X_windows[:split], y[:split])
+        start = split
 
     scores = {
-        name: score_model(model, name, X_features, X_windows, y)
+        name: score_model(
+            model, name, X_features[start:], X_windows[start:], y[start:]
+        )
         for name, model in models.items()
     }
     return compare_to_baseline(scores)

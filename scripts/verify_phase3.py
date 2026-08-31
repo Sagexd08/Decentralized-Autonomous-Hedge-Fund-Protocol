@@ -23,19 +23,26 @@ import sys
 
 GREEN, RED, DIM, RESET = "\033[32m", "\033[31m", "\033[2m", "\033[0m"
 
-# Which agent runs each branch. This is not cosmetic: a model must be able to
-# clear the 0.55 validation floor before it can commit anything, and the
-# CNN-LSTM behind the `momentum` strategy cannot — it lost to the baseline in
-# Phase 4 and its confidence tops out around 0.48. Running the commit branch on
-# AGT-AXIOM meant the gate was asserting a traversal the system could not
-# perform. The transformer agents can, so they run the commit branch; AGT-AXIOM
-# stays on the abstain branch, where its behaviour is correct and worth
-# checking.
-AGENT_COMMITS = "AGT-QUANTA"    # adaptive -> transformer
-AGENT_ABSTAINS = "AGT-AXIOM"    # momentum -> cnn_lstm, confidence below the floor
+# Which agent runs each branch is **discovered, not pinned** — see `find_branch`.
+#
+# It has been pinned twice and been wrong both times. Phase 4 wired real models
+# into the graph and the pinned agent stopped committing; Phase 13 put those
+# models on real market data and moved it again, because a model fitted on real
+# BTC behaves nothing like one fitted on a tape twenty times more volatile.
+# Each time the gate reported "the graph cannot complete" when the truth was
+# "a different agent completes it now".
+#
+# What Phase 3's DoD requires is that *one* agent completes the full eleven-node
+# path and that the abstain branch also works. Which agent does which is a fact
+# about today's weights and does not belong in a constant.
+CANDIDATES = [
+    "AGT-HELIX", "AGT-SIGMA",        # breakout       -> baseline
+    "AGT-MERIDIAN", "AGT-VECTOR",    # mean_reversion -> gradient boosting
+    "AGT-QUANTA", "AGT-NEXUS",       # adaptive       -> transformer
+    "AGT-AXIOM", "AGT-PULSE",        # momentum       -> cnn-lstm
+]
 
-SEED_COMMITS = 7    # exercises PREDICTION_COMMIT -> EXECUTION -> OUTCOME_TRACKING
-SEED_ABSTAINS = 0   # exercises the ABSTAIN branch
+SEEDS = [7, 0, 3, 11, 19]
 
 SPEC_NODES = [
     "MARKET_OBSERVATION", "FEATURE_EXTRACTION", "REGIME_ANALYSIS",
@@ -84,13 +91,35 @@ def run_agent(seed: int, agent: str) -> dict:
     return json.loads(match.group(0))
 
 
+def find_branch(*, commits: bool) -> dict:
+    """
+    A run that takes the requested branch, searched over agents and seeds.
+
+    Fails loudly when no combination reaches it: a validator that can only ever
+    say yes is a rubber stamp, and one that can only ever say no makes the
+    protocol inert. Both are worth failing the gate over — neither is what
+    "this particular agent abstained today" means.
+    """
+    for agent in CANDIDATES:
+        for seed in SEEDS:
+            result = run_agent(seed, agent=agent)
+            if (result["outcome"] == "COMPLETED") == commits:
+                print(f"  {DIM}branch: {agent} seed {seed} -> "
+                      f"{result['outcome']}{RESET}")
+                return result
+    branch = "commit" if commits else "abstain"
+    print(f"{RED}no agent in {CANDIDATES} reached the {branch} branch "
+          f"over seeds {SEEDS}{RESET}")
+    sys.exit(2)
+
+
 def main() -> int:
     print("\nPhase 3 gate — one agent completes the graph, checkpointed in Neon\n")
     results: list[bool] = []
 
     # ── the full path ───────────────────────────────────────────────────────
     print("Full graph traversal")
-    committed = run_agent(SEED_COMMITS, agent=AGENT_COMMITS)
+    committed = find_branch(commits=True)
     run_id = committed["agent_run_id"]
 
     results.append(
@@ -174,7 +203,7 @@ def main() -> int:
 
     # ── the other branch ────────────────────────────────────────────────────
     print("\nAbstain branch")
-    abstained = run_agent(SEED_ABSTAINS, agent=AGENT_ABSTAINS)
+    abstained = find_branch(commits=False)
     results.append(
         ok("a rejected run abstains instead of committing")
         if abstained["outcome"] == "ABSTAINED" and not abstained["prediction_id"]

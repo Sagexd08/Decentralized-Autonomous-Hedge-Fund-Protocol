@@ -19,6 +19,12 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_PUBLIC_WS_URL: ws://localhost:8000
+      # Server components render inside this container, where `localhost` is
+      # the web container itself. NEXT_PUBLIC_API_URL is the browser's view of
+      # the API; this is the server's. They are genuinely different addresses
+      # for the same service and conflating them makes every server-side fetch
+      # fail in a way that only shows up in production rendering.
+      INTERNAL_API_URL: http://api:8000
       WATCHPACK_POLLING: "true"
     volumes:
       # Live-mount the source, exactly as the api service does. Without this a
@@ -69,6 +75,12 @@ services:
       - ./tests:/repo/tests
       - ./scripts:/repo/scripts
       - ./db:/repo/db
+      # Read-only, and only so the phase gates can inspect the web source they
+      # verify. The Phase 13 gate asserts that the provenance notice renders
+      # "unconfirmed" rather than "live" when the API cannot be reached — a
+      # state that by definition cannot be observed in served HTML on a healthy
+      # stack, so it is checked against the component itself.
+      - ./apps/web:/repo/apps/web:ro
     depends_on:
       db:
         condition: service_healthy

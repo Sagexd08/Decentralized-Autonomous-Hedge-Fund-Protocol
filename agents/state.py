@@ -119,6 +119,12 @@ class AgentState(BaseModel):
     prices: list[float] = Field(default_factory=list)
     observed_at: Optional[float] = None
     data_source: str = "SIMULATION"
+    # Where the window actually came from, in words — the venue and span for a
+    # real feed, or the reason the node fell back to a synthetic tape. Written
+    # into `graph_checkpoints`, so the Observatory can answer "what was this
+    # agent looking at" for a run that happened last week.
+    observation_note: str = ""
+    price_provider: Optional[str] = None
 
     # ── FEATURE_EXTRACTION ──────────────────────────────────────────────────
     features: dict[str, float] = Field(default_factory=dict)

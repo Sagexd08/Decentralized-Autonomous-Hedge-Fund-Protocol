@@ -136,8 +136,29 @@ def settle_one(
     (pid, agent_id, asset, direction, expected_return,
      _confidence, committed_at, horizon_end, _status) = row
 
+    # Both legs must come from one price series. `price_at` prefers the
+    # strongest source available, so the entry leg chooses the universe; the
+    # exit leg is then pinned to it by source *and* venue.
+    #
+    # Without the pin, a return can be measured across a splice: between a
+    # synthetic tape near 100 and an exchange near 77,000, or between two
+    # exchanges quoting the same asset a few basis points apart. The first
+    # produces a number so large it is obviously broken; the second produces a
+    # plausible one, which is worse, because it files the spread between two
+    # venues as the agent's judgement and nothing downstream can tell.
     entry = price_at(conn, asset=asset, at=committed_at, tolerance=tolerance)
-    exit_ = price_at(conn, asset=asset, at=horizon_end, tolerance=tolerance)
+    exit_ = (
+        price_at(
+            conn,
+            asset=asset,
+            at=horizon_end,
+            tolerance=tolerance,
+            source=entry.source,
+            provider=entry.provider,
+        )
+        if entry is not None
+        else None
+    )
 
     if entry is None or exit_ is None:
         conn.execute(
