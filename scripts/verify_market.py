@@ -115,8 +115,18 @@ def text(url: str, timeout: float = 60.0) -> str:
         return response.read().decode("utf-8", "replace")
 
 
+def _provenance_attr(body: str) -> str:
+    """What the page actually claimed, so a failure is diagnosable."""
+    marker = 'data-provenance="'
+    start = body.find(marker)
+    if start == -1:
+        return "absent"
+    start += len(marker)
+    return body[start:body.find('"', start)]
+
+
 def main() -> int:
-    print(f"\nPhase 13 gate — real market data, end to end ({ASSET})\n")
+    print(f"\nMarket data gate — real market data, end to end ({ASSET})\n")
 
     # ── 1. the data is real, and it is current ──────────────────────────────
     print(f"{DIM}the feed{RESET}")
@@ -472,17 +482,43 @@ def main() -> int:
 
     # The label has to be in the server-rendered HTML: a §0c notice that needs
     # JavaScript is absent exactly where a reader forms their first impression.
-    for route in ("/arena", "/observatory", "/ledger"):
+    #
+    # Warmed first, and deliberately so. On a container that has just started,
+    # the first request for a route competes with Turbopack compiling it, the
+    # component's own fetch for provenance times out, and the page correctly
+    # renders "unconfirmed" — which failed this gate on a stack that was
+    # working. The property under test is "the server renders the label", not
+    # "Next compiles within one request", and a gate that answers differently
+    # depending on which of those it caught is a gate people learn to re-run.
+    ROUTES = ("/arena", "/observatory", "/ledger")
+    for route in ROUTES:
+        try:
+            text(f"{WEB}{route}")
+        except Exception:  # noqa: BLE001 - the real request below reports it
+            pass
+
+    # Asserted as "the label is accurate", not "the label says live".
+    #
+    # The notice reports the weakest of three things: the feed, the training
+    # set, and the provenance of the rows on the page. With a live feed and
+    # real models but a settled record that still contains simulated outcomes,
+    # the truthful answer is "mixed" — and demanding the word "live" here would
+    # be a gate requiring the product to overstate, which is the failure §0c
+    # exists to prevent, written into the check meant to prevent it.
+    #
+    # What a live feed does rule out is "simulated" and "unconfirmed".
+    REAL_FEED_KINDS = {"live", "mixed"}
+    for route in ROUTES:
         try:
             body = text(f"{WEB}{route}")
         except Exception as exc:  # noqa: BLE001
             check(False, f"{route} renders a provenance label server-side", str(exc))
             continue
-        labelled = 'data-provenance="live"' in body
-        honest = "Real market data." in body
-        check(labelled and honest,
-              f"{route} renders the live-data label server-side",
-              "in the HTML, before hydration and without JavaScript")
+        kind = _provenance_attr(body)
+        check(kind in REAL_FEED_KINDS,
+              f"{route} reports the real feed server-side",
+              f"data-provenance={kind!r}, in the HTML before hydration and "
+              f"without JavaScript")
 
     # The inverse failure: the page must not claim live when it cannot confirm
     # it. Asserted on the code rather than by breaking the stack.
@@ -506,7 +542,7 @@ def main() -> int:
     passed = sum(1 for ok, _, _ in results if ok)
     total = len(results)
     if passed == total:
-        print(f"{GREEN}Phase 13 gate PASSED{RESET} — {passed}/{total} checks.\n")
+        print(f"{GREEN}Market data gate PASSED{RESET} — {passed}/{total} checks.\n")
         return 0
     print(f"{RED}Market data gate FAILED{RESET} — {passed}/{total}.")
     for ok, label, _ in results:

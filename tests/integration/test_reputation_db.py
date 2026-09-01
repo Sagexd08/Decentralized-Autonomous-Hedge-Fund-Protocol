@@ -43,8 +43,32 @@ AGENT = "AGT-MERIDIAN"
 
 @pytest.fixture
 def conn():
+    """
+    A connection whose work is discarded, over a record this file owns.
+
+    Every test here counts an agent's outcomes — "a settled prediction enters
+    the record", "another agent's predictions do not". Those are claims about
+    the agent's *whole* simulated record, so a leftover outcome from a phase
+    gate or an earlier session does not merely add noise, it changes the number
+    being asserted. Four of these tests broke exactly that way, and they are
+    the fifth set in this suite to do so.
+
+    So the agent starts from a known state: anything still pending is drained
+    through the real sweep (otherwise `run_sweep` inside a test would settle it
+    and count it as that test's), then its simulated outcomes are cleared. Both
+    happen inside the transaction and are rolled back, so nothing is destroyed
+    — the agent simply has, for the length of one test, the record the test
+    says it has.
+    """
     c = psycopg.connect(DSN)
     try:
+        run_sweep(c, now=datetime.now(timezone.utc))
+        c.execute(
+            """delete from prediction_outcomes o
+                using predictions p
+                where p.id = o.prediction_id
+                  and o.data_source = 'SIMULATION'""",
+        )
         yield c
     finally:
         c.rollback()

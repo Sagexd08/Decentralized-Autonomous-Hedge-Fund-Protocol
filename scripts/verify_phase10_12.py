@@ -241,24 +241,65 @@ def provenance_section() -> None:
           "every protocol endpoint carries a provenance block",
           f"{len(endpoints)} endpoints" if not missing else str(missing))
 
-    honest = all(
-        get(e)["provenance"]["live"] is False for e in endpoints
-    )
-    check(honest,
-          "nothing currently claims to be live",
-          "every source is SIMULATION, and the API says so")
+    # `live` must FOLLOW the sources, rather than be a fixed value.
+    #
+    # This used to assert `live is False` everywhere — "nothing currently
+    # claims to be live" — which was true for twelve phases and became a
+    # requirement that the product misreport itself the moment the feed became
+    # real. A gate that fails when the system starts working is worse than no
+    # gate: it teaches you to weaken it.
+    #
+    # The property that actually matters is consistency in the dangerous
+    # direction: `live` is true only when every contributing row is LIVE.
+    KNOWN = {"SIMULATION", "TESTNET", "LIVE", "FIXTURE"}
+    inconsistent, unknown_labels = [], []
+    for endpoint in endpoints:
+        provenance = get(endpoint)["provenance"]
+        sources = provenance["sources"]
+        if not set(sources) <= KNOWN or not sources:
+            unknown_labels.append((endpoint, sources))
+        if provenance["live"] is not (sources == ["LIVE"]):
+            inconsistent.append((endpoint, provenance["live"], sources))
+
+    check(not unknown_labels,
+          "every provenance block names sources the schema knows",
+          str(unknown_labels[:2]) if unknown_labels else "")
+    check(not inconsistent,
+          "`live` is true only when every contributing row is LIVE",
+          str(inconsistent[:2]) if inconsistent
+          else "a mixed response is never reported as live")
 
     # The API label is worthless if the page drops it. Checked against the
     # served HTML rather than the component source: what matters is what a
     # reader sees.
-    unlabelled = []
+    #
+    # Also not a fixed word. The screens now report live, mixed, simulated or
+    # unconfirmed depending on what is true, so this asserts the two properties
+    # that hold in every one of those states: a label is present, and it never
+    # overstates. Understating is safe; claiming live over data that is not is
+    # the failure §0c exists to prevent.
+    api_live = all(get(e)["provenance"]["live"] for e in endpoints)
+    missing_label, overclaiming = [], []
     for page in ("/arena", "/observatory", "/ledger"):
         body = html(page)
-        if not re.search(r"Simulated|SIMULATION|Illustrative", body, re.I):
-            unlabelled.append(page)
-    check(not unlabelled,
-          "every screen renders the simulated-data label (§0c)",
-          "arena, observatory, ledger" if not unlabelled else str(unlabelled))
+        found = re.search(r'data-provenance="([a-z]+)"', body)
+        if not found:
+            missing_label.append(page)
+            continue
+        kind = found.group(1)
+        if kind == "unknown":
+            missing_label.append(f"{page} (could not reach the API)")
+        elif kind == "live" and not api_live:
+            overclaiming.append((page, kind))
+
+    check(not missing_label,
+          "every screen renders a provenance label (§0c)",
+          "arena, observatory, ledger" if not missing_label
+          else str(missing_label))
+    check(not overclaiming,
+          "no screen claims live over data that is not",
+          "understating is safe; overstating is the failure §0c prevents"
+          if not overclaiming else str(overclaiming))
 
     # The fixture fallback that used to be indistinguishable from real data.
     agents = get("/api/agents/")
@@ -282,6 +323,51 @@ def pages_section() -> None:
         check(ok, f"{name} renders at {page}", f"{len(body)} bytes")
 
 
+def ensure_a_committing_run() -> None:
+    """
+    Make the protocol produce a committing run, rather than hoping one exists.
+
+    The Observatory checks need a run that actually committed, and this gate
+    used to take whichever runs happened to be lying in `agent_runs`. That made
+    it a test of the database's history: a stretch in which every agent
+    correctly abstained — the normal state on a quiet market — left the last
+    ten runs with nothing to inspect and failed the gate on a working system.
+
+    Searched across agents, because which one commits is a fact about today's
+    weights and about the market in the last hour. If none of them can commit,
+    that is a real failure and the checks below will say so.
+    """
+    # Asked of the exact window the checks inspect — the runs the Observatory
+    # endpoint returns — not of the database at large. A committing run from an
+    # hour ago satisfies "one exists" and is still invisible here, because the
+    # abstentions of the last hour have pushed it past the limit.
+    try:
+        recent = get("/api/protocol/observatory/runs?limit=10")["runs"]
+        if any(r["prediction_id"] for r in recent):
+            return
+    except Exception:  # noqa: BLE001 - the checks below report the real state
+        pass
+
+    agents = sql(
+        "select a.id from agents a join model_versions m on m.agent_id = a.id "
+        "where a.status <> 'RETIRED' order by a.id"
+    ).split()
+
+    for agent in agents:
+        proc = subprocess.run(
+            ["docker", "compose", "exec", "-T", "api",
+             "python", "-m", "agents.runtime.runner",
+             "--agent", agent, "--asset", "BTC", "--seed", "7", "--json"],
+            capture_output=True, text=True, cwd=ROOT,
+        )
+        match = re.search(r"\{.*\}", proc.stdout, re.S)
+        if match and json.loads(match.group(0))["outcome"] == "COMPLETED":
+            print(f"  {DIM}produced a committing run: {agent}{RESET}")
+            return
+
+    print(f"  {DIM}no agent committed; the Observatory checks will say so{RESET}")
+
+
 def main() -> int:
     print("\nIRIS Phases 10-12 gate — Arena, Observatory, Ledger\n")
     print(f"  {DIM}every number compared against the table it came from{RESET}\n")
@@ -289,6 +375,7 @@ def main() -> int:
     print("  Phase 10 — Agent Arena")
     arena_section()
     print("\n  Phase 11 — AI Observatory")
+    ensure_a_committing_run()
     observatory_section()
     print("\n  Phase 12 — Prediction Ledger")
     ledger_section()

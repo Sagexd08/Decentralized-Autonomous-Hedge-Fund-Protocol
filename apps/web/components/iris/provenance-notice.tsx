@@ -46,6 +46,20 @@ type Training = {
 }
 
 /**
+ * The provenance of the rows actually rendered below the notice.
+ *
+ * Distinct from the feed's and the training set's, and the distinction is the
+ * whole point: a live feed does not make a settled outcome from last week
+ * live. The banner claimed "Real market data" over an Arena whose own endpoint
+ * was simultaneously reporting `sources: ["LIVE", "SIMULATION"]` and "some
+ * rows below were measured against simulated prices" — a live label sitting on
+ * top of the API's own disclaimer, which is exactly the §0c failure.
+ */
+type Records = {
+  provenance: { sources: string[]; live: boolean; note: string }
+}
+
+/**
  * The API address *from the server's point of view*.
  *
  * `NEXT_PUBLIC_API_URL` is the browser's view, and in local development it is
@@ -117,12 +131,13 @@ const STYLES = {
 } as const
 
 export async function ProvenanceNotice() {
-  const [feed, training] = await Promise.all([
+  const [feed, training, records] = await Promise.all([
     read<Feed>("/api/market/health?asset=BTC"),
     read<Training>("/api/market/training"),
+    read<Records>("/api/protocol/summary"),
   ])
 
-  const { kind, title, body } = describe(feed, training)
+  const { kind, title, body } = describe(feed, training, records)
   const style = STYLES[kind]
   const Icon = style.icon
 
@@ -143,6 +158,7 @@ export async function ProvenanceNotice() {
 function describe(
   feed: Feed | null,
   training: Training | null,
+  records: Records | null,
 ): { kind: keyof typeof STYLES; title: string; body: string } {
   // Nothing answered. This must never resolve to "live" — an unreachable API
   // is precisely when a page is most likely to be showing something stale, and
@@ -163,7 +179,12 @@ function describe(
   const pricesLive = feed.healthy && liveRows.length > 0
   const modelsReal = training.is_real_market_data
 
-  if (pricesLive && modelsReal) {
+  // Deliberately pessimistic when the rows cannot be checked. A failed fetch
+  // is not evidence that what is rendered below is live.
+  const recordsLive = records?.provenance?.live === true
+  const recordSources = records?.provenance?.sources ?? []
+
+  if (pricesLive && modelsReal && recordsLive) {
     return {
       kind: "live",
       title: "Real market data.",
@@ -173,6 +194,23 @@ function describe(
         `same venue. Predictions are committed before their horizon and settled ` +
         `against the recorded tape. No live capital is deployed — allocations ` +
         `are weights, not transfers.`,
+    }
+  }
+
+  if (pricesLive && modelsReal) {
+    // The feed and the models are real; some of what is on screen is not.
+    const mixed = recordSources.length
+      ? ` The records below draw on ${recordSources.join(" and ")}.`
+      : " The provenance of the records below could not be confirmed."
+    return {
+      kind: "mixed",
+      title: "Live feed, mixed records.",
+      body:
+        `Prices come from ${venues.join(", ") || "a public exchange"} and the ` +
+        `models are fitted on real history, but not every outcome below was ` +
+        `measured against it — older ones were settled against a simulated ` +
+        `tape and are kept, not deleted.${mixed} Read the per-row labels rather ` +
+        `than this banner for any individual number.`,
     }
   }
 
