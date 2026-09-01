@@ -29,7 +29,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-from api import agents, pools, analytics, contracts, governance, intelligence, integrations, news
+from api import agents, pools, analytics, contracts, governance, intelligence, news
 from api import trading as trading_api
 from api import ws_trading
 from api import ws_prices
@@ -40,21 +40,7 @@ from api import market as market_api
 from services import event_stream
 from services.market_feed import feed as market_feed
 
-_MODEL_BUCKET = "models"
-_MODEL_OBJECT_PATH = "model.pkl"
 _LOCAL_MODEL_PATH = Path(__file__).parent / "ml" / "model.pkl"
-
-
-def _sync_ml_model_from_supabase() -> bool:
-    """Best-effort startup sync so the API boots with the latest deployed model."""
-    try:
-        from core.supabase import download_storage_file
-        download_storage_file(_MODEL_BUCKET, _MODEL_OBJECT_PATH, _LOCAL_MODEL_PATH)
-        logger.info("ML model synced from Supabase storage: %s/%s", _MODEL_BUCKET, _MODEL_OBJECT_PATH)
-        return True
-    except Exception as exc:
-        logger.warning("ML model sync from Supabase skipped: %s", exc)
-        return False
 
 
 def _load_ml_artifacts():
@@ -81,8 +67,9 @@ def _init_solana():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ML model
-    app.state.ml_model_synced = _sync_ml_model_from_supabase()
+    # The legacy model artifact, if one is on disk. The v2 protocol does not
+    # use it: `ml.inference.artifacts` fits and caches per-agent models keyed by
+    # a training contract, and the scheduled cycle is what runs them.
     app.state.ml_model, app.state.ml_scaler = _load_ml_artifacts()
 
     # Price engine + market stream
@@ -208,7 +195,6 @@ app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
 app.include_router(pools.router, prefix="/api/pools", tags=["pools"])
 app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
 app.include_router(intelligence.router, prefix="/api/intelligence", tags=["intelligence"])
-app.include_router(integrations.router, prefix="/api/integrations", tags=["integrations"])
 app.include_router(news.router, prefix="/api/news", tags=["news"])
 app.include_router(contracts.router, prefix="/api/contracts", tags=["contracts"])
 app.include_router(governance.router, prefix="/api/governance", tags=["governance"])

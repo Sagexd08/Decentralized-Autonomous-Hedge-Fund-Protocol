@@ -28,9 +28,6 @@ class Settings:
     alchemy_zksync_sepolia_url: str
     alchemy_solana_mainnet_url: str
     alchemy_solana_devnet_url: str
-    supabase_url: str
-    supabase_publishable_key: str
-    supabase_secret_key: str
     alpha_vantage_api_key: str
     ws_market_source: str
     ws_normalized_stream_enabled: bool
@@ -87,9 +84,6 @@ def get_settings() -> Settings:
         alchemy_zksync_sepolia_url=_env("ALCHEMY_ZKSYNC_SEPOLIA_URL", f"https://zksync-sepolia.g.alchemy.com/v2/{alchemy_api_key}" if alchemy_api_key else ""),
         alchemy_solana_mainnet_url=_env("ALCHEMY_SOLANA_MAINNET_URL", f"https://solana-mainnet.g.alchemy.com/v2/{alchemy_api_key}" if alchemy_api_key else ""),
         alchemy_solana_devnet_url=_env("ALCHEMY_SOLANA_DEVNET_URL", f"https://solana-devnet.g.alchemy.com/v2/{alchemy_api_key}" if alchemy_api_key else ""),
-        supabase_url=_env("SUPABASE_URL"),
-        supabase_publishable_key=_env("SUPABASE_PUBLISHABLE_KEY"),
-        supabase_secret_key=_env("SUPABASE_SECRET_KEY"),
         alpha_vantage_api_key=_env("ALPHA_VANTAGE_API_KEY"),
         ws_market_source=_env("WS_MARKET_SOURCE", "simulated"),
         ws_normalized_stream_enabled=_bool_env("WS_NORMALIZED_STREAM_ENABLED", "true"),

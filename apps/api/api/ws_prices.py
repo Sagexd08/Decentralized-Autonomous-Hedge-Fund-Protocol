@@ -85,7 +85,6 @@ async def get_stream_config():
             "solana_mainnet_configured": bool(settings.alchemy_solana_mainnet_url),
             "zksync_mainnet_configured": bool(settings.alchemy_zksync_mainnet_url),
         },
-        "supabase_configured": bool(settings.supabase_url),
         "graph_configured": bool(settings.graph_api_key),
     }
 

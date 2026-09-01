@@ -17,7 +17,6 @@ from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import confusion_matrix, mean_squared_error, mean_absolute_error
 
-from core.supabase import download_storage_file, upload_storage_file
 from ml.models.hybrid_legacy import CNNLSTMModel
 from ml.regime.classifier import RegimeClassifier, rolling_volatility
 from ml.risk.monte_carlo import gbm_paths, var_cvar
@@ -335,38 +334,6 @@ def load_model(path: Path = MODEL_PATH) -> tuple[CNNLSTMModel, StandardScaler]:
     log.info("Model loaded from %s", path)
     return model, payload["scaler"]
 
-def upload_to_supabase(path: Path = MODEL_PATH):
-    """Upload model.pkl to Supabase storage bucket 'models'."""
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_KEY")
-    if not url or not key:
-        log.warning("Supabase credentials not found — skipping upload.")
-        return
-
-    try:
-        bucket = "models"
-        remote = "model.pkl"
-        upload_storage_file(path, bucket, remote)
-        log.info("Model uploaded to Supabase storage: %s/%s", bucket, remote)
-    except Exception as exc:
-        log.error("Supabase upload failed: %s", exc)
-
-def download_from_supabase(dest: Path = MODEL_PATH):
-    """Download model.pkl from Supabase and load it."""
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_KEY")
-    if not url or not key:
-        log.warning("Supabase credentials not found — cannot download.")
-        return None, None
-
-    try:
-        download_storage_file("models", "model.pkl", dest)
-        log.info("Model downloaded from Supabase to %s", dest)
-        return load_model(dest)
-    except Exception as exc:
-        log.error("Supabase download failed: %s", exc)
-        return None, None
-
 def predict(features: np.ndarray, model: CNNLSTMModel, scaler: StandardScaler) -> float:
     """
     Real-time inference.
@@ -472,8 +439,6 @@ def main():
     metrics_online = evaluate(model, val_dl)
 
     save_model(model, scaler, MODEL_PATH)
-
-    upload_to_supabase(MODEL_PATH)
 
     log.info("═" * 60)
     log.info("PHASE 3: Market Regime Analysis")

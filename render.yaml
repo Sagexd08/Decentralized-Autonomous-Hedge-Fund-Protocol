@@ -74,7 +74,3 @@ services:
         value: HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj
       - key: GROQ_API_KEY
         sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
