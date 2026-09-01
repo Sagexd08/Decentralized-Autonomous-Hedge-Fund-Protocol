@@ -37,6 +37,7 @@ from api import ws_social
 from api import ws_events
 from api import protocol as protocol_api
 from api import market as market_api
+from core import origins
 from services import event_stream
 from services.market_feed import feed as market_feed
 
@@ -173,18 +174,40 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="IRIS Protocol API", version="2.2.0", lifespan=lifespan)
 
-allowed_origins = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:4173",
-    "http://127.0.0.1:4173",
-]
+# Which browsers may call this API.
+#
+# This list was localhost-only. That is right for `docker compose up` and
+# silently fatal once the web app is deployed: the browser refuses every
+# cross-origin response the API returns, so a perfectly healthy stack renders
+# "The Arena could not load. Failed to fetch". The failure leaves almost no
+# trace to work from — the rejection happens in the browser *after* the API has
+# answered, so the access log shows ordinary 200s, and `TypeError: Failed to
+# fetch` is the same message a DNS failure gives.
+#
+# The server-side fetches keep working throughout, because CORS is a browser
+# rule and nothing else. That asymmetry is the tell: the §0c banner, which is
+# rendered on the server, was filling in normally on the very page whose
+# client-side panels were all empty.
+#
+# This cannot be widened to "*" — `allow_credentials=True` makes a wildcard
+# origin invalid under the CORS spec and browsers reject the pair — and it
+# should not be. These routes are unauthenticated, so the origin list is the
+# only thing standing between them and any page on the web.
+# The policy itself lives in core/origins.py so it is testable without
+# importing this module, which drags in torch and the chain clients.
+cors_origins = origins.allowed_origins()
+cors_origin_regex = origins.allowed_origin_regex()
+
+logger.info(
+    "CORS: %d explicit origins, regex %s",
+    len(cors_origins),
+    cors_origin_regex or "(none)",
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=cors_origins,
+    allow_origin_regex=cors_origin_regex,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],

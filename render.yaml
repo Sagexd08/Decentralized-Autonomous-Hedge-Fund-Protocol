@@ -55,6 +55,17 @@ services:
         sync: false
       - key: PYTHONPATH
         value: /app
+      # The browser origins allowed to call this API, added to the localhost
+      # defaults. Without the deployed web app's origin here every client-side
+      # fetch is rejected by the browser and the dashboard renders empty panels
+      # reading "Failed to fetch" — while the server-rendered parts of the same
+      # page, which are not subject to CORS, fill in normally.
+      #
+      # Preview deployments get per-branch hostnames and are matched by the
+      # regex default in apps/api/main.py instead, since they cannot be listed
+      # ahead of time.
+      - key: IRIS_ALLOWED_ORIGINS
+        value: https://iris-protocol.vercel.app
       # Off, deliberately: see (2) above. The scheduled cycle ingests.
       - key: IRIS_FEED_ENABLED
         value: "false"
