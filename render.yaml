@@ -99,7 +99,9 @@ services:
   # window is computed from the oldest prediction still awaiting evidence, so
   # a gap left by an outage gets filled and those predictions finally settle.
   # The API's fixed-window poller cannot reach back that far.
-  - type: cronjob
+  # `cron` is the type Render accepts; `cronjob` is rejected by the blueprint
+  # parser with "unknown type".
+  - type: cron
     name: iris-cycle
     runtime: docker
     dockerfilePath: ./docker/api.Dockerfile
