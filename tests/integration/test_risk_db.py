@@ -30,6 +30,7 @@ from agents.allocation.allocator import allocate  # noqa: E402
 from agents.evaluation.prices import record_price  # noqa: E402
 from agents.evaluation.settlement import run_sweep as settle_sweep  # noqa: E402
 from agents.reputation.score import load_outcomes  # noqa: E402
+from agents.evaluation import settlement  # noqa: E402
 from agents.risk.engine import (  # noqa: E402
     assess_agent,
     freeze,
@@ -46,10 +47,41 @@ OTHER = "AGT-PULSE"
 
 @pytest.fixture
 def conn():
+    """
+    A connection whose work is discarded, over a record this file fully owns.
+
+    Every test here reasons about a **sample size** — "a short record cannot
+    trigger anything", "warnings accumulate before a freeze". Those are claims
+    about the agent's whole record, not about the rows one test happens to add,
+    so the test has to establish its own starting point or it is measuring
+    whatever the database happened to be carrying.
+
+    It was not. `give_record` settles through the real sweep, and the sweep
+    settles *every* due prediction in the database — so predictions left
+    pending for this agent by a phase gate or an earlier session were swept
+    into the same sample. `test_a_short_record_cannot_trigger_anything` wrote
+    eight outcomes and was handed fourteen, six of which it had never seen.
+
+    So: drain anything already pending, then clear the agent's simulated
+    record. Both happen inside the transaction and are rolled back, so nothing
+    is actually destroyed — and after them the agent genuinely has the record
+    the test says it has.
+    """
     c = psycopg.connect(DSN)
     try:
         c.execute("update agents set status = 'ACTIVE' where id in (%s, %s)",
                   (AGENT, OTHER))
+        # Drain first: anything still COMMITTED or WAITING would otherwise be
+        # settled by the sweep inside `give_record` and counted as this test's.
+        settlement.run_sweep(c, now=datetime.now(timezone.utc))
+        c.execute(
+            """delete from prediction_outcomes o
+                using predictions p
+                where p.id = o.prediction_id
+                  and p.agent_id in (%s, %s)
+                  and o.data_source = 'SIMULATION'""",
+            (AGENT, OTHER),
+        )
         yield c
     finally:
         c.rollback()

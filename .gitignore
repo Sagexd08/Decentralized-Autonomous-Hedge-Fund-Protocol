@@ -88,3 +88,14 @@ out/
 # Rust build output
 programs/iris/target/
 contracts/rust/**/target/
+
+# -----------------------------
+# Keys — never in the repository (§0)
+# -----------------------------
+# The devnet deploy keypairs are the upgrade authority for both programs. They
+# live in the iris-devnet-keys Docker volume; a backup archive must be kept
+# outside the working tree, and these patterns are the second line of defence.
+*keypair*.json
+*.tgz
+iris-devnet-keys*
+id.json

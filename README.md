@@ -66,28 +66,207 @@ which asserts the Phase 1 gate — that `web`, `api` and `db` all answer:
 
 `make verify-all` runs every phase gate. `make help` lists the rest.
 
-### Running one full prediction cycle
+### Bootstrapping a fresh database
 
-The four steps are separate on purpose — each is a different actor, and
-collapsing them is how a system starts marking its own homework.
+A clone has no price history and no fitted models, so an agent has nothing to
+look at and nothing to look with:
 
 ```bash
-make warm                                              # fit and cache the models (~40s once)
-docker compose exec api python -m agents.evaluation.prices --asset BTC --hours 6
-docker compose exec api python -m agents.runtime.runner --agent AGT-QUANTA --asset BTC --seed 7
-make settle                                            # after the 10-minute horizon closes
+make feed     # ingest real one-minute bars from a public exchange  (~1 min)
+make train    # freeze a snapshot from them and fit the models      (~3 min)
 ```
 
-The feed writes the market. The agent observes it and commits a hashed
-prediction *before* the horizon. The sweep measures what happened and scores
-it. The agent never writes the price it will be judged against — see
+`make feed` is idempotent — it writes only the minutes it is missing — and the
+API keeps the tape current on its own from then on. `make train` is deliberately
+*not* automatic: refitting changes every model's hash, and a version history in
+which every entry is new is not a version history.
+
+### Running one full prediction cycle
+
+The steps are separate on purpose — each is a different actor, and collapsing
+them is how a system starts marking its own homework.
+
+```bash
+docker compose exec api python -m agents.runtime.runner --agent AGT-HELIX --asset BTC --seed 7
+make settle     # once the 10-minute horizon has actually closed
+make score      # IRIS Score per agent, per provenance
+make risk       # breach -> freeze -> slash
+make allocate   # one MWU step
+```
+
+`make cycle` runs feed -> settle -> score -> risk -> allocate in order.
+
+The feed writes the market. The agent observes it — out of the same table the
+settlement sweep will later measure it against — and commits a hashed
+prediction *before* the horizon. The sweep measures what happened and scores it.
+The agent never writes the price it will be judged against; see
 `agents/runtime/persistence.persist_prediction` for why that is enforced rather
 than merely intended.
+
+Most runs **abstain**, and that is the correct behaviour rather than a
+misconfiguration — see [What the models actually do](#what-the-models-actually-do).
 
 A prediction whose horizon has closed but for which no price evidence exists
 does **not** get settled. It parks in `WAITING_FOR_OUTCOME` and counts toward
 nothing. `make settle` reports those separately, because the number of
 predictions the system declines to score is as informative as the ones it does.
+
+---
+
+## Market data
+
+Prices are real. `market_events` holds one-minute bars and live ticks from
+public venues — Binance, Coinbase and Kraken behind one interface — labelled
+`LIVE` with the venue that produced each row. The API runs a poller that keeps
+the tape current, so a prediction committed now can be settled when its horizon
+closes ten minutes from now.
+
+```bash
+make market    # feed health, coverage, and the current cross-venue spread
+make dataset   # what the models are currently fitted on
+make why       # why each agent traded or abstained, gate by gate
+```
+
+Everything used is public, unauthenticated market data. **This package holds no
+API keys and needs none** — which matters beyond convenience: the cheapest way
+to guarantee no credentials in source is for the code to have nothing to hold.
+
+Four rules are enforced rather than intended, because every way this goes wrong
+looks fine from the outside:
+
+**A tape never mixes venues.** BTCUSDT on Binance, BTC-USD on Coinbase and
+XBTUSD on Kraken are three instruments tracking one asset a few basis points
+apart. Settlement pins both of its legs to one source *and* one venue and
+refuses to measure across them. A return taken from two exchanges is the spread
+between them wearing an agent's name — and unlike a synthetic-versus-real
+splice, which produces an obviously broken number, this one looks entirely
+plausible.
+
+**A recorded observation is immutable.** Once the protocol has written down what
+the market did at an instant, that is the ground truth every reputation score
+rests on. A `LIVE` row cannot be restated or deleted. Committing a prediction
+freezes the *claim*; this freezes the thing it is judged against.
+
+**A price must be a price.** A zero makes a settled return infinite, a negative
+flips its sign, and a NaN propagates silently into an IRIS Score. All three are
+rejected by the database.
+
+**Claiming a price is real requires naming who said so.** `source = 'LIVE'`
+without a `provider` is a constraint violation, so synthetic data cannot be
+relabelled real without asserting that a specific exchange said it.
+
+A candle is stamped at the **close** of the minute it describes, not the open.
+Filing the close price under the open timestamp would put every observation
+sixty seconds early, in the same direction, for every prediction — a systematic
+bias that never looks like a bug because the series still moves plausibly.
+
+If every venue is unreachable, nothing is written. `price_at` then finds no
+evidence, the prediction parks in `WAITING_FOR_OUTCOME`, and it is never scored.
+A gap in the record is the correct output; a guessed price is a lie in it.
+
+---
+
+## What the models actually do
+
+Four model classes sit behind one interface: a baseline heuristic, gradient
+boosting, a CNN-LSTM and a small transformer. `scripts/verify_phase4.py` fits
+them on the frozen snapshot of real market data and scores them **out of
+sample** against the baseline.
+
+It currently fails, and that is the honest result:
+
+| model | dominant class | trades | verdict |
+|---|---|---|---|
+| baseline | 39% | 1345 / 3009 | BASELINE |
+| gradient_boosting | 98% HOLD | 50 | DEGENERATE |
+| cnn_lstm | **100% HOLD** | 0 | DEGENERATE |
+| transformer | 100% HOLD | 15 | DEGENERATE |
+
+**No model beats the baseline.** They are fitted correctly, on real data, at the
+right horizon, and graded on data they have not seen. They have learned that the
+most likely ten-minute outcome for BTC is "no move", which minimises their loss
+and makes them untradeable — shown a tape trending +50 bps per minute, the
+CNN-LSTM still predicts −0.91 bps.
+
+This gate is left failing on purpose. It passed for nine phases on a synthetic
+tape that was predictable by construction; relaxing the check to recover that
+would be exactly the faked production readiness this protocol's own honesty rule
+forbids. Getting a model to beat the baseline on real data is open research, not
+a build step — and it is the question the protocol exists to ask.
+
+The consequence downstream is visible and intended: most agents abstain most
+cycles, reputation stays low, and the allocator has little reason to move
+capital. A system in which every agent traded confidently on this data would be
+evidence of a bug, not of skill.
+
+**`make why` is how you tell a quiet market from a broken gate.** It prints,
+per agent, what the model predicted, how sure it was of the *side*, what each
+gate required, and which one actually refused. Two gates answer two different
+questions, and conflating them is a mistake this codebase has now made three
+times with three different constants:
+
+| gate | question | fails when |
+|---|---|---|
+| `decision_threshold` | is the move big enough to be worth a position? | the predicted move is inside the band scoring treats as flat |
+| `MIN_DIRECTIONAL_CONFIDENCE` | does the model know *which way*? | the model's own distribution barely favours one side over the other |
+
+Both scale with something real — the first with observed volatility, the second
+with the model's own error bar — rather than being fixed numbers that were
+calibrated once against a market that no longer exists.
+
+---
+
+## On-chain (devnet)
+
+Both Anchor programs are deployed and verified:
+
+| program | id | size |
+|---|---|---|
+| `agent_registry` | [`6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy`](https://explorer.solana.com/address/6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy?cluster=devnet) | 350,896 bytes |
+| `capital_vault` | [`HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj`](https://explorer.solana.com/address/HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj?cluster=devnet) | 374,360 bytes |
+
+`declare_id!` and `Anchor.toml` are synced to those ids, so the source and the
+chain agree. `scripts/verify_phase2.py` runs the 17 custody tests and then reads
+both accounts back off-chain — it reports `DEPLOYED` from the chain rather than
+from a build artifact.
+
+```bash
+make devnet-build     # Agave 4.2.2 + platform-tools v1.54
+make devnet-deploy    # build, deploy, verify by reading the account back
+make devnet-address   # the deployer address and its balance
+```
+
+> **The deploy keypairs live in the `iris-devnet-keys` Docker volume and nowhere
+> else.** Losing that volume loses the upgrade authority: the programs stay on
+> chain and become permanently unupgradeable at those ids. Back it up, and keep
+> the archive **outside** the working tree:
+>
+> ```bash
+> # Git Bash on Windows needs MSYS_NO_PATHCONV=1, or it rewrites /out into a
+> # Windows path before Docker ever sees it.
+> MSYS_NO_PATHCONV=1 docker run --rm \
+>   -v iris-devnet-keys:/keys -v "$HOME/iris-secrets":/out \
+>   alpine tar czf /out/iris-devnet-keys.tgz -C /keys .
+> ```
+
+---
+
+## API surface
+
+| route | what it answers |
+|---|---|
+| `GET /api/market/health` | is the feed alive, is its coverage usable, and **why not** |
+| `GET /api/market/prices` | the recent tape for one asset, single-source |
+| `GET /api/market/venues` | what each exchange says right now, and the spread |
+| `GET /api/market/training` | what the models were actually fitted on |
+| `GET /api/protocol/arena` | the leaderboard, ranked and **unranked** kept apart |
+| `GET /api/protocol/observatory/runs` | node-by-node traces with their hash chain |
+| `GET /api/protocol/ledger` | what was claimed, and what happened |
+| `GET /api/events` · `WS /ws/events` | the protocol event stream |
+
+Every response carries a `provenance` block naming the sources behind it. It is
+a required field, not an optional one: a label that stops at the API boundary is
+not a label.
 
 ---
 
@@ -104,8 +283,18 @@ predictions the system declines to score is as informative as the ones it does.
 │   ├── rust/solana/  the four Anchor programs as they stand today
 │   ├── src/          Solidity reference implementation, not deployed
 │   └── test/         Hardhat tests for the reference contracts
-├── agents/           LangGraph runtime, strategies, tools        (Phase 3)
-├── ml/               models, training, inference, regime, risk   (Phase 4)
+├── agents/
+│   ├── market/       exchange providers and the ingest pipeline
+│   ├── graphs/       the LangGraph trading graph and its nodes
+│   ├── evaluation/   prices, scoring, the settlement sweep
+│   ├── reputation/   the six IRIS Score dimensions
+│   ├── allocation/   multiplicative weights, and its four invariants
+│   └── risk/         limits, breaches, freezing and slashing
+├── ml/
+│   ├── models/       the four model classes behind one interface
+│   ├── training/     the frozen dataset snapshot and the fit budget
+│   ├── features/     one feature vector, one order, shared by all models
+│   └── inference/    the registry, the baseline comparison, artifact cache
 ├── packages/         shared types, SDK, config                   (Phases 6–10)
 ├── db/
 │   ├── migrations/   source of truth for the schema

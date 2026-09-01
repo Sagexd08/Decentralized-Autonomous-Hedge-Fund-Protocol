@@ -139,6 +139,10 @@ class AgentState(BaseModel):
     # ── MODEL_INFERENCE ─────────────────────────────────────────────────────
     predicted_return: Optional[float] = None
     model_confidence: float = 0.0
+    # How sure the model is of the side, with HOLD's probability mass excluded.
+    # The validator gates on this rather than on `model_confidence`; see
+    # `agents.graphs.nodes.MIN_DIRECTIONAL_CONFIDENCE`.
+    model_directional_confidence: float = 0.0
     inference_source: str = "SIMULATION"
 
     # ── RISK_ANALYSIS ───────────────────────────────────────────────────────

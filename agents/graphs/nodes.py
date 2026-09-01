@@ -52,7 +52,28 @@ from agents.state import (
 # they live here as named constants rather than magic numbers inline.
 MAX_VOLATILITY_BPS = 3500
 MAX_DRAWDOWN_BPS = 2000
-MIN_CONFIDENCE = 0.55
+# How sure of the *direction* a model must be before its proposal may reach
+# capital: P(chosen) / (P(chosen) + P(opposite)), HOLD excluded.
+#
+# This was applied to the model's probability of the chosen direction against
+# all three classes, HOLD included — so uncertainty about whether the market
+# would move at all counted against a directional call. That doubt is already
+# priced, by `decision_threshold`, which requires the predicted move to exceed
+# the band scoring treats as flat. Charging a model twice for it rejected
+# agents that were sure of the side: one proposing a -8.95bps move at 0.81
+# directional confidence was refused for being only 0.51 sure the market would
+# not be flat.
+#
+# The two gates are now orthogonal and each answers one question. The threshold
+# asks "is the move big enough to be worth a position"; this asks "does the
+# model know which way". A model with no view at all scores 0.0 here, not 0.5 —
+# silence is not a coin flip — so nothing that was correctly rejected before
+# becomes tradeable now.
+MIN_DIRECTIONAL_CONFIDENCE = 0.55
+
+# Kept as the name the pre-Phase-13 code used, so an import does not silently
+# break. It no longer gates anything.
+MIN_CONFIDENCE = MIN_DIRECTIONAL_CONFIDENCE
 MAX_EXPECTED_RETURN = 0.25  # a model claiming >25% over one horizon is broken
 DEFAULT_HORIZON_SECONDS = 600
 # One observation per minute. `ml.inference.artifacts.FEED_STEP_SECONDS` must
@@ -327,6 +348,9 @@ def model_inference(state: AgentState) -> dict[str, Any]:
         return {
             "predicted_return": round(float(prediction.expected_return), 8),
             "model_confidence": round(float(prediction.confidence), 4),
+            "model_directional_confidence": round(
+                float(prediction.directional_confidence), 4
+            ),
             "inference_source": (
                 f"{prediction.model_version}"
                 f"{'' if getattr(model, 'fitted', False) else ' (UNTRAINED)'}"
@@ -486,9 +510,12 @@ def validation(state: AgentState) -> dict[str, Any]:
     if d is not None:
         if d.direction == "HOLD":
             reasons.append("no position proposed")
-        if d.confidence < MIN_CONFIDENCE:
+        if state.model_directional_confidence < MIN_DIRECTIONAL_CONFIDENCE:
             reasons.append(
-                f"confidence {d.confidence:.2f} below floor {MIN_CONFIDENCE}"
+                f"directional confidence "
+                f"{state.model_directional_confidence:.2f} below floor "
+                f"{MIN_DIRECTIONAL_CONFIDENCE} — the model does not know "
+                f"which way"
             )
         if abs(d.expected_return) > MAX_EXPECTED_RETURN:
             reasons.append(

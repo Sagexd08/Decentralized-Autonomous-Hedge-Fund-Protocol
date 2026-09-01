@@ -1,6 +1,12 @@
 #!/usr/bin/env python
 """
-Phase 13 gate — real market data, end to end.
+Market data gate — real market data, end to end.
+
+**Not a numbered phase.** IRIS_BUILD_PROMPT v2.0's Phase 13 is "simulation +
+backtesting: the same seed produces the same result", and that is still
+outstanding — see STATE.md, *Next phase*. This work was requested out of
+sequence and is gated on its own terms rather than borrowing a phase number
+whose Definition of Done it does not meet.
 
 The protocol ran for twelve phases on a seeded Ornstein-Uhlenbeck tape. Every
 number it produced was honestly labelled SIMULATION from `market_events.source`
@@ -28,7 +34,7 @@ series, the models were fitted on the same market they trade, the evidence
 cannot be rewritten after the fact, and the page says which of those is
 actually true right now.
 
-    python scripts/verify_phase13.py
+    python scripts/verify_market.py
 """
 
 from __future__ import annotations
@@ -52,7 +58,7 @@ except ModuleNotFoundError:  # pragma: no cover - host path
     raise SystemExit(
         subprocess.run(
             ["docker", "compose", "exec", "-T", "api",
-             "python", "/repo/scripts/verify_phase13.py"],
+             "python", "/repo/scripts/verify_market.py"],
         ).returncode
     )
 
@@ -502,7 +508,7 @@ def main() -> int:
     if passed == total:
         print(f"{GREEN}Phase 13 gate PASSED{RESET} — {passed}/{total} checks.\n")
         return 0
-    print(f"{RED}Phase 13 gate FAILED{RESET} — {passed}/{total}.")
+    print(f"{RED}Market data gate FAILED{RESET} — {passed}/{total}.")
     for ok, label, _ in results:
         if not ok:
             print(f"  - {label}")

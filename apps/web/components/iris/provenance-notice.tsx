@@ -67,19 +67,34 @@ function apiBase(): string {
   return "http://api:8000"
 }
 
+/**
+ * Two attempts, because "slow" and "down" are different answers.
+ *
+ * The first request after a restart races the dev server's cold compile for
+ * the event loop, and a single short timeout turned that into
+ * "provenance unconfirmed" over a completely healthy stack. That fails in the
+ * safe direction — it never claims live when it does not know — but it is
+ * still a false negative on the one banner a reader is meant to trust.
+ *
+ * A retry with a longer budget separates the two. If both attempts fail the
+ * API really is unreachable and the notice should say so.
+ */
 async function read<T>(path: string): Promise<T | null> {
-  try {
-    // `no-store`: a cached provenance label is a label that can describe a
-    // state the system has since left.
-    const res = await fetch(`${apiBase()}${path}`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(6000),
-    })
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    return null
+  for (const timeout of [6000, 12000]) {
+    try {
+      // `no-store`: a cached provenance label is a label that can describe a
+      // state the system has since left.
+      const res = await fetch(`${apiBase()}${path}`, {
+        cache: "no-store",
+        signal: AbortSignal.timeout(timeout),
+      })
+      if (!res.ok) return null
+      return (await res.json()) as T
+    } catch {
+      // fall through to the next attempt
+    }
   }
+  return null
 }
 
 const STYLES = {

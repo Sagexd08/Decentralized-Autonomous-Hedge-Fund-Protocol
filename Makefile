@@ -51,7 +51,7 @@ verify-all: ## Run every phase gate in order
 	python scripts/verify_phase8.py
 	python scripts/verify_phase9.py
 	python scripts/verify_phase10_12.py
-	python scripts/verify_phase13.py
+	python scripts/verify_market.py
 
 devnet-build: ## Build the Solana devnet toolchain image (solana 4.2.2 + SBF)
 	docker build -f docker/devnet.Dockerfile -t iris-devnet .
@@ -96,6 +96,9 @@ market: ## Feed health, coverage and cross-venue spread
 train: ## Freeze a training snapshot from real data, then refit the models
 	$(COMPOSE) exec -T api python -m ml.training.dataset --refresh --asset BTC --samples 10080
 	@$(MAKE) --no-print-directory warm
+
+why: ## Why did each agent trade or abstain, gate by gate
+	$(COMPOSE) exec -T api python /repo/scripts/why_abstained.py
 
 dataset: ## Show what the models are currently trained on
 	$(COMPOSE) exec -T api python -m ml.training.dataset --show

@@ -21,9 +21,28 @@ function rootPublicEnv() {
   return out
 }
 
+// Where /api and /ws are proxied to.
+//
+// This was hardcoded to http://localhost:8000, which is correct in development
+// and meaningless in production: on Vercel that address is the serverless
+// function's own loopback, so every proxied request from a deployed build goes
+// nowhere. Same class of mistake as using NEXT_PUBLIC_API_URL for a
+// server-side fetch — "localhost" names a different machine depending on who
+// is resolving it.
+const API_ORIGIN = (
+  process.env.API_PROXY_ORIGIN ??
+  process.env.NEXT_PUBLIC_API_URL ??
+  "http://localhost:8000"
+).replace(/\/+$/, "")
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   env: rootPublicEnv(),
+  // Must equal turbopack.root below or Next warns and the two disagree about
+  // which directory is the workspace. Both are pinned to this app because the
+  // repo root carries a stray package-lock.json that would otherwise be
+  // inferred as the root.
+  outputFileTracingRoot: __dirname,
   turbopack: {
     // The repo root carries a stray package-lock.json, so pin the workspace
     // root to this app instead of letting Turbopack infer it.
@@ -49,11 +68,11 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:8000/api/:path*",
+        destination: `${API_ORIGIN}/api/:path*`,
       },
       {
         source: "/ws/:path*",
-        destination: "http://localhost:8000/ws/:path*",
+        destination: `${API_ORIGIN}/ws/:path*`,
       },
     ]
   },

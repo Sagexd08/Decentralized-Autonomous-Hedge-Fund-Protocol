@@ -50,6 +50,11 @@ class Prediction:
     model_version: str
     model_hash: str
     features_used: int = 0
+    # How sure the model is of the *side*, given that it takes one at all.
+    # Distinct from `confidence`, which also carries the model's uncertainty
+    # about whether the market moves enough to matter. See
+    # `directional_confidence` below for why the two must not be conflated.
+    directional_confidence: float = 0.0
 
     def __post_init__(self) -> None:
         if not 0.0 <= self.confidence <= 1.0:
@@ -181,4 +186,33 @@ def confidence_for(direction: Direction, proba: np.ndarray) -> float:
     like confidence and isn't one.
     """
     return float(proba[CLASSES.index(direction)])
+
+
+def directional_confidence(direction: Direction, proba: np.ndarray) -> float:
+    """
+    Given the model takes a side at all, how sure is it of *which* side.
+
+    `P(chosen) / (P(chosen) + P(opposite))`, with HOLD's mass excluded.
+
+    This exists because the validator was gating on `confidence_for`, which
+    measures something subtly different: the probability of the chosen
+    direction against **all three** classes, HOLD included. Uncertainty about
+    whether the market moves therefore counted against a directional call — and
+    it is already accounted for, by the decision threshold, which requires the
+    predicted move to clear the band scoring treats as flat. Charging a model
+    twice for the same doubt rejected agents that were sure of the direction:
+    one predicted a move at 0.81 directional confidence and was refused for
+    being only 0.51 sure the market would not be flat.
+
+    Returns 0.0 when the model has no directional view at all — a model that
+    puts everything on HOLD is not 50/50 between up and down, it is silent, and
+    silence must not read as a coin flip.
+    """
+    chosen = float(proba[CLASSES.index(direction)])
+    opposite_name = "SELL" if direction == "BUY" else "BUY"
+    opposite = float(proba[CLASSES.index(opposite_name)])
+    total = chosen + opposite
+    if total <= 1e-12:
+        return 0.0
+    return chosen / total
 

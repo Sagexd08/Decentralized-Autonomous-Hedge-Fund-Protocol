@@ -23,6 +23,7 @@ from ml.training.schedule import plan
 from ml.models.base import (
     Prediction,
     confidence_for,
+    directional_confidence,
     direction_from_return,
     direction_probabilities,
     hash_weights,
@@ -199,6 +200,7 @@ class CnnLstmModel:
             expected_return=expected_return,
             # The probability of *this* call, not of the likeliest class.
             confidence=confidence_for(direction, proba),
+            directional_confidence=directional_confidence(direction, proba),
             model_version=self.model_version,
             model_hash=self.model_hash,
             features_used=WINDOW,

@@ -19,6 +19,14 @@ so in server-rendered HTML.
 freezes a new training snapshot and refits. `make dataset` says what the models
 are currently fitted on.
 
+### Agents trade, but not on every window — and that is the point
+
+`make why` prints, per agent, what the model predicted, how sure it was of the
+side, what each gate required, and which one refused. Most abstentions are the
+magnitude gate: the predicted move is inside the band scoring treats as flat,
+which on ten-minute BTC is the usual and correct answer. An agent that traded
+on every window would not be being validated.
+
 ### The Phase 4 gate now fails, and it is right to
 
 Re-pointed at the series the models are actually fitted on, and scored out of
@@ -604,6 +612,57 @@ Plus 16/16 in `tests/integration/test_schema_invariants.py`.
 `docker compose config` fail. They are now commented out; all values preserved.
 
 ## Bugs found by the gates (not written by them)
+
+### Found chasing "the agents aren't trading"
+
+44. **The validator charged every model twice for one doubt.** VALIDATION
+    gated on the model's probability for the chosen direction measured against
+    **all three** classes, HOLD included — so uncertainty about whether the
+    market would move at all counted against a *directional* call. That doubt
+    was already priced, by `decision_threshold`, which requires the predicted
+    move to exceed the band scoring treats as flat.
+
+    The cost was measurable rather than theoretical. A gradient-boosting agent
+    proposing a −8.95bps move put 0.509 on SELL, 0.370 on HOLD and 0.121 on
+    BUY. It was **81% sure of the side** and was refused for being only 51%
+    sure the market would not be flat. Two of eight agents could trade.
+
+    The gates are now orthogonal: `decision_threshold` asks "is the move big
+    enough to be worth a position", `MIN_DIRECTIONAL_CONFIDENCE` asks "does the
+    model know which way". A model with no view scores 0.0 on the second, not
+    0.5 — silence is not a coin flip — so nothing correctly rejected before is
+    tradeable now, which `tests/unit/test_directional_confidence.py` pins.
+
+    This is the third constant of exactly this shape, after the flat 5bps
+    decision threshold and the one-step training horizon: a number calibrated
+    against the synthetic tape that silently became a much stricter bar on real
+    data. They were invisible for the same reason — on a tape 20x more volatile
+    than BTC, all three happened to sit in a reasonable place.
+
+45. **A risk test measured a sample it did not own.** `give_record` settles
+    through the real sweep, and the sweep settles *every* due prediction in the
+    database — so predictions left pending by a phase gate or an earlier
+    session were swept into the sample the test then measured.
+    `test_a_short_record_cannot_trigger_anything` wrote eight outcomes and was
+    handed fourteen. The fourth test in this family to assume a database
+    nothing real had ever touched.
+
+46. **`next.config.mjs` proxied `/api` to `http://localhost:8000`.** Correct in
+    development and meaningless in production: on Vercel that address is the
+    serverless function's own loopback, so every proxied request from a
+    deployed build went nowhere. The same mistake as using
+    `NEXT_PUBLIC_API_URL` for a server-side fetch — "localhost" names a
+    different machine depending on who resolves it.
+
+47. **`outputFileTracingRoot` and `turbopack.root` disagreed**, which Next
+    warns about on every build. Both now pin to the app directory.
+
+48. **The provenance notice rendered "unconfirmed" over a healthy stack.** Its
+    single 6-second fetch timeout raced the dev server's cold compile after a
+    restart. It fails in the safe direction — it never claims live when it does
+    not know — but it is still a false negative on the one banner a reader is
+    meant to trust. Now two attempts, so "slow" and "down" give different
+    answers.
 
 ### Found deploying to devnet
 
