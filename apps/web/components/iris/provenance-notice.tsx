@@ -1,4 +1,4 @@
-import { AlertTriangle, FlaskConical, Radio, ShieldQuestion } from "lucide-react"
+import { AlertTriangle, Clock, FlaskConical, Radio, ShieldQuestion } from "lucide-react"
 
 /**
  * The §0c notice, rendered on the server, saying what is actually true.
@@ -124,6 +124,10 @@ const STYLES = {
     icon: FlaskConical,
     className: "border-amber-500/30 bg-amber-500/10 text-amber-200",
   },
+  stale: {
+    icon: Clock,
+    className: "border-sky-500/30 bg-sky-500/10 text-sky-200",
+  },
   unknown: {
     icon: ShieldQuestion,
     className: "border-zinc-500/30 bg-zinc-500/10 text-zinc-200",
@@ -179,6 +183,13 @@ function describe(
   const pricesLive = feed.healthy && liveRows.length > 0
   const modelsReal = training.is_real_market_data
 
+  // Every LIVE row, stale ones included, and whether anything synthetic was
+  // ever written. "Fresh" and "real" are different properties and the notice
+  // needs both: a tape can be entirely real and hours out of date.
+  const liveEver = feed.sources.filter((s) => s.source === "LIVE")
+  const anySynthetic = feed.sources.some((s) => s.source !== "LIVE")
+  const allVenues = [...new Set(liveEver.map((s) => s.provider).filter(Boolean))]
+
   // Deliberately pessimistic when the rows cannot be checked. A failed fetch
   // is not evidence that what is rendered below is live.
   const recordsLive = records?.provenance?.live === true
@@ -227,6 +238,50 @@ function describe(
   }
 
   const why = feed.reasons[0]
+
+  // An empty table is not a simulation. Saying "the tape below is a seeded
+  // Ornstein-Uhlenbeck series" over zero rows describes data that does not
+  // exist, which is the same class of error as mislabelling data that does.
+  if (feed.sources.length === 0) {
+    return {
+      kind: "unknown",
+      title: "No data recorded.",
+      body:
+        "The protocol has no price observations for this asset yet, so there " +
+        "is nothing below to attribute to a real market or a simulation. This " +
+        "is an empty deployment, not a result.",
+    }
+  }
+
+  // Real prices that have stopped arriving.
+  //
+  // This case used to fall through to "Simulated data", telling the reader the
+  // tape below was a seeded Ornstein-Uhlenbeck series. On a deployment whose
+  // market_events table holds nothing but real exchange bars that is simply
+  // false. Section 0c is a rule against misdescribing provenance, and it is
+  // broken by understating exactly as much as by overstating — a reader who is
+  // told real numbers are synthetic learns to discount the banner, which costs
+  // the label the credibility it exists to have when it says something worse.
+  //
+  // Stale is still not live, so this does not get the live styling: the honest
+  // statement is that the data is real and old, and both halves matter.
+  if (liveEver.length > 0 && !anySynthetic) {
+    return {
+      kind: "stale",
+      title: "Real prices, stale feed.",
+      body:
+        `Every observation on record came from ${allVenues.join(", ") || "a public exchange"} ` +
+        `and none of it is simulated, but the feed has stopped advancing` +
+        `${why ? ` — ${why}` : ""}. What is below is real data that has gone ` +
+        `out of date. ` +
+        (modelsReal
+          ? "The models were fitted on that same history. "
+          : "The models behind these predictions were fitted on a synthetic " +
+            "tape, so their predicted magnitudes are overstated. ") +
+        `Read it as unrefreshed, not as live performance.`,
+    }
+  }
+
   return {
     kind: "simulated",
     title: "Simulated data.",
