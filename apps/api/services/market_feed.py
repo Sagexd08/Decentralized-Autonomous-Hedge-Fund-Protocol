@@ -39,6 +39,19 @@ DEFAULT_ASSETS: tuple[str, ...] = tuple(
     if a.strip()
 )
 DEFAULT_INTERVAL = float(os.getenv("IRIS_FEED_INTERVAL_SECONDS", "30"))
+
+# Whether this process should poll at all.
+#
+# On a host that suspends an idle service — Render's free tier stops one after
+# fifteen minutes without inbound traffic — a poller inside the API is not a
+# feed, it is a feed that runs only while somebody happens to be looking. The
+# scheduled cycle ingests too, and its window is computed from the oldest
+# prediction still awaiting evidence, so it covers the gaps this would leave.
+# Turning the poller off there is honest; leaving it on would produce a tape
+# with holes shaped like the traffic pattern.
+ENABLED = os.getenv("IRIS_FEED_ENABLED", "true").strip().lower() not in {
+    "false", "0", "no", "off",
+}
 BACKFILL_MINUTES = int(os.getenv("IRIS_FEED_BACKFILL_MINUTES", "720"))
 PREFERRED_PROVIDER = os.getenv("IRIS_FEED_PROVIDER") or None
 
@@ -80,6 +93,12 @@ class LiveFeed:
     # ── lifecycle ────────────────────────────────────────────────────────────
 
     async def start(self) -> None:
+        if not ENABLED:
+            logger.info(
+                "Live market feed disabled (IRIS_FEED_ENABLED); the scheduled "
+                "cycle ingests instead."
+            )
+            return
         if self._task is not None:
             return
         self._stopping.clear()
@@ -187,6 +206,7 @@ class LiveFeed:
         return self._task is not None and not self._task.done()
 
     def status(self) -> dict:
+        """What this poller is doing, including deliberately nothing."""
         age = (
             (_utcnow() - self.last_tick_at).total_seconds()
             if self.last_tick_at
@@ -194,6 +214,9 @@ class LiveFeed:
         )
         return {
             "running": self.running,
+            # Distinguished from "running": false so a health check can tell a
+            # poller that was switched off from one that crashed.
+            "enabled": ENABLED,
             "assets": list(self.assets),
             "interval_seconds": self.interval,
             "provider": self.last_provider,

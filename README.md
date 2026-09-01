@@ -224,8 +224,8 @@ and the split is not a preference.
 | piece | where | why |
 |---|---|---|
 | web | **Vercel** — [iris-protocol.vercel.app](https://iris-protocol.vercel.app) | a Next.js app; nothing about it needs a server that stays up |
-| API, live feed, event stream | a container host (`render.yaml`) | a poller that ticks every 30s, a Postgres `LISTEN/NOTIFY` tail, WebSockets, and PyTorch |
-| the protocol cycle | a scheduled job (`render.yaml`) | agents do not run themselves |
+| API | **Render free** (`render.yaml`, `docker/api.slim.Dockerfile`) | every answer it gives is a database read |
+| the protocol cycle | **GitHub Actions** (`.github/workflows/cycle.yml`) | agents do not run themselves, and Render has no free cron |
 | Postgres + pgvector | **Neon** | the schema declares vector columns on `market_events` and `news_events` |
 
 **The API cannot run on Vercel.** Serverless functions are request-scoped: a
@@ -241,9 +241,59 @@ optimisation. Use Neon's **pooled** connection string for the services and the
 **direct** one for migrations — PgBouncer's transaction mode cannot run the DDL
 in `db/migrations` reliably.
 
-Sizing is measured rather than guessed: a transformer fit peaks at 463 MiB and
-takes 28 s, but the API container idles at 652 MiB with torch imported, which
-is what rules out a 512 MB instance.
+### Why the API and the cycle are split
+
+Sizing is measured, not guessed. A transformer fit peaks at **463 MiB** and
+takes 28 s — small. But the full API image idles at **652 MiB** purely from
+having imported torch, which does not fit a 512 MB instance.
+
+It does not have to. The API answers questions about what the protocol *did*,
+and every one of those answers is a database read; fitting models is the
+cycle's job. So `docker/api.slim.Dockerfile` drops torch, scipy and
+scikit-learn, and the same container serves every endpoint at **116 MiB**.
+
+That split is verified rather than hoped. Every router and service in
+`apps/api` imports clean of torch — checked, not assumed — and the one endpoint
+that did not, `/api/market/training`, now reads the snapshot through
+`ml.training.dataset`, which imports only numpy. If anything in the API ever
+tries to fit a model it fails loudly on an `ImportError` rather than quietly
+working in development and blowing the memory limit in production.
+
+Two consequences of the split had to be fixed rather than tolerated, because
+both made the product misreport itself:
+
+- **A disabled poller is not an unhealthy feed.** `/api/market/health` asked
+  whether *this process* was polling. On a sleeping free instance it never is,
+  and the tape can still be perfectly fresh — so the check now reports on the
+  data (lag, coverage) and only faults the poller when it is enabled and not
+  running.
+- **The snapshot has to be legible from another machine.** The cycle fits the
+  models and holds the snapshot file; the API has never seen it. It would have
+  answered "no training snapshot" and the §0c banner would have called real
+  models synthetic. Migration 0006 records the snapshot's *identity* — not the
+  series — in `training_snapshots`, so any process can report it honestly.
+
+### What free costs you
+
+A free deployment is a **dashboard over a protocol that runs elsewhere**. That
+is a different split of the same work, not a lesser version of it — but three
+things are genuinely worse and are worth knowing before you rely on it:
+
+| | |
+|---|---|
+| the API sleeps after 15 min idle | first visit after a quiet spell takes about a minute |
+| GitHub's scheduler is best-effort | cycles can run 15+ minutes late, or be skipped under load |
+| no persistent disk | the cycle refits models every run (~28 s each) |
+
+None of them corrupts the record. Settlement is driven by wall-clock horizons
+rather than cycle count, so a late run settles exactly what an on-time run
+would have; ingest is idempotent and its window is computed from the oldest
+prediction still awaiting evidence, so a skipped run is repaired by the next.
+The cost of missing a cycle is latency in the Arena, not a gap in the ledger.
+
+To move the cycle back onto the same host: add a `type: cron` service on a paid
+plan, switch to the full `docker/api.Dockerfile` on `plan: standard`, and set
+`IRIS_FEED_ENABLED=true`.
 
 Until the API is deployed, the site is honest about it rather than broken: with
 no API to reach, the provenance notice renders **"Provenance unconfirmed"**

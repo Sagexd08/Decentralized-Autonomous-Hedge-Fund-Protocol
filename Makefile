@@ -33,6 +33,7 @@ db-migrate: ## Apply migrations to a running database
 	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0003_risk.sql
 	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0004_events.sql
 	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0005_market.sql
+	$(COMPOSE) exec -T db psql -U iris -d iris -v ON_ERROR_STOP=1 < db/migrations/0006_training_snapshots.sql
 
 db-seed: ## Load development seed data
 	$(COMPOSE) exec -T db psql -U iris -d iris < db/seed/0001_seed.sql

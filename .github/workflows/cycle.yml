@@ -1,0 +1,98 @@
+# The protocol cycle, on a schedule.
+#
+# Render's free tier has no cron jobs — scheduled work needs a paid instance —
+# so the cycle runs here instead. This repository is public, so Actions minutes
+# are free, and the job is a good fit for the shape of the work: a few minutes
+# of CPU every ten minutes, with nothing to keep warm between runs.
+#
+# What this does NOT get you is punctuality. GitHub delays scheduled workflows
+# under load, sometimes by fifteen minutes or more, and drops them entirely
+# during incidents. That is survivable here and it is worth being precise about
+# why, rather than hoping:
+#
+#   * settlement is driven by wall-clock horizons, not by cycle count, so a
+#     late run settles exactly what an on-time run would have — just later;
+#   * ingest is idempotent and its window is computed from the oldest
+#     prediction still awaiting evidence, so a skipped run is repaired by the
+#     next one rather than leaving a permanent hole;
+#   * and nothing here holds state between runs.
+#
+# The cost of a missed run is therefore latency in the Arena, not a gap in the
+# record. If you need punctual cycles, this belongs on a paid scheduler.
+
+name: protocol cycle
+
+on:
+  schedule:
+    # Every ten minutes, matching DEFAULT_HORIZON_SECONDS: a prediction
+    # committed by one run has its horizon closed by the time the next arrives.
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      assets:
+        description: Comma-separated assets to run
+        default: BTC,ETH,SOL
+        required: false
+
+concurrency:
+  # Two cycles against one database would have both settling the same due
+  # predictions. The writes are guarded — an outcome cannot be restated — so
+  # the loser would error rather than corrupt anything, but a failing run is
+  # noise nobody should have to triage.
+  group: protocol-cycle
+  cancel-in-progress: false
+
+jobs:
+  cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install
+        # CPU-only torch. The default wheel drags in ~2.5GB of CUDA runtime
+        # that no runner here can use, and it dominates install time.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r apps/api/requirements.txt \
+            --extra-index-url https://download.pytorch.org/whl/cpu
+
+      - name: Run one protocol cycle
+        env:
+          # The Neon **pooled** connection string. Set this as a repository
+          # secret; it is the only credential this workflow needs.
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONPATH: ${{ github.workspace }}
+          # No persistent disk between runs, so models are refitted each time.
+          # A transformer fit is ~28s and there is one per agent, which is the
+          # dominant cost of this job and the reason for the 20 minute timeout.
+          IRIS_MODEL_DIR: /tmp/iris-models
+        run: |
+          python -m agents.runtime.cycle \
+            --assets "${{ inputs.assets || 'BTC,ETH,SOL' }}" \
+            --json | tee cycle.json
+
+      - name: Summarise
+        if: always()
+        run: |
+          if [ -f cycle.json ]; then
+            {
+              echo "### Protocol cycle"
+              echo ""
+              echo '| step | ok | seconds | detail |'
+              echo '|---|---|---|---|'
+              python - <<'PY'
+          import json
+          for s in json.load(open("cycle.json"))["steps"]:
+              mark = "yes" if s["ok"] else "**no**"
+              print(f'| {s["name"]} | {mark} | {s["seconds"]:.1f} | {s["detail"]} |')
+          PY
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi

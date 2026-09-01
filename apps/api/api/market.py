@@ -30,6 +30,18 @@ router = APIRouter()
 
 MAX_LIMIT = 1000
 
+# Mirrored from `ml.inference.artifacts` rather than imported, because that
+# module pulls in torch. `tests/unit/test_training_contract.py` asserts they
+# stay equal — the same tie-by-test used between the training horizon and the
+# decision horizon, and for the same reason: the honest alternative to an
+# import that costs half a gigabyte is a test that fails when they drift.
+CONTRACT_VERSION = 7
+TRAINING_HORIZON_STEPS = 10
+
+_SYNTHETIC_NOTE = (
+    "No training snapshot; models fall back to a synthetic tape — not a real market"
+)
+
 # The venue comparison calls three exchanges. Cached briefly so a dashboard
 # polling this endpoint cannot turn into a rate-limit ban.
 _DIVERGENCE_TTL = 30.0
@@ -135,9 +147,22 @@ def health(asset: str = Query("BTC")) -> dict:
             f"({coverage['distinct_minutes']}/{coverage['expected_minutes']} minutes)"
         )
 
+    # A poller that is switched off is not a broken feed.
+    #
+    # This asked whether *this process* is polling, and reported the feed
+    # unhealthy when it was not. That was right while the API was the only
+    # thing ingesting. In a split deployment — a sleeping free instance with
+    # the scheduled cycle doing the ingest — it is wrong: the tape can be
+    # perfectly fresh while nothing in this process has ever polled, and the
+    # health check would call it unhealthy, which pushes the §0c banner to
+    # "simulated" over genuinely live data.
+    #
+    # Health is a property of the *data*: how old the newest observation is and
+    # how much of the window is covered, both checked above. The poller only
+    # earns a reason when it is supposed to be running and is not.
     poller = feed.status()
-    if not poller["running"]:
-        reasons.append("the live feed poller is not running")
+    if poller.get("enabled", True) and not poller["running"]:
+        reasons.append("the live feed poller is enabled but not running")
     if poller["last_error"]:
         reasons.append(f"last poll error: {poller['last_error']}")
 
@@ -205,39 +230,51 @@ def training() -> dict:
     have done so every run. Nothing in the prediction, the hash, the settlement
     or the score reveals it. This does.
     """
-    from ml.inference.artifacts import (
-        CONTRACT_VERSION,
-        TRAINING_HORIZON_STEPS,
-        training_set,
-    )
-    from ml.training.dataset import current
+    # The database first, then local disk.
+    #
+    # `ml.training.dataset` reads a pointer file next to the fitted artifacts,
+    # which is correct when one machine both fits and serves. It is wrong the
+    # moment they are different machines: the scheduled cycle fits the models
+    # and holds the snapshot, the API serves the dashboard and has never seen
+    # it, so the API would report "no training snapshot" — and the §0c banner
+    # would say "synthetic models" over models fitted on real market data.
+    #
+    # So `refresh()` records the snapshot's identity in `training_snapshots`,
+    # and this reads that. The local file remains the fallback for a
+    # single-machine setup and for the case where the table is empty.
+    from ml.training.dataset import current, latest_recorded
 
-    snapshot = current()
-    series, key, note = training_set()
+    snapshot = None
+    with _connect() as conn:
+        recorded = latest_recorded(conn)
+    if recorded is None:
+        snapshot = current()
 
+    described = recorded or snapshot
     body: dict[str, Any] = {
-        "description": note,
-        "samples": int(series.size),
+        "description": described.describe() if described else _SYNTHETIC_NOTE,
+        "samples": described.samples if described else 0,
         "contract_version": CONTRACT_VERSION,
         "horizon_steps": TRAINING_HORIZON_STEPS,
-        "cache_key": key,
-        "is_real_market_data": snapshot is not None and snapshot.is_real,
+        "cache_key": described.digest if described else "synthetic",
+        "is_real_market_data": described is not None and described.is_real,
+        # Which of the two answered, so a split deployment is diagnosable
+        # rather than merely correct.
+        "source_of_record": "database" if recorded else
+                            ("local" if snapshot else "none"),
     }
 
-    if snapshot is not None:
-        import numpy as np
-
-        returns = np.diff(snapshot.series) / snapshot.series[:-1]
+    if described is not None:
         body.update(
             {
-                "asset": snapshot.asset,
-                "source": snapshot.source,
-                "provider": snapshot.provider,
-                "digest": snapshot.digest,
-                "first_at": snapshot.first_at,
-                "last_at": snapshot.last_at,
-                "frozen_at": snapshot.created_at,
-                "return_sd_bps": round(float(np.std(returns)) * 10_000, 3),
+                "asset": described.asset,
+                "source": described.source,
+                "provider": described.provider,
+                "digest": described.digest,
+                "first_at": described.first_at,
+                "last_at": described.last_at,
+                "frozen_at": described.created_at,
+                "return_sd_bps": described.return_sd_bps,
             }
         )
     else:

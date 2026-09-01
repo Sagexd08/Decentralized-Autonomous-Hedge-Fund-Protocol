@@ -1,0 +1,42 @@
+# The API's dependencies, without the machine-learning stack.
+#
+# The API answers questions about what the protocol did; it does not fit
+# models. Every router and service imports clean of torch — verified, not
+# assumed — so the only thing torch bought this image was half a gigabyte of
+# resident memory and ~3GB of layers.
+#
+# Model fitting and agent inference happen in the scheduled cycle, which
+# installs the full requirements.txt. Keep the two in step: anything added
+# below must also be in requirements.txt.
+
+fastapi==0.110.0
+uvicorn==0.27.0
+sqlalchemy>=2.0.36
+psycopg2-binary>=2.9.10
+redis==5.0.1
+numpy>=1.26.4
+pandas>=2.2.0
+# scipy>=1.13.0   # cycle only — see docker/api.Dockerfile
+# scikit-learn>=1.4.0   # cycle only — see docker/api.Dockerfile
+hmmlearn==0.3.3
+statsmodels==0.14.6
+python-dotenv==1.0.0
+pydantic>=2.9.0
+web3>=7.0.0
+httpx==0.26.0
+aiohttp>=3.9.0
+apify-client>=1.8.1
+pytest==8.1.1
+pytest-asyncio==0.23.5
+hypothesis==6.100.1
+# torch>=2.2.0   # cycle only — see docker/api.Dockerfile
+kagglehub>=0.3.0
+langchain>=0.3.27
+langchain-groq>=0.2.4
+python-multipart>=0.0.9
+
+# agent runtime (agents/) — see agents/requirements.txt
+langgraph>=1.0
+langgraph-checkpoint-postgres>=2.0
+langchain-core>=0.3
+psycopg[binary,pool]>=3.2

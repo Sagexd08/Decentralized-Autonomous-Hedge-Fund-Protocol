@@ -1,75 +1,71 @@
-# Production deployment for the protocol's server side.
+# Production deployment for the protocol's server side — free tier.
 #
-# The web app is on Vercel. Everything in this file is the half Vercel cannot
-# host, and the reason is not preference: the API holds a market-feed poller
-# that ticks every thirty seconds, a one-second tail over `protocol_events`,
-# WebSocket connections, and PyTorch. Serverless
-# functions are request-scoped — a poller with nobody calling it does not run,
-# and a socket does not survive the response.
+# The web app is on Vercel; Postgres is Neon. What is left is the API, and this
+# file is shaped by three facts about Render's free plan rather than by
+# preference:
 #
-# So there are three pieces, and each exists for a reason:
+#   1. A free instance has 512MB. The full API image idles at 652MiB with torch
+#      imported, so it cannot fit. It does not have to: the API answers
+#      questions about what the protocol did, and every one of those answers is
+#      a database read. `docker/api.slim.Dockerfile` drops torch, scipy and
+#      scikit-learn — verified rather than hoped, since every router and
+#      service imports clean of torch, and `/api/market/training` reads the
+#      snapshot through `ml.training.dataset`, which imports only numpy.
 #
-#   iris-api     the API, and with it the live feed and the event stream. One
-#                always-on process, because those two are lifespan tasks.
-#   iris-cycle   the protocol itself, on a schedule: ingest, run every agent,
-#                settle, score, sweep risk, allocate. Without this the API
-#                would keep a beautiful tape and never trade on it.
+#   2. A free service is suspended after fifteen minutes without inbound
+#      traffic and takes about a minute to wake. So the in-process market
+#      poller is switched off here (`IRIS_FEED_ENABLED=false`). A poller that
+#      runs only while somebody is looking is not a feed — it produces a tape
+#      with holes shaped like the traffic pattern. Ingest happens in the
+#      scheduled cycle instead, whose window is computed from the oldest
+#      prediction still awaiting evidence and therefore covers those gaps.
 #
-# Postgres is **Neon**, not a Render database, so it is not declared here —
-# `DATABASE_URL` is entered in the dashboard instead. The schema needs
-# `pgvector` (market_events and news_events carry embedding columns), which
-# Neon provides.
+#   3. **Free cron jobs do not exist on Render.** The protocol cycle — ingest,
+#      run every agent, settle, score, sweep risk, allocate — therefore runs in
+#      GitHub Actions: `.github/workflows/cycle.yml`, free on a public
+#      repository. Read the caveat about scheduling punctuality at the top of
+#      that file; it is real, and it is survivable for the reasons stated.
 #
-# Neon suspends an idle compute, which would break a protocol that depended on
-# `LISTEN/NOTIFY`. This one does not: the triggers call `pg_notify` as a fast
-# path, but `services/event_stream.py` polls on a one-second interval and
-# treats push as an optimisation. Use the **pooled** connection string for the
-# services below and the direct one for migrations — PgBouncer's transaction
-# mode cannot run the DDL in db/migrations reliably.
+# The thing to be honest about: a free deployment is a *dashboard over a
+# protocol that runs elsewhere*. That is not a lesser version of the paid
+# setup, it is a different split of the same work. To move the cycle back here,
+# add a `type: cron` service on a paid plan, switch this to the full
+# `docker/api.Dockerfile` on `plan: standard`, and set IRIS_FEED_ENABLED=true.
 #
 # Deploy: Render dashboard -> New -> Blueprint -> connect this repository.
-# Nothing here carries a secret; every credential is marked `sync: false` and
-# is entered in the dashboard, per section 0's no-keys-in-source rule.
+# Nothing here carries a secret; every credential is `sync: false` and entered
+# in the dashboard, per section 0's no-keys-in-source rule.
 
 services:
-  # ── the API, the live feed, and the event stream ──────────────────────────
   - type: web
     name: iris-api
     runtime: docker
-    dockerfilePath: ./docker/api.Dockerfile
+    # The slim image. `docker/api.Dockerfile` is the full one, and is what the
+    # GitHub Actions cycle installs the equivalent of.
+    dockerfilePath: ./docker/api.slim.Dockerfile
     dockerContext: .
-    # Standard, and the reason is the *baseline* rather than the peak. A
-    # transformer fit peaks at 463MiB and takes 28s — comfortably small. But
-    # the container idles at 652MiB with torch imported and the fitted models
-    # memoised, which is already past Starter's 512MB before any work happens.
-    # Measured, because the first version of this file guessed "torch OOMs on
-    # smaller instances" and would have been right by accident.
-    plan: standard
+    plan: free
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
-      # The Neon **pooled** connection string, entered in the dashboard.
+      # Neon's **pooled** connection string, entered in the dashboard. Use the
+      # direct one (drop `-pooler`) for migrations — PgBouncer's transaction
+      # mode cannot run the DDL in db/migrations reliably.
       - key: DATABASE_URL
         sync: false
       - key: PYTHONPATH
         value: /app
-      # Which venues to poll, and how often. The defaults in
-      # apps/api/services/market_feed.py are these; set explicitly so the
-      # deployed behaviour is legible from the blueprint rather than from code.
+      # Off, deliberately: see (2) above. The scheduled cycle ingests.
+      - key: IRIS_FEED_ENABLED
+        value: "false"
       - key: IRIS_FEED_ASSETS
         value: BTC,ETH,SOL
-      - key: IRIS_FEED_INTERVAL_SECONDS
-        value: "30"
-      - key: IRIS_FEED_BACKFILL_MINUTES
-        value: "720"
-      # Fitted model artifacts. On a disk rather than the image, so a redeploy
-      # does not refit every agent's model from cold — a transformer fit is
-      # ~28s and there is one per agent (invariant 3: model identity is per
-      # agent, so warming a shared seed would warm nothing anybody uses).
+      # No persistent disk on free, so nothing survives a restart. The slim
+      # image fits no models anyway; this only keeps the path valid.
       - key: IRIS_MODEL_DIR
-        value: /var/iris/models
-      # Entered in the dashboard. Absent, each degrades to a labelled
-      # simulation path rather than failing the boot.
+        value: /tmp/iris-models
+      # Read-only chain access for the dashboard. Absent, the Solana client
+      # degrades to a labelled simulation path rather than failing the boot.
       - key: SOLANA_RPC_URL
         value: https://api.devnet.solana.com
       - key: SOLANA_AGENT_REGISTRY
@@ -82,42 +78,3 @@ services:
         sync: false
       - key: SUPABASE_KEY
         sync: false
-    disk:
-      name: iris-models
-      mountPath: /var/iris
-      sizeGB: 2
-
-  # ── the protocol, on a schedule ───────────────────────────────────────────
-  #
-  # Every ten minutes, matching DEFAULT_HORIZON_SECONDS: a prediction committed
-  # by one run has its horizon closed by the time the next arrives, so nothing
-  # waits a full extra cycle to be settled.
-  #
-  # Ingest stays ON here even though the API polls too. They cannot collide:
-  # writes are idempotent against a partial unique index, so the loser of a
-  # race inserts nothing. And the cycle's ingest is the one that *heals* — its
-  # window is computed from the oldest prediction still awaiting evidence, so
-  # a gap left by an outage gets filled and those predictions finally settle.
-  # The API's fixed-window poller cannot reach back that far.
-  # `cron` is the type Render accepts; `cronjob` is rejected by the blueprint
-  # parser with "unknown type".
-  - type: cron
-    name: iris-cycle
-    runtime: docker
-    dockerfilePath: ./docker/api.Dockerfile
-    dockerContext: .
-    plan: standard
-    schedule: "*/10 * * * *"
-    dockerCommand: python -m agents.runtime.cycle --assets BTC,ETH,SOL
-    autoDeployTrigger: commit
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: PYTHONPATH
-        value: /app
-      # A cron job gets no persistent disk on Render, so this one refits the
-      # models it needs on each run rather than reading the API's cache. That
-      # is ~28s for a transformer and is why the schedule is ten minutes rather
-      # than one.
-      - key: IRIS_MODEL_DIR
-        value: /tmp/iris-models

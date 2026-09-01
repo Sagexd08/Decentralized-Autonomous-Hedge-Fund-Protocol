@@ -61,6 +61,43 @@ def test_both_layers_agree_on_how_often_the_feed_ticks():
     assert artifacts.FEED_STEP_SECONDS == FEED_STEP_SECONDS
 
 
+def test_the_api_mirrors_the_training_contract_rather_than_importing_it():
+    """
+    `apps/api/api/market.py` restates CONTRACT_VERSION and
+    TRAINING_HORIZON_STEPS instead of importing them.
+
+    That is deliberate — importing `ml.inference.artifacts` pulls in the model
+    registry and therefore torch, half a gigabyte of resident memory for two
+    integers, and it is what stopped the API fitting on a small instance. But a
+    copied constant drifts silently, so the copy is tied here: the honest price
+    of not importing is a test that fails the moment the two disagree.
+    """
+    import ast
+    from pathlib import Path as _Path
+
+    # Either the repo layout, or /app when running inside the api container,
+    # where apps/api *is* the working tree root.
+    candidates = [
+        _Path(__file__).resolve().parents[2] / "apps/api/api/market.py",
+        _Path("/app/api/market.py"),
+    ]
+    found = next((c for c in candidates if c.exists()), None)
+    assert found is not None, f"market.py not found in {candidates}"
+    source = found.read_text(encoding="utf-8")
+
+    mirrored = {
+        node.targets[0].id: node.value.value
+        for node in ast.parse(source).body
+        if isinstance(node, ast.Assign)
+        and isinstance(node.targets[0], ast.Name)
+        and isinstance(node.value, ast.Constant)
+        and node.targets[0].id in {"CONTRACT_VERSION", "TRAINING_HORIZON_STEPS"}
+    }
+
+    assert mirrored.get("CONTRACT_VERSION") == artifacts.CONTRACT_VERSION
+    assert mirrored.get("TRAINING_HORIZON_STEPS") == artifacts.TRAINING_HORIZON_STEPS
+
+
 # ── the decision threshold scales with the market ───────────────────────────
 
 def test_the_threshold_grows_with_observed_volatility():

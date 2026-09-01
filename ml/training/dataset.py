@@ -78,6 +78,21 @@ class Snapshot:
     def is_real(self) -> bool:
         return self.source == "LIVE"
 
+    @property
+    def return_sd_bps(self) -> Optional[float]:
+        """
+        The one-step return scale, in basis points.
+
+        The number that made the whole scale mismatch visible: the synthetic
+        tape sits near 60, one-minute BTC near 3.4. Carried on the snapshot so
+        a reader can tell at a glance which kind of series a model was fitted
+        on, without loading the series.
+        """
+        if self.series.size < 2:
+            return None
+        returns = np.diff(self.series) / self.series[:-1]
+        return round(float(np.std(returns)) * 10_000, 4)
+
     def describe(self) -> str:
         span = ""
         if self.first_at and self.last_at:
@@ -227,6 +242,92 @@ def current() -> Optional[Snapshot]:
     )
 
 
+def record(conn, snapshot: Snapshot) -> bool:
+    """
+    Write the snapshot's identity to `training_snapshots`.
+
+    The series stays on disk; only what it *is* goes to the database. That is
+    what lets a process which did not fit the models still report honestly on
+    them — the API on a small instance, say, while the scheduled cycle does the
+    fitting somewhere else. Without it that API answers "no training snapshot"
+    and the §0c banner calls real models synthetic.
+
+    Idempotent on the digest, because re-freezing an identical series is not a
+    new fact. Returns whether a row was inserted.
+    """
+    row = conn.execute(
+        """
+        insert into training_snapshots
+            (digest, asset, source, provider, samples, first_at, last_at,
+             return_sd_bps)
+        values (%s, %s, %s, %s, %s, %s, %s, %s)
+        on conflict (digest) do nothing
+        returning digest
+        """,
+        (snapshot.digest, snapshot.asset, snapshot.source, snapshot.provider,
+         snapshot.samples, snapshot.first_at, snapshot.last_at,
+         snapshot.return_sd_bps),
+    ).fetchone()
+    return row is not None
+
+
+@dataclass(frozen=True)
+class RecordedSnapshot:
+    """
+    A snapshot as the database knows it — identity without the series.
+
+    Deliberately not a `Snapshot`: it cannot be fitted on, and a type that
+    could be mistaken for one would invite exactly that.
+    """
+
+    digest: str
+    asset: str
+    source: str
+    provider: Optional[str]
+    samples: int
+    first_at: Optional[str]
+    last_at: Optional[str]
+    return_sd_bps: Optional[float]
+    created_at: str
+
+    @property
+    def is_real(self) -> bool:
+        return self.source == "LIVE"
+
+    def describe(self) -> str:
+        span = ""
+        if self.first_at and self.last_at:
+            span = f", {self.first_at[:16]} to {self.last_at[:16]}"
+        venue = self.provider or "synthetic"
+        return (
+            f"{self.asset} {self.source} via {venue}: "
+            f"{self.samples} samples{span} [{self.digest}]"
+        )
+
+
+def latest_recorded(conn) -> Optional[RecordedSnapshot]:
+    """The most recently frozen snapshot, as recorded in the database."""
+    try:
+        row = conn.execute(
+            """select digest, asset, source, provider, samples, first_at,
+                      last_at, return_sd_bps, created_at
+                 from training_snapshots
+                order by created_at desc limit 1"""
+        ).fetchone()
+    except Exception:  # noqa: BLE001 - before migration 0006, or no table
+        return None
+    if row is None:
+        return None
+    return RecordedSnapshot(
+        digest=row[0], asset=row[1], source=row[2], provider=row[3],
+        samples=int(row[4]),
+        first_at=row[5].isoformat() if row[5] else None,
+        last_at=row[6].isoformat() if row[6] else None,
+        return_sd_bps=float(row[7]) if row[7] is not None else None,
+        created_at=row[8].isoformat() if row[8] else "",
+    )
+
+
 def refresh(*, asset: str = "BTC", samples: int = 2000, source: str = "LIVE",
             dsn: Optional[str] = None) -> Snapshot:
     """Pull a fresh series from the feed, freeze it, and point the models at it."""
@@ -234,7 +335,11 @@ def refresh(*, asset: str = "BTC", samples: int = 2000, source: str = "LIVE",
 
     with connection(dsn) as conn:
         snapshot = build(conn, asset=asset, samples=samples, source=source)
-    save(snapshot)
+        save(snapshot)
+        # Recorded inside the same transaction as the read that produced it, so
+        # a snapshot cannot be announced in the database without the file that
+        # backs it having been written first.
+        record(conn, snapshot)
     return snapshot
 
 
