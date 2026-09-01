@@ -14,7 +14,7 @@
  * whether or not that held.
  */
 
-import { useCallback, useEffect, useState } from "react"
+import { Suspense, useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import {
   AlertCircle,
@@ -158,7 +158,39 @@ function NodeTrace({ detail }: { detail: RunDetail }) {
   )
 }
 
+/**
+ * The page, split around its `useSearchParams` call.
+ *
+ * Next prerenders every page at build time, and `useSearchParams` cannot be
+ * prerendered — the query string is not known until a request exists. Without
+ * a Suspense boundary to bail out at, the production build fails outright:
+ *
+ *     useSearchParams() should be wrapped in a suspense boundary at
+ *     page "/observatory"
+ *
+ * `next dev` renders on demand and never hits this, so the error appears for
+ * the first time in a deployment build. The fallback is the same header the
+ * page shows while loading, so the §0c provenance notice — which lives in the
+ * route layout above this — is on screen either way.
+ */
 export default function ObservatoryPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="mx-auto max-w-6xl space-y-6 p-6">
+          <div className="flex min-h-[30vh] items-center justify-center">
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        </main>
+      }
+    >
+      <Observatory />
+    </Suspense>
+  )
+}
+
+
+function Observatory() {
   const params = useSearchParams()
   const agentFilter = params.get("agent") ?? undefined
 
