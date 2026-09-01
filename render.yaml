@@ -1,0 +1,111 @@
+# Production deployment for the protocol's server side.
+#
+# The web app is on Vercel. Everything in this file is the half Vercel cannot
+# host, and the reason is not preference: the API holds a market-feed poller
+# that ticks every thirty seconds, a Postgres LISTEN/NOTIFY tail for the
+# protocol event stream, WebSocket connections, and PyTorch. Serverless
+# functions are request-scoped — a poller with nobody calling it does not run,
+# and a socket does not survive the response.
+#
+# So there are three pieces, and each exists for a reason:
+#
+#   iris-api     the API, and with it the live feed and the event stream. One
+#                always-on process, because those two are lifespan tasks.
+#   iris-cycle   the protocol itself, on a schedule: ingest, run every agent,
+#                settle, score, sweep risk, allocate. Without this the API
+#                would keep a beautiful tape and never trade on it.
+#   iris-db      Postgres. `pgvector` is required — the schema declares vector
+#                columns on market_events and news_events.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> connect this repository.
+# Nothing here carries a secret; every credential is marked `sync: false` and
+# is entered in the dashboard, per section 0's no-keys-in-source rule.
+
+databases:
+  - name: iris-db
+    databaseName: iris
+    user: iris
+    # pgvector ships in Render's Postgres 16 image but must be created by the
+    # migration; db/migrations/0001_init.sql does that in its first statement.
+    postgresMajorVersion: "16"
+    plan: basic-256mb
+
+services:
+  # ── the API, the live feed, and the event stream ──────────────────────────
+  - type: web
+    name: iris-api
+    runtime: docker
+    dockerfilePath: ./docker/api.Dockerfile
+    dockerContext: .
+    plan: standard          # torch needs the memory; starter OOMs on model fit
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: iris-db
+          property: connectionString
+      - key: PYTHONPATH
+        value: /app
+      # Which venues to poll, and how often. The defaults in
+      # apps/api/services/market_feed.py are these; set explicitly so the
+      # deployed behaviour is legible from the blueprint rather than from code.
+      - key: IRIS_FEED_ASSETS
+        value: BTC,ETH,SOL
+      - key: IRIS_FEED_INTERVAL_SECONDS
+        value: "30"
+      - key: IRIS_FEED_BACKFILL_MINUTES
+        value: "720"
+      # Fitted model artifacts. On a disk rather than the image, so a redeploy
+      # does not refit every agent's model from cold — one transformer fit is
+      # ~90s and there is one per agent (invariant 3: model identity is per
+      # agent, so warming a shared seed would warm nothing anybody uses).
+      - key: IRIS_MODEL_DIR
+        value: /var/iris/models
+      # Entered in the dashboard. Absent, each degrades to a labelled
+      # simulation path rather than failing the boot.
+      - key: SOLANA_RPC_URL
+        value: https://api.devnet.solana.com
+      - key: SOLANA_AGENT_REGISTRY
+        value: 6NTKNCtBnNAJjGfgFRNTPhbxBYz1GXv3mQRRdwdC2cNy
+      - key: SOLANA_CAPITAL_VAULT
+        value: HYxAvbCGmv7axJfQbbSxQXLyNiAhPQUyAsEo6nVUW1Gj
+      - key: GROQ_API_KEY
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+    disk:
+      name: iris-models
+      mountPath: /var/iris
+      sizeGB: 2
+
+  # ── the protocol, on a schedule ───────────────────────────────────────────
+  #
+  # Every ten minutes, matching DEFAULT_HORIZON_SECONDS: a prediction committed
+  # by one run has its horizon closed by the time the next arrives, so nothing
+  # waits a full extra cycle to be settled.
+  #
+  # `--no-ingest` is deliberate. The API's poller already keeps the tape
+  # current, and the cycle's own ingest exists for the case where it has fallen
+  # behind. Leave it off here and the two do not race for the same minutes;
+  # turn it on if you run the cycle without the API.
+  - type: cronjob
+    name: iris-cycle
+    runtime: docker
+    dockerfilePath: ./docker/api.Dockerfile
+    dockerContext: .
+    plan: standard
+    schedule: "*/10 * * * *"
+    dockerCommand: python -m agents.runtime.cycle --assets BTC,ETH,SOL
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: iris-db
+          property: connectionString
+      - key: PYTHONPATH
+        value: /app
+      - key: IRIS_MODEL_DIR
+        value: /var/iris/models

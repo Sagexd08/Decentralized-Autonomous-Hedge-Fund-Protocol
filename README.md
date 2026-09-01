@@ -216,6 +216,59 @@ calibrated once against a market that no longer exists.
 
 ---
 
+## Deployment
+
+The two halves of this system have genuinely different hosting requirements,
+and the split is not a preference.
+
+| piece | where | why |
+|---|---|---|
+| web | **Vercel** — [iris-protocol.vercel.app](https://iris-protocol.vercel.app) | a Next.js app; nothing about it needs a server that stays up |
+| API, live feed, event stream | a container host (`render.yaml`) | a poller that ticks every 30s, a Postgres `LISTEN/NOTIFY` tail, WebSockets, and PyTorch |
+| the protocol cycle | a scheduled job (`render.yaml`) | agents do not run themselves |
+| Postgres + pgvector | managed | the schema declares vector columns |
+
+**The API cannot run on Vercel.** Serverless functions are request-scoped: a
+market-feed poller with nobody calling it does not run, and a WebSocket does
+not survive the response. That is why `render.yaml` exists — Render's dashboard
+takes it directly (New → Blueprint → connect this repository), and any
+container host with a cron facility works the same way.
+
+Until the API is deployed, the site is honest about it rather than broken: with
+no API to reach, the provenance notice renders **"Provenance unconfirmed"**
+rather than claiming live data. That is the §0c rule doing its job in
+production, and it is what you should see on the URL above right now.
+
+### The protocol cycle
+
+Agents do not run themselves. One command drives a full cycle in the
+protocol's causal order:
+
+```bash
+make cycle    # ingest -> agents -> settle -> score -> risk -> allocate
+```
+
+Two properties make it safe to run unattended. It is **idempotent** — ingest
+writes only the minutes it is missing, settlement only touches due predictions
+— and **one failing step does not abort the rest**, because a venue outage
+must not stop settlement of predictions that already have their evidence.
+The exit code is non-zero if any step failed, so a scheduler can alert.
+
+It is also **self-healing after an outage**. The ingest window is computed from
+the oldest prediction still awaiting evidence rather than being a fixed
+lookback, so predictions whose horizons closed while the host was down get
+settled once it returns. A fixed window leaves them in `WAITING_FOR_OUTCOME`
+permanently while the exchange has had the missing minutes all along — which is
+exactly what happened here, and cost five real predictions until it was fixed.
+
+### Secrets
+
+`render.yaml` contains no credentials. Every secret is marked `sync: false` and
+entered in the dashboard, and each one that is absent degrades its subsystem to
+a labelled simulation path rather than failing the boot.
+
+---
+
 ## On-chain (devnet)
 
 Both Anchor programs are deployed and verified:

@@ -2,7 +2,7 @@
 .DEFAULT_GOAL := help
 COMPOSE := docker compose
 
-.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test verify-all warm settle feed score allocate risk events cycle devnet-build devnet-deploy devnet-address clean
+.PHONY: help up down logs ps build verify db-migrate db-seed db-shell test anchor-test verify-all warm settle feed feed-sim market train dataset why score allocate risk events cycle cycle-json devnet-build devnet-deploy devnet-address clean
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -109,12 +109,11 @@ score: ## Compute and store the IRIS Score for every agent
 allocate: ## Run one MWU allocation step
 	$(COMPOSE) exec -T api python -m agents.allocation.allocator
 
-cycle: ## The full loop: feed -> settle -> score -> risk -> allocate
-	@$(MAKE) --no-print-directory feed
-	@$(MAKE) --no-print-directory settle
-	@$(MAKE) --no-print-directory score
-	@$(MAKE) --no-print-directory risk
-	@$(MAKE) --no-print-directory allocate
+cycle: ## One full protocol cycle: ingest -> agents -> settle -> score -> risk -> allocate
+	$(COMPOSE) exec -T api python -m agents.runtime.cycle --assets BTC,ETH,SOL
+
+cycle-json: ## The same cycle, as JSON for a scheduler to parse
+	$(COMPOSE) exec -T api python -m agents.runtime.cycle --assets BTC,ETH,SOL --json
 
 clean: ## Stop the stack and DROP the database volume
 	$(COMPOSE) down -v
