@@ -2,8 +2,8 @@
 #
 # The web app is on Vercel. Everything in this file is the half Vercel cannot
 # host, and the reason is not preference: the API holds a market-feed poller
-# that ticks every thirty seconds, a Postgres LISTEN/NOTIFY tail for the
-# protocol event stream, WebSocket connections, and PyTorch. Serverless
+# that ticks every thirty seconds, a one-second tail over `protocol_events`,
+# WebSocket connections, and PyTorch. Serverless
 # functions are request-scoped — a poller with nobody calling it does not run,
 # and a socket does not survive the response.
 #
@@ -14,21 +14,22 @@
 #   iris-cycle   the protocol itself, on a schedule: ingest, run every agent,
 #                settle, score, sweep risk, allocate. Without this the API
 #                would keep a beautiful tape and never trade on it.
-#   iris-db      Postgres. `pgvector` is required — the schema declares vector
-#                columns on market_events and news_events.
+#
+# Postgres is **Neon**, not a Render database, so it is not declared here —
+# `DATABASE_URL` is entered in the dashboard instead. The schema needs
+# `pgvector` (market_events and news_events carry embedding columns), which
+# Neon provides.
+#
+# Neon suspends an idle compute, which would break a protocol that depended on
+# `LISTEN/NOTIFY`. This one does not: the triggers call `pg_notify` as a fast
+# path, but `services/event_stream.py` polls on a one-second interval and
+# treats push as an optimisation. Use the **pooled** connection string for the
+# services below and the direct one for migrations — PgBouncer's transaction
+# mode cannot run the DDL in db/migrations reliably.
 #
 # Deploy: Render dashboard -> New -> Blueprint -> connect this repository.
 # Nothing here carries a secret; every credential is marked `sync: false` and
 # is entered in the dashboard, per section 0's no-keys-in-source rule.
-
-databases:
-  - name: iris-db
-    databaseName: iris
-    user: iris
-    # pgvector ships in Render's Postgres 16 image but must be created by the
-    # migration; db/migrations/0001_init.sql does that in its first statement.
-    postgresMajorVersion: "16"
-    plan: basic-256mb
 
 services:
   # ── the API, the live feed, and the event stream ──────────────────────────
@@ -37,14 +38,19 @@ services:
     runtime: docker
     dockerfilePath: ./docker/api.Dockerfile
     dockerContext: .
-    plan: standard          # torch needs the memory; starter OOMs on model fit
+    # Standard, and the reason is the *baseline* rather than the peak. A
+    # transformer fit peaks at 463MiB and takes 28s — comfortably small. But
+    # the container idles at 652MiB with torch imported and the fitted models
+    # memoised, which is already past Starter's 512MB before any work happens.
+    # Measured, because the first version of this file guessed "torch OOMs on
+    # smaller instances" and would have been right by accident.
+    plan: standard
     healthCheckPath: /health
     autoDeployTrigger: commit
     envVars:
+      # The Neon **pooled** connection string, entered in the dashboard.
       - key: DATABASE_URL
-        fromDatabase:
-          name: iris-db
-          property: connectionString
+        sync: false
       - key: PYTHONPATH
         value: /app
       # Which venues to poll, and how often. The defaults in
@@ -57,8 +63,8 @@ services:
       - key: IRIS_FEED_BACKFILL_MINUTES
         value: "720"
       # Fitted model artifacts. On a disk rather than the image, so a redeploy
-      # does not refit every agent's model from cold — one transformer fit is
-      # ~90s and there is one per agent (invariant 3: model identity is per
+      # does not refit every agent's model from cold — a transformer fit is
+      # ~28s and there is one per agent (invariant 3: model identity is per
       # agent, so warming a shared seed would warm nothing anybody uses).
       - key: IRIS_MODEL_DIR
         value: /var/iris/models
@@ -87,10 +93,12 @@ services:
   # by one run has its horizon closed by the time the next arrives, so nothing
   # waits a full extra cycle to be settled.
   #
-  # `--no-ingest` is deliberate. The API's poller already keeps the tape
-  # current, and the cycle's own ingest exists for the case where it has fallen
-  # behind. Leave it off here and the two do not race for the same minutes;
-  # turn it on if you run the cycle without the API.
+  # Ingest stays ON here even though the API polls too. They cannot collide:
+  # writes are idempotent against a partial unique index, so the loser of a
+  # race inserts nothing. And the cycle's ingest is the one that *heals* — its
+  # window is computed from the oldest prediction still awaiting evidence, so
+  # a gap left by an outage gets filled and those predictions finally settle.
+  # The API's fixed-window poller cannot reach back that far.
   - type: cronjob
     name: iris-cycle
     runtime: docker
@@ -102,10 +110,12 @@ services:
     autoDeployTrigger: commit
     envVars:
       - key: DATABASE_URL
-        fromDatabase:
-          name: iris-db
-          property: connectionString
+        sync: false
       - key: PYTHONPATH
         value: /app
+      # A cron job gets no persistent disk on Render, so this one refits the
+      # models it needs on each run rather than reading the API's cache. That
+      # is ~28s for a transformer and is why the schedule is ten minutes rather
+      # than one.
       - key: IRIS_MODEL_DIR
-        value: /var/iris/models
+        value: /tmp/iris-models

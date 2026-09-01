@@ -226,13 +226,24 @@ and the split is not a preference.
 | web | **Vercel** — [iris-protocol.vercel.app](https://iris-protocol.vercel.app) | a Next.js app; nothing about it needs a server that stays up |
 | API, live feed, event stream | a container host (`render.yaml`) | a poller that ticks every 30s, a Postgres `LISTEN/NOTIFY` tail, WebSockets, and PyTorch |
 | the protocol cycle | a scheduled job (`render.yaml`) | agents do not run themselves |
-| Postgres + pgvector | managed | the schema declares vector columns |
+| Postgres + pgvector | **Neon** | the schema declares vector columns on `market_events` and `news_events` |
 
 **The API cannot run on Vercel.** Serverless functions are request-scoped: a
 market-feed poller with nobody calling it does not run, and a WebSocket does
 not survive the response. That is why `render.yaml` exists — Render's dashboard
 takes it directly (New → Blueprint → connect this repository), and any
 container host with a cron facility works the same way.
+
+Neon suspends an idle compute, which would break a protocol that depended on
+`LISTEN/NOTIFY`. This one does not: the triggers call `pg_notify` as a fast
+path, but the event stream polls once a second and treats push as an
+optimisation. Use Neon's **pooled** connection string for the services and the
+**direct** one for migrations — PgBouncer's transaction mode cannot run the DDL
+in `db/migrations` reliably.
+
+Sizing is measured rather than guessed: a transformer fit peaks at 463 MiB and
+takes 28 s, but the API container idles at 652 MiB with torch imported, which
+is what rules out a 512 MB instance.
 
 Until the API is deployed, the site is honest about it rather than broken: with
 no API to reach, the provenance notice renders **"Provenance unconfirmed"**
