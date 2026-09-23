@@ -1,284 +1,330 @@
 "use client"
 
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { SectionHeader } from "@/components/iris/section-header"
-import { AnimatedGlobe } from "@/components/visuals/animated-globe"
+/**
+ * Agent Floor — replaces the old World Monitor.
+ *
+ * That page rendered hardcoded macro headlines and a fake globe with no
+ * fetch behind any of it — the exact thing section 0c exists to prevent,
+ * just never wired to a `ProvenanceBanner` because nothing here ever
+ * pretended to be real to begin with. This page shows what actually happens:
+ * agents committing predictions, getting scored, and having capital
+ * reallocated between them, read live off `/ws/events` — the same outbox
+ * Arena and Ledger already trust, with no invented traffic and no timers.
+ *
+ * "Agents crossing" is not a board-game metaphor here. It is literal:
+ * `ALLOCATION_UPDATED` is capital moving from one agent's weight to
+ * another's, and this page's whole point is to make that motion visible as
+ * it happens rather than only as an after-the-fact leaderboard delta.
+ */
+
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import {
-  Globe,
-  AlertTriangle,
-  TrendingUp,
-  TrendingDown,
   Activity,
-  DollarSign,
+  AlertTriangle,
+  ArrowRightLeft,
+  Loader2,
+  Radar,
+  Snowflake,
   Zap,
-  RefreshCw,
-  Bell,
-  MapPin,
 } from "lucide-react"
 
-const worldEvents = [
-  {
-    region: "North America",
-    event: "Fed Rate Decision",
-    impact: "high",
-    type: "macro",
-    description: "Federal Reserve maintains rates, signals potential cut in Q2",
-    time: "2h ago",
-    sentiment: "bullish",
-  },
-  {
-    region: "Europe",
-    event: "ECB Policy Update",
-    impact: "medium",
-    type: "macro",
-    description: "European Central Bank holds steady, inflation concerns ease",
-    time: "4h ago",
-    sentiment: "neutral",
-  },
-  {
-    region: "Asia",
-    event: "China Manufacturing PMI",
-    impact: "high",
-    type: "economic",
-    description: "Manufacturing PMI beats expectations at 51.2 vs 50.5 expected",
-    time: "6h ago",
-    sentiment: "bullish",
-  },
-  {
-    region: "Middle East",
-    event: "Geopolitical Tension",
-    impact: "high",
-    type: "geopolitical",
-    description: "Escalating tensions affecting oil futures and risk sentiment",
-    time: "8h ago",
-    sentiment: "bearish",
-  },
-  {
-    region: "Global",
-    event: "BTC ETF Flows",
-    impact: "medium",
-    type: "crypto",
-    description: "Net inflows of $245M across spot Bitcoin ETFs",
-    time: "12h ago",
-    sentiment: "bullish",
-  },
+import { Badge } from "@/components/ui/badge"
+import { Card } from "@/components/ui/card"
+import {
+  ASSUMED_SIMULATION,
+  ProvenanceBadge,
+  ProvenanceBanner,
+} from "@/components/iris/provenance-banner"
+import { useProtocolEvents } from "@/hooks/use-protocol-events"
+import { ago, fetchArena, pct, type Arena, type ArenaEntry, type ProtocolEvent } from "@/lib/protocol"
+
+const WATCHED_KINDS = [
+  "RUN_STARTED",
+  "RUN_SUCCEEDED",
+  "RUN_FAILED",
+  "NODE_COMPLETED",
+  "PREDICTION_PREDICTED",
+  "PREDICTION_COMMITTED",
+  "PREDICTION_SETTLED",
+  "PREDICTION_SCORED",
+  "REPUTATION_UPDATED",
+  "ALLOCATION_UPDATED",
+  "RISK_DRAWDOWN_BREACH",
+  "RISK_VOLATILITY_BREACH",
+  "RISK_VAR_BREACH",
+  "AGENT_SLASHED",
+  "AGENT_FROZEN",
+  "AGENT_ACTIVE",
+  "AGENT_RETIRED",
 ]
 
-const marketRegimes = [
-  { name: "Risk Appetite", value: 67, trend: "up", color: "accent" },
-  { name: "Volatility Index", value: 18.4, trend: "down", color: "primary" },
-  { name: "Liquidity Score", value: 82, trend: "up", color: "chart-3" },
-  { name: "Correlation Index", value: 0.45, trend: "stable", color: "chart-4" },
-]
+const STATUS_STYLE: Record<string, string> = {
+  ACTIVE: "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
+  PROBATION: "bg-sky-500/15 text-sky-300 border-sky-500/30",
+  FROZEN: "bg-amber-500/15 text-amber-300 border-amber-500/30",
+  SLASHED: "bg-red-500/15 text-red-300 border-red-500/30",
+  RETIRED: "bg-zinc-500/15 text-zinc-300 border-zinc-500/30",
+}
 
-const liquidityHotspots = [
-  { exchange: "Binance", volume: "$2.1B", share: "28%", change: "+5.2%" },
-  { exchange: "Coinbase", volume: "$1.4B", share: "19%", change: "+3.1%" },
-  { exchange: "OKX", volume: "$980M", share: "13%", change: "-1.2%" },
-  { exchange: "Bybit", volume: "$720M", share: "10%", change: "+8.4%" },
-  { exchange: "Kraken", volume: "$540M", share: "7%", change: "+2.1%" },
-]
+const KIND_STYLE: Record<string, { label: string; className: string }> = {
+  RUN_STARTED: { label: "run started", className: "border-sky-500/30 text-sky-300" },
+  RUN_SUCCEEDED: { label: "run ok", className: "border-emerald-500/30 text-emerald-300" },
+  RUN_FAILED: { label: "run failed", className: "border-red-500/30 text-red-300" },
+  NODE_COMPLETED: { label: "node", className: "border-zinc-500/30 text-zinc-300" },
+  PREDICTION_PREDICTED: { label: "predicted", className: "border-sky-500/30 text-sky-300" },
+  PREDICTION_COMMITTED: { label: "committed", className: "border-primary/30 text-primary" },
+  PREDICTION_SETTLED: { label: "settled", className: "border-zinc-500/30 text-zinc-300" },
+  PREDICTION_SCORED: { label: "scored", className: "border-emerald-500/30 text-emerald-300" },
+  REPUTATION_UPDATED: { label: "reputation", className: "border-violet-500/30 text-violet-300" },
+  ALLOCATION_UPDATED: { label: "capital crossed", className: "border-accent/40 text-accent" },
+  AGENT_SLASHED: { label: "slashed", className: "border-red-500/30 text-red-300" },
+  AGENT_FROZEN: { label: "frozen", className: "border-amber-500/30 text-amber-300" },
+  AGENT_ACTIVE: { label: "reinstated", className: "border-emerald-500/30 text-emerald-300" },
+  AGENT_RETIRED: { label: "retired", className: "border-zinc-500/30 text-zinc-300" },
+}
 
-const alerts = [
-  { type: "warning", message: "High correlation detected between BTC and traditional risk assets", time: "1h ago" },
-  { type: "info", message: "Unusual volume spike on ETH/USDT pair", time: "3h ago" },
-  { type: "warning", message: "Geopolitical risk score elevated above threshold", time: "5h ago" },
-]
+function kindStyle(kind: string) {
+  if (kind.startsWith("RISK_")) {
+    return { label: kind.replace("RISK_", "").replace(/_/g, " ").toLowerCase(), className: "border-red-500/30 text-red-300" }
+  }
+  return KIND_STYLE[kind] ?? { label: kind.replace(/_/g, " ").toLowerCase(), className: "border-zinc-500/30 text-zinc-300" }
+}
 
-export default function WorldMonitorPage() {
+function agentLabel(entry: ArenaEntry | undefined, agentId: string | null) {
+  if (entry) return entry.name
+  return agentId ?? "protocol"
+}
+
+function EventLine({ event, agentName }: { event: ProtocolEvent; agentName: string }) {
+  const style = kindStyle(event.kind)
+  const payload = event.payload ?? {}
+
+  let detail: string | null = null
+  if (event.kind === "ALLOCATION_UPDATED") {
+    detail = `weight → ${pct(payload.weight as number, 1)}`
+  } else if (event.kind.startsWith("PREDICTION_")) {
+    detail = [payload.asset, payload.direction].filter(Boolean).join(" ")
+  } else if (event.kind === "REPUTATION_UPDATED") {
+    const score = payload.iris_score
+    detail = score === null || score === undefined ? "unranked" : `IRIS ${Number(score).toFixed(1)}`
+  } else if (event.kind.startsWith("RISK_")) {
+    detail = `${payload.measured_bps ?? "?"}bps vs ${payload.limit_bps ?? "?"}bps limit`
+  }
+
   return (
-    <div className="min-h-screen bg-transparent">
-      <div className="max-w-[1800px] mx-auto px-4 md:px-6 py-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
-          <SectionHeader
-            eyebrow="Intelligence"
-            title="World Monitor"
-            description="Global market intelligence and event monitoring for protocol decision-making."
-            className="mb-0"
-          />
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="bg-accent/10 text-accent border-accent/30">
-              <span className="w-2 h-2 rounded-full bg-accent animate-pulse mr-2" />
-              Live Feed
-            </Badge>
-            <Button variant="outline" size="sm">
-              <Bell className="w-4 h-4 mr-2" />
-              Alerts
-            </Button>
-            <Button variant="outline" size="sm">
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Refresh
-            </Button>
-          </div>
+    <div className="flex items-center gap-3 border-b border-border/20 px-4 py-2.5 text-sm last:border-0">
+      <span className="w-16 shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
+        {ago(event.created_at)}
+      </span>
+      <Badge variant="outline" className={`shrink-0 text-[10px] ${style.className}`}>
+        {style.label}
+      </Badge>
+      <span className="shrink-0 font-medium">{agentName}</span>
+      {detail && <span className="truncate font-mono text-xs text-muted-foreground">{detail}</span>}
+      <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground/60">
+        {event.data_source}
+      </span>
+    </div>
+  )
+}
+
+function Lane({ entry, active }: { entry: ArenaEntry; active: boolean }) {
+  return (
+    <Card className={`relative overflow-hidden p-4 transition-colors ${active ? "border-accent/50" : ""}`}>
+      {active && (
+        <span className="absolute inset-x-0 top-0 h-0.5 animate-pulse bg-accent" aria-hidden />
+      )}
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <Link href={`/observatory?agent=${entry.agent_id}`} className="font-medium hover:underline">
+            {entry.name}
+          </Link>
+          <p className="text-xs text-muted-foreground">{entry.strategy}</p>
         </div>
-
-        {/* Market Regime Indicators */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {marketRegimes.map((regime) => (
-            <div key={regime.name} className="glass rounded-xl p-6 border border-border/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-muted-foreground">{regime.name}</span>
-                {regime.trend === "up" && <TrendingUp className="w-4 h-4 text-accent" />}
-                {regime.trend === "down" && <TrendingDown className="w-4 h-4 text-destructive" />}
-                {regime.trend === "stable" && <Activity className="w-4 h-4 text-muted-foreground" />}
-              </div>
-              <div className="text-2xl font-bold text-foreground">
-                {typeof regime.value === "number" && regime.value < 1 ? regime.value.toFixed(2) : regime.value}
-                {regime.name.includes("Index") && regime.name !== "Correlation Index" ? "" : regime.name.includes("Score") || regime.name.includes("Appetite") ? "%" : ""}
-              </div>
-            </div>
-          ))}
+        <Badge variant="outline" className={STATUS_STYLE[entry.status] ?? ""}>
+          {entry.status === "FROZEN" && <Snowflake className="mr-1 h-3 w-3" />}
+          {entry.status}
+        </Badge>
+      </div>
+      <div className="mt-3 flex items-end justify-between">
+        <div>
+          <p className="text-[11px] text-muted-foreground">allocation</p>
+          <p className="font-mono text-lg tabular-nums">{pct(entry.allocation_weight, 1)}</p>
         </div>
-
-        {/* Main Content Grid */}
-        <div className="grid lg:grid-cols-3 gap-6">
-          {/* Globe Visualization */}
-          <div className="lg:col-span-2">
-            <div className="glass rounded-xl border border-border/30 overflow-hidden">
-              <div className="p-4 border-b border-border/30 flex items-center justify-between">
-                <h3 className="font-semibold text-foreground flex items-center gap-2">
-                  <Globe className="w-5 h-5 text-primary" />
-                  Global Activity Map
-                </h3>
-                <div className="flex items-center gap-4 text-xs">
-                  <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-accent" />
-                    <span className="text-muted-foreground">Bullish</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-destructive" />
-                    <span className="text-muted-foreground">Bearish</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-muted-foreground" />
-                    <span className="text-muted-foreground">Neutral</span>
-                  </div>
-                </div>
-              </div>
-              <div className="h-[400px]">
-                <AnimatedGlobe />
-              </div>
-            </div>
-
-            {/* World Events Feed */}
-            <div className="glass rounded-xl p-6 border border-border/30 mt-6">
-              <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                <Zap className="w-5 h-5 text-primary" />
-                Live Event Feed
-              </h3>
-
-              <div className="space-y-4">
-                {worldEvents.map((event, i) => (
-                  <div key={i} className="flex items-start gap-4 p-4 rounded-lg bg-muted/20 border border-border/20">
-                    <div className={`w-3 h-3 rounded-full mt-1.5 ${
-                      event.sentiment === "bullish" ? "bg-accent" :
-                      event.sentiment === "bearish" ? "bg-destructive" : "bg-muted-foreground"
-                    }`} />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-foreground">{event.event}</span>
-                        <Badge variant="outline" className={`text-[10px] ${
-                          event.impact === "high" ? "border-destructive/50 text-destructive" :
-                          event.impact === "medium" ? "border-chart-4/50 text-chart-4" :
-                          "border-muted-foreground/50 text-muted-foreground"
-                        }`}>
-                          {event.impact.toUpperCase()}
-                        </Badge>
-                        <Badge variant="outline" className="text-[10px]">
-                          {event.type}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-1">{event.description}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <MapPin className="w-3 h-3" />
-                        <span>{event.region}</span>
-                        <span>•</span>
-                        <span>{event.time}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Active Alerts */}
-            <div className="glass rounded-xl p-6 border border-border/30">
-              <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-destructive" />
-                Active Alerts
-              </h3>
-
-              <div className="space-y-3">
-                {alerts.map((alert, i) => (
-                  <div key={i} className={`p-3 rounded-lg border ${
-                    alert.type === "warning" ? "bg-destructive/10 border-destructive/30" : "bg-primary/10 border-primary/30"
-                  }`}>
-                    <p className="text-sm text-foreground mb-1">{alert.message}</p>
-                    <span className="text-xs text-muted-foreground">{alert.time}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Liquidity Hotspots */}
-            <div className="glass rounded-xl p-6 border border-border/30">
-              <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-primary" />
-                Liquidity Hotspots
-              </h3>
-
-              <div className="space-y-3">
-                {liquidityHotspots.map((hotspot, i) => (
-                  <div key={i} className="flex items-center justify-between py-2 border-b border-border/20 last:border-0">
-                    <div>
-                      <div className="text-sm text-foreground font-medium">{hotspot.exchange}</div>
-                      <div className="text-xs text-muted-foreground">{hotspot.share} market share</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm font-mono text-foreground">{hotspot.volume}</div>
-                      <div className={`text-xs font-mono ${hotspot.change.startsWith("+") ? "text-accent" : "text-destructive"}`}>
-                        {hotspot.change}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Protocol Response */}
-            <div className="glass rounded-xl p-6 border border-primary/30">
-              <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                <Activity className="w-5 h-5 text-primary" />
-                Protocol Response
-              </h3>
-
-              <div className="space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Current Regime</span>
-                  <Badge className="bg-accent/20 text-accent">Risk-On</Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Allocation Bias</span>
-                  <span className="text-foreground font-mono">+2.3% Aggressive</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Next Rebalance</span>
-                  <span className="text-foreground font-mono">1h 42m</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Active Agents</span>
-                  <span className="text-foreground font-mono">23/24</span>
-                </div>
-              </div>
-            </div>
-          </div>
+        <div className="text-right">
+          <p className="text-[11px] text-muted-foreground">IRIS</p>
+          <p className="font-mono text-lg tabular-nums">
+            {entry.iris_score === null ? "—" : entry.iris_score.toFixed(1)}
+          </p>
         </div>
       </div>
-    </div>
+    </Card>
+  )
+}
+
+export default function WorldMonitorPage() {
+  const [arena, setArena] = useState<Arena | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchArena()
+      .then((data) => !cancelled && setArena(data))
+      .catch((err) => !cancelled && setError(err instanceof Error ? err.message : String(err)))
+      .finally(() => !cancelled && setLoading(false))
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const { events, connected } = useProtocolEvents({ kinds: WATCHED_KINDS, replay: 60 })
+
+  // Re-poll the roster on anything that changes an agent's standing, so lanes
+  // reflect the same numbers the event ledger is describing rather than
+  // drifting from a stale initial fetch.
+  useEffect(() => {
+    if (!events.length) return
+    const kind = events[0].kind
+    if (!["ALLOCATION_UPDATED", "REPUTATION_UPDATED", "AGENT_SLASHED", "AGENT_FROZEN", "AGENT_ACTIVE", "AGENT_RETIRED"].includes(kind)) {
+      return
+    }
+    fetchArena().then(setArena).catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events.length])
+
+  const allAgents = useMemo(
+    () => [...(arena?.ranked ?? []), ...(arena?.unranked ?? [])],
+    [arena],
+  )
+  const byId = useMemo(() => {
+    const map = new Map<string, ArenaEntry>()
+    for (const entry of allAgents) map.set(entry.agent_id, entry)
+    return map
+  }, [allAgents])
+
+  // Agents with activity in the last ~20s, for the pulse on their lane.
+  const recentlyActive = useMemo(() => {
+    const cutoff = Date.now() - 20_000
+    const set = new Set<string>()
+    for (const event of events) {
+      if (!event.agent_id) continue
+      if (new Date(event.created_at).getTime() >= cutoff) set.add(event.agent_id)
+    }
+    return set
+  }, [events])
+
+  const crossings = useMemo(
+    () => events.filter((e) => e.kind === "ALLOCATION_UPDATED").slice(0, 8),
+    [events],
+  )
+
+  const provenance = arena?.provenance ?? ASSUMED_SIMULATION
+
+  return (
+    <main className="mx-auto max-w-6xl space-y-6 p-6">
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Radar className="h-5 w-5 text-primary" />
+            <h1 className="text-2xl font-semibold">Agent Floor</h1>
+            <ProvenanceBadge sources={provenance.sources} />
+          </div>
+          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Zap className={`h-3.5 w-3.5 ${connected ? "text-emerald-400" : "text-zinc-500"}`} />
+            {connected ? "live" : "reconnecting"}
+          </span>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          Every agent's lane, and the live outbox of everything they're doing — predictions
+          committed, outcomes settled, scores updated, capital crossing between them as
+          allocation shifts.
+        </p>
+        <ProvenanceBanner provenance={provenance} />
+      </header>
+
+      {loading ? (
+        <div className="flex min-h-[30vh] items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        </div>
+      ) : error || !arena ? (
+        <Card className="flex items-start gap-3 border-red-500/40 bg-red-500/10 p-4">
+          <AlertTriangle className="mt-0.5 h-4 w-4 text-red-300" />
+          <div>
+            <p className="font-medium text-red-200">The Floor could not load.</p>
+            <p className="mt-1 text-xs text-red-200/80">{error}</p>
+          </div>
+        </Card>
+      ) : (
+        <>
+          {crossings.length > 0 && (
+            <section className="space-y-2">
+              <h2 className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                <ArrowRightLeft className="h-3.5 w-3.5" />
+                Recent crossings
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {crossings.map((event) => {
+                  const entry = event.agent_id ? byId.get(event.agent_id) : undefined
+                  return (
+                    <span
+                      key={event.seq}
+                      className="inline-flex items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-2.5 py-1 text-xs"
+                    >
+                      <span className="font-medium">{agentLabel(entry, event.agent_id)}</span>
+                      <span className="font-mono text-accent">
+                        → {pct(event.payload.weight as number, 1)}
+                      </span>
+                      <span className="text-muted-foreground">{ago(event.created_at)}</span>
+                    </span>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          <section className="space-y-3">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Floor ({allAgents.length} agents)
+            </h2>
+            {allAgents.length === 0 ? (
+              <Card className="p-6 text-sm text-muted-foreground">No agents registered yet.</Card>
+            ) : (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {allAgents.map((entry) => (
+                  <Lane key={entry.agent_id} entry={entry} active={recentlyActive.has(entry.agent_id)} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section className="space-y-3">
+            <h2 className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <Activity className="h-3.5 w-3.5" />
+              Live activity
+            </h2>
+            <Card className="overflow-hidden p-0">
+              {events.length === 0 ? (
+                <p className="p-6 text-sm text-muted-foreground">
+                  No activity yet. Run <code className="font-mono">make cycle</code> to produce
+                  some.
+                </p>
+              ) : (
+                <div className="max-h-[480px] overflow-y-auto">
+                  {events.map((event) => (
+                    <EventLine
+                      key={event.seq}
+                      event={event}
+                      agentName={agentLabel(event.agent_id ? byId.get(event.agent_id) : undefined, event.agent_id)}
+                    />
+                  ))}
+                </div>
+              )}
+            </Card>
+          </section>
+        </>
+      )}
+    </main>
   )
 }

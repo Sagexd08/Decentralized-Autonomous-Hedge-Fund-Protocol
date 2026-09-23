@@ -22,6 +22,7 @@ const navItems = [
   // because they are the ones driven entirely by real rows — the routes below
   // are the pre-v2 dashboard and still read from the legacy API.
   { href: "/arena", label: "Arena" },
+  { href: "/world-monitor", label: "Floor" },
   { href: "/observatory", label: "Observatory" },
   { href: "/ledger", label: "Ledger" },
   { href: "/agents", label: "Agents" },
@@ -32,7 +33,6 @@ const navItems = [
   { href: "/analytics", label: "Analytics" },
   { href: "/governance", label: "Governance" },
   { href: "/contracts", label: "Contracts" },
-  { href: "/world-monitor", label: "World" },
   { href: "/pnl-history", label: "PnL" },
 ]
 
